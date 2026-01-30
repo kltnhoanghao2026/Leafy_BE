@@ -11,6 +11,12 @@ spring:
       password: ${MONGODB_PASSWORD:admin123}
       authentication-database: admin
 
+brevo:
+  api-key: ${BREVO_API_KEY:your-brevo-api-key-here}
+  default-sender-email: ${BREVO_SENDER_EMAIL:noreply@leafy.com}
+  default-sender-name: ${BREVO_SENDER_NAME:Leafy Team}
+  enabled: ${BREVO_ENABLED:true}
+
 notification:
   email:
     enabled: ${NOTIFICATION_EMAIL_ENABLED:true}
