@@ -7,6 +7,7 @@ import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
@@ -30,108 +31,114 @@ import java.util.UUID;
 @Slf4j
 public class S3ServiceImpl implements S3Service {
 
-    S3AsyncClient s3AsyncClient;
+        S3AsyncClient s3AsyncClient;
 
-    @NonFinal
-    @Value("${aws.s3.bucket}")
-    String bucketName;
+        @NonFinal
+        @Value("${aws.s3.bucket}")
+        String bucketName;
 
-    @Override
-    public Mono<String> uploadFile(FilePart filePart) {
-        String filename = filePart.filename();
-        String key = UUID.randomUUID() + "-" + filename;
+        @Override
+        public Mono<String> uploadFile(FilePart filePart) {
+                String filename = filePart.filename();
+                String key = UUID.randomUUID() + "-" + filename;
 
-        long contentLength = filePart.headers().getContentLength();
+                return DataBufferUtils.join(filePart.content())
+                                .flatMap(dataBuffer -> {
+                                        long contentLength = dataBuffer.readableByteCount();
+                                        String contentType = "application/octet-stream";
+                                        if (filePart.headers().getContentType() != null) {
+                                                contentType = filePart.headers().getContentType().toString();
+                                        }
 
-        String contentType = "application/octet-stream";
+                                        Map<String, String> metadata = Map.of("filename", filename);
 
-        if (filePart.headers().getContentType() != null) {
-            contentType = filePart.headers().getContentType().toString();
+                                        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                                                        .contentType(contentType)
+                                                        .contentLength(contentLength)
+                                                        .metadata(metadata)
+                                                        .bucket(bucketName)
+                                                        .key(key)
+                                                        .build();
+
+                                        log.info("Uploading file to S3: bucket={}, key={}, size={}", bucketName, key,
+                                                        contentLength);
+
+                                        return Mono.fromFuture(
+                                                        s3AsyncClient.putObject(
+                                                                        putObjectRequest,
+                                                                        AsyncRequestBody.fromByteBuffer(
+                                                                                        dataBuffer.toByteBuffer())))
+                                                        .map(response -> {
+                                                                log.info("File uploaded successfully to S3: key={}",
+                                                                                key);
+                                                                return key;
+                                                        });
+                                });
         }
 
-        Map<String, String> metadata = Map.of("filename", filename);
+        @Override
+        public Flux<DataBuffer> downloadFile(String s3Key) {
+                log.info("Downloading file from S3: bucket={}, key={}", bucketName, s3Key);
 
-        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                .contentType(contentType)
-                .contentLength(contentLength)
-                .metadata(metadata)
-                .bucket(bucketName)
-                .key(key)
-                .build();
-
-        log.info("Uploading file to S3: bucket={}, key={}", bucketName, key);
-
-        return Mono.fromFuture(
-                s3AsyncClient.putObject(
-                        putObjectRequest,
-                        AsyncRequestBody.fromPublisher(filePart.content().map(DataBuffer::toByteBuffer))))
-                .map(response -> {
-                    log.info("File uploaded successfully to S3: key={}", key);
-                    return key;
-                });
-    }
-
-    @Override
-    public Flux<DataBuffer> downloadFile(String s3Key) {
-        log.info("Downloading file from S3: bucket={}, key={}", bucketName, s3Key);
-
-        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                .bucket(bucketName)
-                .key(s3Key)
-                .build();
-
-        return Flux.from(
-                Mono.fromFuture(
-                        s3AsyncClient.getObject(
-                                getObjectRequest,
-                                AsyncResponseTransformer.toPublisher()))
-                        .flatMapMany(response -> {
-                            log.info("File download started from S3: key={}", s3Key);
-                            return Flux.from(response)
-                                    .map(byteBuffer -> {
-                                        byte[] bytes = new byte[byteBuffer.remaining()];
-                                        byteBuffer.get(bytes);
-                                        return new DefaultDataBufferFactory().wrap(bytes);
-                                    });
-                        }));
-    }
-
-    @Override
-    public Mono<Void> deleteFile(String s3Key) {
-        log.info("Deleting file from S3: bucket={}, key={}", bucketName, s3Key);
-
-        DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
-                .bucket(bucketName)
-                .key(s3Key)
-                .build();
-
-        return Mono.fromFuture(s3AsyncClient.deleteObject(deleteObjectRequest))
-                .doOnSuccess(response -> log.info("File deleted successfully from S3: key={}", s3Key))
-                .then();
-    }
-
-    @Override
-    public Mono<String> generatePresignedUrl(String s3Key, int expirationMinutes) {
-        log.info("Generating presigned URL for S3 key: {}, expiration: {} minutes", s3Key, expirationMinutes);
-
-        return Mono.fromCallable(() -> {
-            try (S3Presigner presigner = S3Presigner.create()) {
                 GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                        .bucket(bucketName)
-                        .key(s3Key)
-                        .build();
+                                .bucket(bucketName)
+                                .key(s3Key)
+                                .build();
 
-                GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                        .signatureDuration(Duration.ofMinutes(expirationMinutes))
-                        .getObjectRequest(getObjectRequest)
-                        .build();
+                return Flux.from(
+                                Mono.fromFuture(
+                                                s3AsyncClient.getObject(
+                                                                getObjectRequest,
+                                                                AsyncResponseTransformer.toPublisher()))
+                                                .flatMapMany(response -> {
+                                                        log.info("File download started from S3: key={}", s3Key);
+                                                        return Flux.from(response)
+                                                                        .map(byteBuffer -> {
+                                                                                byte[] bytes = new byte[byteBuffer
+                                                                                                .remaining()];
+                                                                                byteBuffer.get(bytes);
+                                                                                return new DefaultDataBufferFactory()
+                                                                                                .wrap(bytes);
+                                                                        });
+                                                }));
+        }
 
-                PresignedGetObjectRequest presignedRequest = presigner.presignGetObject(presignRequest);
-                String url = presignedRequest.url().toString();
+        @Override
+        public Mono<Void> deleteFile(String s3Key) {
+                log.info("Deleting file from S3: bucket={}, key={}", bucketName, s3Key);
 
-                log.info("Presigned URL generated successfully for key: {}", s3Key);
-                return url;
-            }
-        });
-    }
+                DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                                .bucket(bucketName)
+                                .key(s3Key)
+                                .build();
+
+                return Mono.fromFuture(s3AsyncClient.deleteObject(deleteObjectRequest))
+                                .doOnSuccess(response -> log.info("File deleted successfully from S3: key={}", s3Key))
+                                .then();
+        }
+
+        @Override
+        public Mono<String> generatePresignedUrl(String s3Key, int expirationMinutes) {
+                log.info("Generating presigned URL for S3 key: {}, expiration: {} minutes", s3Key, expirationMinutes);
+
+                return Mono.fromCallable(() -> {
+                        try (S3Presigner presigner = S3Presigner.create()) {
+                                GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                                                .bucket(bucketName)
+                                                .key(s3Key)
+                                                .build();
+
+                                GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                                                .signatureDuration(Duration.ofMinutes(expirationMinutes))
+                                                .getObjectRequest(getObjectRequest)
+                                                .build();
+
+                                PresignedGetObjectRequest presignedRequest = presigner.presignGetObject(presignRequest);
+                                String url = presignedRequest.url().toString();
+
+                                log.info("Presigned URL generated successfully for key: {}", s3Key);
+                                return url;
+                        }
+                });
+        }
 }

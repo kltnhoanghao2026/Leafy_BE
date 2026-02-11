@@ -17,5 +17,5 @@ spring:
 
 aws:
   s3:
-    bucket: my-microservice-bucket
-  region: us-east-1
+    bucket: leafy-meida-storage
+  region: ap-southeast-1

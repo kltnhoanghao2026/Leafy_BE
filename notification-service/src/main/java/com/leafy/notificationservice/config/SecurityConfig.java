@@ -1,29 +1,28 @@
-package com.leafy.common.config;
+package com.leafy.notificationservice.config;
 
+import com.leafy.common.config.SecurityProperties;
 import com.leafy.common.security.SecurityContextFilter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Common Security Configuration
- * Provides security context setup for servlet-based services behind API Gateway
- * Enable this by setting: bondhub.security.gateway-auth.enabled=true
+ * Service-specific Security Configuration
  */
 @Configuration
+@EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true, securedEnabled = true)
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "bondhub.security.gateway-auth.enabled", havingValue = "true")
-@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-public class CommonSecurityConfig {
+@Import({ SecurityProperties.class, SecurityContextFilter.class })
+public class SecurityConfig {
 
     private final SecurityContextFilter securityContextFilter;
     private final SecurityProperties securityProperties;
@@ -36,11 +35,11 @@ public class CommonSecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     // Permit internal service-to-service communication
                     auth.requestMatchers("/internal/**").permitAll();
-                    
+
                     // Permit base endpoints
                     auth.requestMatchers("/").permitAll();
                     auth.requestMatchers("/error", "/actuator/**").permitAll();
-                    
+
                     // Swagger/OpenAPI endpoints
                     auth.requestMatchers("/v3/api-docs/**").permitAll();
                     auth.requestMatchers("/swagger-ui/**").permitAll();

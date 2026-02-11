@@ -5,8 +5,8 @@ import com.leafy.fileservice.dto.request.FileUpdateRequest;
 import com.leafy.fileservice.dto.request.FileUploadRequest;
 import com.leafy.fileservice.dto.response.FileDetailsResponse;
 import com.leafy.fileservice.dto.response.FileResponse;
-import com.leafy.fileservice.service.s3.S3Service;
 import com.leafy.fileservice.service.file.FileService;
+import com.leafy.fileservice.service.s3.S3Service;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -40,14 +40,12 @@ public class FileController {
     /**
      * Upload file to S3 and create metadata
      *
-     * @param filePart   the file part from multipart request
-     * @param uploadedBy the user ID who uploaded the file
+     * @param filePart the file part from multipart request
      * @return Mono containing the created file response
      */
     @PostMapping("/upload")
     public Mono<ResponseEntity<ApiResponse<FileResponse>>> uploadFile(
-            @RequestPart("file") FilePart filePart,
-            @RequestParam String uploadedBy) {
+            @RequestPart("file") FilePart filePart) {
         log.info("POST /files/upload - Uploading file: {}", filePart.filename());
 
         return s3Service.uploadFile(filePart)
@@ -60,14 +58,15 @@ public class FileController {
                                     ? filePart.headers().getContentType().toString()
                                     : "application/octet-stream")
                             .fileSize(filePart.headers().getContentLength())
-                            .uploadedBy(uploadedBy)
                             .build();
 
-                    FileResponse response = fileService.createFile(request);
-                    log.info("File uploaded and metadata created: fileId={}, s3Key={}", response.getId(), s3Key);
-
-                    return Mono.just(ResponseEntity.status(HttpStatus.CREATED)
-                            .body(ApiResponse.success(response)));
+                    return fileService.createFile(request)
+                            .map(response -> {
+                                log.info("File uploaded and metadata created: fileId={}, s3Key={}", response.getId(),
+                                        s3Key);
+                                return ResponseEntity.status(HttpStatus.CREATED)
+                                        .body(ApiResponse.success(response));
+                            });
                 })
                 .onErrorResume(error -> {
                     log.error("Error uploading file: {}", error.getMessage(), error);
@@ -86,23 +85,19 @@ public class FileController {
     public Mono<ResponseEntity<Flux<DataBuffer>>> downloadFileById(@PathVariable String fileId) {
         log.info("GET /files/download/{} - Downloading file", fileId);
 
-        return Mono.fromCallable(() -> {
-            // Get file metadata
-            FileResponse fileResponse = fileService.getFileById(fileId);
-            String s3Key = fileResponse.getS3Key();
-
-            // Download from S3
-            Flux<DataBuffer> fileData = s3Service.downloadFile(s3Key);
-
-            return ResponseEntity.ok()
-                    .header("Content-Type", fileResponse.getContentType())
-                    .header("Content-Disposition",
-                            "attachment; filename=\"" + fileResponse.getOriginalFileName() + "\"")
-                    .body(fileData);
-        }).onErrorResume(error -> {
-            log.error("Error downloading file: {}", error.getMessage(), error);
-            return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
-        });
+        return fileService.getFileById(fileId)
+                .map(fileResponse -> {
+                    Flux<DataBuffer> fileData = s3Service.downloadFile(fileResponse.getS3Key());
+                    return ResponseEntity.ok()
+                            .header("Content-Type", fileResponse.getContentType())
+                            .header("Content-Disposition",
+                                    "attachment; filename=\"" + fileResponse.getOriginalFileName() + "\"")
+                            .body(fileData);
+                })
+                .onErrorResume(error -> {
+                    log.error("Error downloading file: {}", error.getMessage(), error);
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
+                });
     }
 
     /**
@@ -140,12 +135,12 @@ public class FileController {
             @RequestParam(defaultValue = "60") int expirationMinutes) {
         log.info("GET /files/presigned-url/{} - Generating presigned URL", fileId);
 
-        return Mono.fromCallable(() -> fileService.getFileById(fileId))
-                .flatMap(fileResponse -> s3Service.generatePresignedUrl(fileResponse.getS3Key(), expirationMinutes)
-                        .map(url -> {
-                            log.info("Presigned URL generated for fileId={}", fileId);
-                            return ResponseEntity.ok(ApiResponse.success(url));
-                        }))
+        return fileService.getFileById(fileId)
+                .flatMap(fileResponse -> s3Service.generatePresignedUrl(fileResponse.getS3Key(), expirationMinutes))
+                .map(url -> {
+                    log.info("Presigned URL generated for fileId={}", fileId);
+                    return ResponseEntity.ok(ApiResponse.success(url));
+                })
                 .onErrorResume(error -> {
                     log.error("Error generating presigned URL: {}", error.getMessage(), error);
                     return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -157,14 +152,14 @@ public class FileController {
      * Create file metadata record
      *
      * @param request the file upload request
-     * @return the created file response
+     * @return Mono containing the created file response
      */
     @PostMapping
-    public ResponseEntity<ApiResponse<FileResponse>> createFile(@Valid @RequestBody FileUploadRequest request) {
+    public Mono<ResponseEntity<ApiResponse<FileResponse>>> createFile(@Valid @RequestBody FileUploadRequest request) {
         log.info("POST /files - Creating file metadata");
-        FileResponse response = fileService.createFile(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response));
+        return fileService.createFile(request)
+                .map(response -> ResponseEntity.status(HttpStatus.CREATED)
+                        .body(ApiResponse.success(response)));
     }
 
     /**
@@ -172,54 +167,54 @@ public class FileController {
      *
      * @param fileId  the file ID
      * @param request the file update request
-     * @return the updated file response
+     * @return Mono containing the updated file response
      */
     @PutMapping("/{fileId}")
-    public ResponseEntity<ApiResponse<FileResponse>> updateFile(
+    public Mono<ResponseEntity<ApiResponse<FileResponse>>> updateFile(
             @PathVariable String fileId,
             @Valid @RequestBody FileUpdateRequest request) {
         log.info("PUT /files/{} - Updating file metadata", fileId);
-        FileResponse response = fileService.updateFile(fileId, request);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return fileService.updateFile(fileId, request)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)));
     }
 
     /**
      * Get file by ID
      *
      * @param fileId the file ID
-     * @return the file response
+     * @return Mono containing the file response
      */
     @GetMapping("/{fileId}")
-    public ResponseEntity<ApiResponse<FileResponse>> getFileById(@PathVariable String fileId) {
+    public Mono<ResponseEntity<ApiResponse<FileResponse>>> getFileById(@PathVariable String fileId) {
         log.info("GET /files/{} - Getting file by ID", fileId);
-        FileResponse response = fileService.getFileById(fileId);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return fileService.getFileById(fileId)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)));
     }
 
     /**
      * Get file details by ID (includes all audit fields)
      *
      * @param fileId the file ID
-     * @return the file details response
+     * @return Mono containing the file details response
      */
     @GetMapping("/{fileId}/details")
-    public ResponseEntity<ApiResponse<FileDetailsResponse>> getFileDetailsById(@PathVariable String fileId) {
+    public Mono<ResponseEntity<ApiResponse<FileDetailsResponse>>> getFileDetailsById(@PathVariable String fileId) {
         log.info("GET /files/{}/details - Getting file details by ID", fileId);
-        FileDetailsResponse response = fileService.getFileDetailsById(fileId);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return fileService.getFileDetailsById(fileId)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)));
     }
 
     /**
      * Get file by S3 key
      *
      * @param s3Key the S3 key
-     * @return the file response
+     * @return Mono containing the file response
      */
     @GetMapping("/s3-key/{s3Key}")
-    public ResponseEntity<ApiResponse<FileResponse>> getFileByS3Key(@PathVariable String s3Key) {
+    public Mono<ResponseEntity<ApiResponse<FileResponse>>> getFileByS3Key(@PathVariable String s3Key) {
         log.info("GET /files/s3-key/{} - Getting file by S3 key", s3Key);
-        FileResponse response = fileService.getFileByS3Key(s3Key);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return fileService.getFileByS3Key(s3Key)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)));
     }
 
     /**
@@ -229,10 +224,10 @@ public class FileController {
      * @param size    page size (default: 20)
      * @param sortBy  field to sort by (default: createdAt)
      * @param sortDir sort direction (default: DESC)
-     * @return page of file responses
+     * @return Mono containing page of file responses
      */
     @GetMapping
-    public ResponseEntity<ApiResponse<Page<FileResponse>>> getAllFiles(
+    public Mono<ResponseEntity<ApiResponse<Page<FileResponse>>>> getAllFiles(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -244,8 +239,8 @@ public class FileController {
                 : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<FileResponse> response = fileService.getAllFiles(pageable);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return fileService.getAllFiles(pageable)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)));
     }
 
     /**
@@ -255,10 +250,10 @@ public class FileController {
      * @param size    page size (default: 20)
      * @param sortBy  field to sort by (default: createdAt)
      * @param sortDir sort direction (default: DESC)
-     * @return page of active file responses
+     * @return Mono containing page of active file responses
      */
     @GetMapping("/active")
-    public ResponseEntity<ApiResponse<Page<FileResponse>>> getActiveFiles(
+    public Mono<ResponseEntity<ApiResponse<Page<FileResponse>>>> getActiveFiles(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -270,8 +265,8 @@ public class FileController {
                 : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<FileResponse> response = fileService.getActiveFiles(pageable);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return fileService.getActiveFiles(pageable)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)));
     }
 
     /**
@@ -282,10 +277,10 @@ public class FileController {
      * @param size       page size (default: 20)
      * @param sortBy     field to sort by (default: createdAt)
      * @param sortDir    sort direction (default: DESC)
-     * @return page of file responses
+     * @return Mono containing page of file responses
      */
     @GetMapping("/user/{uploadedBy}")
-    public ResponseEntity<ApiResponse<Page<FileResponse>>> getFilesByUploadedBy(
+    public Mono<ResponseEntity<ApiResponse<Page<FileResponse>>>> getFilesByUploadedBy(
             @PathVariable String uploadedBy,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -298,8 +293,8 @@ public class FileController {
                 : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<FileResponse> response = fileService.getFilesByUploadedBy(uploadedBy, pageable);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return fileService.getFilesByUploadedBy(uploadedBy, pageable)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)));
     }
 
     /**
@@ -310,10 +305,10 @@ public class FileController {
      * @param size       page size (default: 20)
      * @param sortBy     field to sort by (default: createdAt)
      * @param sortDir    sort direction (default: DESC)
-     * @return page of file responses
+     * @return Mono containing page of file responses
      */
     @GetMapping("/search")
-    public ResponseEntity<ApiResponse<Page<FileResponse>>> searchFiles(
+    public Mono<ResponseEntity<ApiResponse<Page<FileResponse>>>> searchFiles(
             @RequestParam String searchTerm,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -326,59 +321,59 @@ public class FileController {
                 : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<FileResponse> response = fileService.searchFiles(searchTerm, pageable);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return fileService.searchFiles(searchTerm, pageable)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)));
     }
 
     /**
      * Delete (deactivate) file by ID
      *
      * @param fileId the file ID
-     * @return success response
+     * @return Mono containing success response
      */
     @DeleteMapping("/{fileId}")
-    public ResponseEntity<ApiResponse<Void>> deleteFile(@PathVariable String fileId) {
+    public Mono<ResponseEntity<ApiResponse<Void>>> deleteFile(@PathVariable String fileId) {
         log.info("DELETE /files/{} - Deleting file", fileId);
-        fileService.deleteFile(fileId);
-        return ResponseEntity.ok(ApiResponse.successWithoutData());
+        return fileService.deleteFile(fileId)
+                .then(Mono.just(ResponseEntity.ok(ApiResponse.successWithoutData())));
     }
 
     /**
      * Activate file
      *
      * @param fileId the file ID
-     * @return the activated file response
+     * @return Mono containing the activated file response
      */
     @PatchMapping("/{fileId}/activate")
-    public ResponseEntity<ApiResponse<FileResponse>> activateFile(@PathVariable String fileId) {
+    public Mono<ResponseEntity<ApiResponse<FileResponse>>> activateFile(@PathVariable String fileId) {
         log.info("PATCH /files/{}/activate - Activating file", fileId);
-        FileResponse response = fileService.activateFile(fileId);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return fileService.activateFile(fileId)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)));
     }
 
     /**
      * Deactivate file
      *
      * @param fileId the file ID
-     * @return the deactivated file response
+     * @return Mono containing the deactivated file response
      */
     @PatchMapping("/{fileId}/deactivate")
-    public ResponseEntity<ApiResponse<FileResponse>> deactivateFile(@PathVariable String fileId) {
+    public Mono<ResponseEntity<ApiResponse<FileResponse>>> deactivateFile(@PathVariable String fileId) {
         log.info("PATCH /files/{}/deactivate - Deactivating file", fileId);
-        FileResponse response = fileService.deactivateFile(fileId);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return fileService.deactivateFile(fileId)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)));
     }
 
     /**
      * Check if S3 key exists
      *
      * @param s3Key the S3 key to check
-     * @return true if exists, false otherwise
+     * @return Mono containing true if exists, false otherwise
      */
     @GetMapping("/check-s3-key")
-    public ResponseEntity<ApiResponse<Boolean>> checkS3KeyExists(@RequestParam String s3Key) {
+    public Mono<ResponseEntity<ApiResponse<Boolean>>> checkS3KeyExists(@RequestParam String s3Key) {
         log.info("GET /files/check-s3-key - Checking if S3 key exists: {}", s3Key);
-        boolean exists = fileService.existsByS3Key(s3Key);
-        return ResponseEntity.ok(ApiResponse.success(exists));
+        return fileService.existsByS3Key(s3Key)
+                .map(exists -> ResponseEntity.ok(ApiResponse.success(exists)));
     }
 }
