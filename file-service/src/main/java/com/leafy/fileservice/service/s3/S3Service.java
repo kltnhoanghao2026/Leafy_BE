@@ -1,5 +1,6 @@
 package com.leafy.fileservice.service.s3;
 
+import com.leafy.fileservice.dto.response.S3UploadResponse;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.codec.multipart.FilePart;
 import reactor.core.publisher.Flux;
@@ -14,9 +15,9 @@ public interface S3Service {
      * Upload file to S3
      *
      * @param filePart the file part from multipart request
-     * @return Mono containing the S3 key
+     * @return Mono containing the S3 upload response with key and file size
      */
-    Mono<String> uploadFile(FilePart filePart);
+    Mono<S3UploadResponse> uploadFile(FilePart filePart);
 
     /**
      * Download file from S3
@@ -42,4 +43,5 @@ public interface S3Service {
      * @return Mono containing the presigned URL
      */
     Mono<String> generatePresignedUrl(String s3Key, int expirationMinutes);
+
 }

@@ -1,5 +1,6 @@
 package com.leafy.fileservice.service.s3;
 
+import com.leafy.fileservice.dto.response.S3UploadResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -38,7 +39,7 @@ public class S3ServiceImpl implements S3Service {
         String bucketName;
 
         @Override
-        public Mono<String> uploadFile(FilePart filePart) {
+        public Mono<S3UploadResponse> uploadFile(FilePart filePart) {
                 String filename = filePart.filename();
                 String key = UUID.randomUUID() + "-" + filename;
 
@@ -69,9 +70,12 @@ public class S3ServiceImpl implements S3Service {
                                                                         AsyncRequestBody.fromByteBuffer(
                                                                                         dataBuffer.toByteBuffer())))
                                                         .map(response -> {
-                                                                log.info("File uploaded successfully to S3: key={}",
-                                                                                key);
-                                                                return key;
+                                                                log.info("File uploaded successfully to S3: key={}, size={}",
+                                                                                key, contentLength);
+                                                                return S3UploadResponse.builder()
+                                                                                .s3Key(key)
+                                                                                .fileSize(contentLength)
+                                                                                .build();
                                                         });
                                 });
         }
