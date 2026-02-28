@@ -6,6 +6,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.FieldType;
 import org.springframework.data.mongodb.core.mapping.MongoId;
 
 import java.time.LocalDateTime;
@@ -25,7 +26,7 @@ import java.time.LocalDateTime;
 @CompoundIndex(name = "user_device_idx", def = "{'userId': 1, 'deviceId': 1}", unique = true)
 public class Device extends BaseModel {
     
-    @MongoId
+    @MongoId(FieldType.OBJECT_ID)
     String id;
     
     /**
