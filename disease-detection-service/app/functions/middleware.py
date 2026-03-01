@@ -79,9 +79,11 @@ async def lifespan(app: FastAPI):
     logger.info("Service startup complete - ready to handle requests")
     
     yield
-    
+
     # Shutdown
     logger.info("Shutting down the application")
+    from app.repositories.diagnose_repository import DiagnoseRepository
+    DiagnoseRepository.close()
 
 
 async def add_process_time_header(request: Request, call_next):

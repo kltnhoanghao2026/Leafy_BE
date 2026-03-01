@@ -14,6 +14,8 @@ class ErrorCode(Enum):
     MODEL_NOT_LOADED = (2003, "AI Model not loaded", 503)
     NO_DETECTIONS = (2004, "No detections found in image", 404)
     INVALID_MODEL_TYPE = (2005, "Invalid model type specified", 400)
+    DIAGNOSE_REQUEST_NOT_FOUND = (2006, "Diagnose request not found", 404)
+    DIAGNOSE_RESULT_NOT_FOUND = (2007, "Diagnose result not found", 404)
 
     def __init__(self, code: int, message: str, status_code: int):
         self.code = code

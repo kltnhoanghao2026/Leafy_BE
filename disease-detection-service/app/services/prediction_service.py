@@ -6,12 +6,17 @@ from PIL import Image
 from fastapi import UploadFile
 
 from app.config.config import config
+from app.config.security import UserPrincipal
 from app.inference.ai_model_inference import AIModelInference
 from app.dto.prediction.prediction_dto import PredictionResponse, PredictionResult
 from app.exceptions.app_exception import AppException
 from app.exceptions.error_code import ErrorCode
+from app.models.diagnose_request import DiagnoseRequest
+from app.models.diagnose_result import DiagnoseResult, DiseaseResult
+from app.repositories.diagnose_repository import DiagnoseRepository
 
 logger = logging.getLogger(__name__)
+
 
 class PredictionService:
     @staticmethod
@@ -32,28 +37,76 @@ class PredictionService:
     def validate_file(file: UploadFile) -> bytes:
         if not file.content_type or not file.content_type.startswith('image/'):
              raise AppException(ErrorCode.INVALID_FILE_TYPE)
-        
+
         image_bytes = file.file.read()
         if len(image_bytes) == 0:
              raise AppException(ErrorCode.EMPTY_FILE)
         return image_bytes
 
+    # ------------------------------------------------------------------ #
+    #  Internal helpers                                                    #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _save_request(file: UploadFile, user_id: str) -> str:
+        """Persist DiagnoseRequest to MongoDB; returns diagnoseRequestId."""
+        try:
+            doc = DiagnoseRequest(
+                userId=user_id,
+                imageFileName=file.filename or "unknown",
+                imageContentType=file.content_type or "image/unknown",
+            )
+            return DiagnoseRepository.save_request(doc.to_dict())
+        except Exception as e:
+            logger.error(f"Could not save DiagnoseRequest: {e}")
+            return ""
+
+    @staticmethod
+    def _save_result(diagnose_request_id: str, user_id: str, predictions: list) -> None:
+        """Persist DiagnoseResult to MongoDB (all top-K predictions)."""
+        try:
+            disease_results = [
+                DiseaseResult(
+                    diseaseName=p.get("className", "unknown"),
+                    confidenceScore=p.get("confidenceScore", 0.0),
+                )
+                for p in predictions
+            ]
+            doc = DiagnoseResult(
+                diagnoseRequestId=diagnose_request_id,
+                userId=user_id,
+                result=disease_results,
+            )
+            DiagnoseRepository.save_result(doc.to_dict())
+        except Exception as e:
+            logger.error(f"Could not save DiagnoseResult: {e}")
+
+    # ------------------------------------------------------------------ #
+    #  Public prediction methods                                           #
+    # ------------------------------------------------------------------ #
+
     @classmethod
-    def predict(cls, file: UploadFile, model) -> dict:
+    def predict(cls, file: UploadFile, model, current_user: UserPrincipal) -> dict:
         start_time = time.time()
-        
+
         try:
              image_bytes = cls.validate_file(file)
              image_array = cls.preprocess_image(image_bytes)
-             
+
              if not model:
                   raise AppException(ErrorCode.MODEL_NOT_LOADED)
 
+             # Persist request before inference
+             diagnose_request_id = cls._save_request(file, current_user.id)
+
              predictions = AIModelInference.perform_inference(model, image_array)
              processing_time = (time.time() - start_time) * 1000
-             
+
+             # Persist result after inference
+             cls._save_result(diagnose_request_id, current_user.id, predictions)
+
              prediction_results = [PredictionResult(**p) for p in predictions]
-             
+
              response = PredictionResponse(
                   predictions=prediction_results,
                   modelName=config.MODEL_NAME,
@@ -64,21 +117,27 @@ class PredictionService:
              file.file.close()
 
     @classmethod
-    def predict_tflite(cls, file: UploadFile, tflite_interpreter) -> dict:
+    def predict_tflite(cls, file: UploadFile, tflite_interpreter, current_user: UserPrincipal) -> dict:
          start_time = time.time()
-         
+
          try:
              image_bytes = cls.validate_file(file)
              image_array = cls.preprocess_image(image_bytes)
-             
+
              if not tflite_interpreter:
                   raise AppException(ErrorCode.MODEL_NOT_LOADED)
 
+             # Persist request before inference
+             diagnose_request_id = cls._save_request(file, current_user.id)
+
              predictions = AIModelInference.perform_tflite_inference(tflite_interpreter, image_array)
              processing_time = (time.time() - start_time) * 1000
-             
+
+             # Persist result after inference
+             cls._save_result(diagnose_request_id, current_user.id, predictions)
+
              prediction_results = [PredictionResult(**p) for p in predictions]
-             
+
              response = PredictionResponse(
                   predictions=prediction_results,
                   modelName=f"{config.MODEL_NAME}-TFLite",

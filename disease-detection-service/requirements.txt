@@ -17,3 +17,6 @@ pydantic-settings==2.6.1
 py_eureka_client==0.13.3
 python-dotenv==1.0.1
 
+# Database
+pymongo==4.10.1
+
