@@ -82,7 +82,7 @@ services:
       - "8761:8761"
     environment:
       SPRING_APPLICATION_NAME: discovery-server
-      SERVER_PORT: 8761
+      SERVER_PORT_DISCOVERY: 8761
       EUREKA_CLIENT_REGISTER_WITH_EUREKA: "false"
       EUREKA_CLIENT_FETCH_REGISTRY: "false"
     networks:
@@ -127,6 +127,7 @@ services:
       SPRING_APPLICATION_NAME: api-gateway
       SERVER_PORT: 8060
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
       SPRING_CLOUD_CONFIG_URI: http://config-server:8888
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379

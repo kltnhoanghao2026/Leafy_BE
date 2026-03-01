@@ -22,7 +22,7 @@ config-server/src/main/resources/config/
 
 ### Configuration Hierarchy
 
-1. **[application.yaml](src/main/resources/config/application.yaml)** - Shared configuration for all services
+1. **[application.yaml](src/main/resources/config/application.yml)** - Shared configuration for all services
    - MongoDB connection
    - Kafka settings
    - Eureka client
@@ -30,8 +30,8 @@ config-server/src/main/resources/config/
    - Common logging
 
 2. **Service-specific configurations**:
-   - **[api-gateway.yaml](src/main/resources/config/api-gateway.yaml)** - Gateway routes, circuit breakers, Redis, JWT
-   - **[auth-service.yaml](src/main/resources/config/auth-service.yaml)** - Authentication, JWT, Redis, Email
+   - **[api-gateway.yaml](src/main/resources/config/api-gateway.yml)** - Gateway routes, circuit breakers, Redis, JWT
+   - **[auth-service.yaml](src/main/resources/config/auth-service.yml)** - Authentication, JWT, Redis, Email
    - **[user-service.yaml](src/main/resources/config/user-service.yaml)** - User management
    - **[farm-service.yaml](src/main/resources/config/farm-service.yaml)** - Farm operations
    - **[file-service.yaml](src/main/resources/config/file-service.yaml)** - File storage, upload limits

@@ -10,31 +10,22 @@ import org.springframework.context.annotation.Configuration;
 @Getter
 @Setter
 public class KafkaTopicProperties {
-
-    private AccountEvents accountEvents = new AccountEvents();
+    
     private UserEvents userEvents = new UserEvents();
     private MessageEvents messageEvents = new MessageEvents();
     private NotificationEvents notificationEvents = new NotificationEvents();
 
     @Getter
     @Setter
-    public static class AccountEvents {
-        private String registered = "account.registered";
-        private String updated = "account.updated";
-        private String deleted = "account.deleted";
-        private String verified = "account.verified";
-        private String enabled = "account.enabled";
-        private String disabled = "account.disabled";
-    }
-
-    @Getter
-    @Setter
     public static class UserEvents {
-        private String created = "user.created";
+        private String registered = "user.registered";
         private String updated = "user.updated";
         private String deleted = "user.deleted";
+        private String verified = "user.verified";
+        private String enabled = "user.enabled";
+        private String disabled = "user.disabled";
     }
-
+    
     @Getter
     @Setter
     public static class MessageEvents {

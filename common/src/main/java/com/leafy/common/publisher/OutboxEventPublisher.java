@@ -5,7 +5,6 @@ import com.leafy.common.event.account.AccountRegisteredEvent;
 import com.leafy.common.model.kafka.EventType;
 import com.leafy.common.model.kafka.OutboxEvent;
 import com.leafy.common.repository.OutboxEventRepository;
-import com.leafy.common.event.user.UserCreatedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -118,23 +117,19 @@ public class OutboxEventPublisher {
 
     private String getTopicForEventType(EventType eventType) {
         return switch (eventType) {
-            case ACCOUNT_REGISTERED -> kafkaTopicProperties.getAccountEvents().getRegistered();
-            case ACCOUNT_UPDATED -> kafkaTopicProperties.getAccountEvents().getUpdated();
-            case ACCOUNT_DELETED -> kafkaTopicProperties.getAccountEvents().getDeleted();
-            case ACCOUNT_VERIFIED -> kafkaTopicProperties.getAccountEvents().getVerified();
-            case ACCOUNT_ENABLED -> kafkaTopicProperties.getAccountEvents().getEnabled();
-            case ACCOUNT_DISABLED -> kafkaTopicProperties.getAccountEvents().getDisabled();
-            case USER_CREATED -> kafkaTopicProperties.getUserEvents().getCreated();
+            case USER_REGISTERED -> kafkaTopicProperties.getUserEvents().getRegistered();
             case USER_UPDATED -> kafkaTopicProperties.getUserEvents().getUpdated();
             case USER_DELETED -> kafkaTopicProperties.getUserEvents().getDeleted();
+            case USER_VERIFIED -> kafkaTopicProperties.getUserEvents().getVerified();
+            case USER_ENABLED -> kafkaTopicProperties.getUserEvents().getEnabled();
+            case USER_DISABLED -> kafkaTopicProperties.getUserEvents().getDisabled();
         };
     }
 
     private Class<?> getEventClassForType(EventType eventType) {
         return switch (eventType) {
-            case ACCOUNT_REGISTERED, ACCOUNT_UPDATED, ACCOUNT_DELETED, 
-                 ACCOUNT_VERIFIED, ACCOUNT_ENABLED, ACCOUNT_DISABLED -> AccountRegisteredEvent.class;
-            case USER_CREATED, USER_UPDATED, USER_DELETED -> UserCreatedEvent.class;
+            case USER_REGISTERED, USER_UPDATED, USER_DELETED, 
+                 USER_VERIFIED, USER_ENABLED, USER_DISABLED -> AccountRegisteredEvent.class;
         };
     }
 }

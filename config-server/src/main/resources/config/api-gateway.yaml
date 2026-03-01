@@ -1,91 +1,205 @@
+server:
+  port: ${SERVER_PORT_GATEWAY}
+
 spring:
   cloud:
     gateway:
-      globalcors:
-        corsConfigurations:
-          "[/**]":
-            allowedOrigins: "*"
-            allowedMethods:
-              - GET
-              - POST
-              - PUT
-              - DELETE
-              - PATCH
-              - OPTIONS
-            allowedHeaders: "*"
-            allowCredentials: false
+      server:
+        webflux:
+          routes:
+            # Actuator Routes
+            - id: actuator-routes
+              uri: http://localhost:${SERVER_PORT_GATEWAY}
+              predicates:
+                - Path=/actuator/**
 
-      routes:
-        # Auth Service Routes
-        - id: auth-service
-          uri: lb://auth-service
-          predicates:
-            - Path=/api/auth/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: authServiceCircuitBreaker
-                fallbackUri: forward:/fallback/auth-service
+            # Auth Service Routes
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: authServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/auth-service
 
-        # User Service Routes
-        - id: user-service
-          uri: lb://user-service
-          predicates:
-            - Path=/api/users/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: userServiceCircuitBreaker
-                fallbackUri: forward:/fallback/user-service
+            # Device Management Routes (Auth Service)
+            - id: device-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/devices/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: authServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/auth-service
 
-        # Farm Service Routes
-        - id: farm-service
-          uri: lb://farm-service
-          predicates:
-            - Path=/api/farms/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: farmServiceCircuitBreaker
-                fallbackUri: forward:/fallback/farm-service
+            # User Service Routes
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/users/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: userServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/user-service
 
-        # File Service Routes
-        - id: file-service
-          uri: lb://file-service
-          predicates:
-            - Path=/api/files/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: fileServiceCircuitBreaker
-                fallbackUri: forward:/fallback/file-service
+            # Farm Service Routes
+            - id: farm-service
+              uri: lb://farm-service
+              predicates:
+                - Path=/api/farms/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: farmServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/farm-service
 
-        # Notification Service Routes
-        - id: notification-service
-          uri: lb://notification-service
-          predicates:
-            - Path=/api/notifications/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: notificationServiceCircuitBreaker
-                fallbackUri: forward:/fallback/notification-service
+            # File Service Routes
+            - id: file-service
+              uri: lb://file-service
+              predicates:
+                - Path=/api/files/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: fileServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/file-service
 
-      default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            # Notification Service Routes
+            - id: notification-service
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/notifications/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: notificationServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/notification-service
+
+            # Plant Management Service Routes
+            - id: plant-management-service
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/plants/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
+            # Profile Service Routes
+            - id: profile-service
+              uri: lb://profile-service
+              predicates:
+                - Path=/api/profiles/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: profileServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/profile-service
+
+            # OpenAPI Documentation Routes for Auth Service
+            - id: auth-service-openapi
+              uri: lb://auth-service
+              predicates:
+                - Path=/auth-service/v3/api-docs/**
+              filters:
+                - RewritePath=/auth-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for User Service
+            - id: user-service-openapi
+              uri: lb://user-service
+              predicates:
+                - Path=/user-service/v3/api-docs/**
+              filters:
+                - RewritePath=/user-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for Farm Service
+            - id: farm-service-openapi
+              uri: lb://farm-service
+              predicates:
+                - Path=/farm-service/v3/api-docs/**
+              filters:
+                - RewritePath=/farm-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for File Service
+            - id: file-service-openapi
+              uri: lb://file-service
+              predicates:
+                - Path=/file-service/v3/api-docs/**
+              filters:
+                - RewritePath=/file-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for Notification Service
+            - id: notification-service-openapi
+              uri: lb://notification-service
+              predicates:
+                - Path=/notification-service/v3/api-docs/**
+              filters:
+                - RewritePath=/notification-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for Plant Management Service
+            - id: plant-management-service-openapi
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/plant-management-service/v3/api-docs/**
+              filters:
+                - RewritePath=/plant-management-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for Profile Service
+            - id: profile-service-openapi
+              uri: lb://profile-service
+              predicates:
+                - Path=/profile-service/v3/api-docs/**
+              filters:
+                - RewritePath=/profile-service/v3/api-docs, /v3/api-docs
+
+          globalCors:
+            cors-configurations:
+              "[/**]":
+                allowed-origins:
+                  - "http://localhost:3000"
+                  - "http://localhost:5173"
+                  - "https://your-domain.com"
+                allowed-methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - PATCH
+                  - OPTIONS
+                allowed-headers:
+                  - "*"
+                  - "Authorization"
+                  - "Content-Type"
+                  - "User-Agent"
+                  - "X-Device-ID"
+                  - "X-User-Id"
+                  - "X-Device-Id"
+                exposed-headers:
+                  - "Set-Cookie"
+                  - "Authorization"
+                allow-credentials: true
+                max-age: 3600
   kafka:
     enabled: false
   # Redis Configuration for Token Blacklist
   data:
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
-      password: ${SPRING_DATA_REDIS_PASSWORD:redis123}
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
       timeout: 60000
       lettuce:
         pool:
@@ -93,19 +207,16 @@ spring:
           max-idle: 8
           min-idle: 0
 
-server:
-  port: ${SERVER_PORT:8060}
-
 # Eureka Client Configuration
 eureka:
   client:
     serviceUrl:
-      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
     registerWithEureka: true
     fetchRegistry: true
   instance:
     preferIpAddress: true
-    hostname: ${HOSTNAME:localhost}
+    hostname: ${HOSTNAME}
 
 # Actuator Configuration
 management:
@@ -148,6 +259,10 @@ resilience4j:
         baseConfig: default
       notificationServiceCircuitBreaker:
         baseConfig: default
+      plantManagementServiceCircuitBreaker:
+        baseConfig: default
+      profileServiceCircuitBreaker:
+        baseConfig: default
 
   timelimiter:
     configs:
@@ -164,6 +279,10 @@ resilience4j:
         baseConfig: default
       notificationServiceCircuitBreaker:
         baseConfig: default
+      plantManagementServiceCircuitBreaker:
+        baseConfig: default
+      profileServiceCircuitBreaker:
+        baseConfig: default
 
 # JWT Configuration
 jwt:
@@ -171,12 +290,31 @@ jwt:
   expiration: 86400000 # 24 hours in milliseconds
   refresh-expiration: 604800000 # 7 days in milliseconds
 
-# Logging Configuration
-logging:
-  level:
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.web: DEBUG
-    reactor.netty: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+# SpringDoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    config-url: /v3/api-docs/swagger-config
+    urls:
+      - name: auth-service
+        url: /auth-service/v3/api-docs
+      - name: user-service
+        url: /user-service/v3/api-docs
+      - name: farm-service
+        url: /farm-service/v3/api-docs
+      - name: file-service
+        url: /file-service/v3/api-docs
+      - name: notification-service
+        url: /notification-service/v3/api-docs
+      - name: plant-management-service
+        url: /plant-management-service/v3/api-docs
+      - name: profile-service
+        url: /profile-service/v3/api-docs
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    filter: true

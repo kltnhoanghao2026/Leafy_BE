@@ -1,7 +1,7 @@
 # Common configuration for all services
 spring:
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -18,12 +18,12 @@ spring:
 eureka:
   client:
     serviceUrl:
-      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
     registerWithEureka: true
     fetchRegistry: true
   instance:
     preferIpAddress: true
-    hostname: ${HOSTNAME:localhost}
+    hostname: ${HOSTNAME}
 
 management:
   endpoints:
@@ -39,15 +39,15 @@ logging:
     console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
   level:
-    root: ${LOG_LEVEL_ROOT:INFO}
-    com.leafy: ${LOG_LEVEL_APP:DEBUG}
-    org.springframework: ${LOG_LEVEL_SPRING:INFO}
-    org.springframework.web: ${LOG_LEVEL_SPRING_WEB:INFO}
-    org.springframework.security: ${LOG_LEVEL_SPRING_SECURITY:INFO}
-    org.springframework.data.mongodb: ${LOG_LEVEL_MONGODB:INFO}
-    org.springframework.kafka: ${LOG_LEVEL_KAFKA:INFO}
-    org.springframework.cloud: ${LOG_LEVEL_CLOUD:INFO}
-    io.lettuce: ${LOG_LEVEL_REDIS:WARN}
+    root: INFO
+    com.leafy: DEBUG
+    org.springframework: INFO
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.springframework.data.mongodb: INFO
+    org.springframework.kafka: INFO
+    org.springframework.cloud: INFO
+    io.lettuce: WARN
   file:
     name: ${LOG_FILE:logs/${spring.application.name}.log}
   logback:

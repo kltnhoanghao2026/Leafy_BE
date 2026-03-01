@@ -1,12 +1,12 @@
 server:
-  port: ${SERVER_PORT:8086}
+  port: ${SERVER_PORT_PLANT}
 
 spring:
   data:
     mongodb:
-      host: ${MONGODB_HOST:localhost}
-      port: ${MONGODB_PORT:27017}
-      database: ${MONGODB_PLANT_DATABASE:leafy_plant}
-      username: ${MONGODB_USERNAME:admin}
-      password: ${MONGODB_PASSWORD:admin123}
+      host: ${MONGODB_HOST}
+      port: ${MONGODB_PORT}
+      database: ${MONGODB_DATABASE_PLANT}
+      username: ${MONGODB_USERNAME}
+      password: ${MONGODB_PASSWORD}
       authentication-database: admin

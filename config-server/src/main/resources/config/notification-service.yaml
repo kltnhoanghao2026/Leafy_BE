@@ -1,21 +1,32 @@
 server:
-  port: ${SERVER_PORT:8085}
+  port: ${SERVER_PORT_NOTIFICATION}
 
 spring:
   data:
     mongodb:
-      host: ${MONGODB_HOST:localhost}
-      port: ${MONGODB_PORT:27017}
-      database: ${MONGODB_NOTIFICATION_DATABASE:leafy_notification}
-      username: ${MONGODB_USERNAME:admin}
-      password: ${MONGODB_PASSWORD:admin123}
+      host: ${MONGODB_HOST}
+      port: ${MONGODB_PORT}
+      database: ${MONGODB_DATABASE_NOTIFICATION}
+      username: ${MONGODB_USERNAME}
+      password: ${MONGODB_PASSWORD}
       authentication-database: admin
+
+bondhub:
+  security:
+    gateway-auth:
+      enabled: true
+
+brevo:
+  api-key: ${BREVO_API_KEY}
+  default-sender-email: ${BREVO_SENDER_EMAIL}
+  default-sender-name: ${BREVO_SENDER_NAME}
+  enabled: ${BREVO_ENABLED}
 
 notification:
   email:
-    enabled: ${NOTIFICATION_EMAIL_ENABLED:true}
-    from: ${NOTIFICATION_EMAIL_FROM:noreply@leafy.com}
+    enabled: ${NOTIFICATION_EMAIL_ENABLED}
+    from: ${NOTIFICATION_EMAIL_FROM}
   sms:
-    enabled: ${NOTIFICATION_SMS_ENABLED:false}
+    enabled: ${NOTIFICATION_SMS_ENABLED}
   push:
-    enabled: ${NOTIFICATION_PUSH_ENABLED:false}
+    enabled: ${NOTIFICATION_PUSH_ENABLED}

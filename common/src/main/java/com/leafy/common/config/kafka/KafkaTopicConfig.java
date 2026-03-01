@@ -18,7 +18,7 @@ public class KafkaTopicConfig {
 
     @Bean
     public NewTopic accountRegisteredEvents() {
-        return createTopic(topicProperties.getAccountEvents().getRegistered());
+        return createTopic(topicProperties.getUserEvents().getRegistered());
     }
 
     private NewTopic createTopic(String topicName) {
