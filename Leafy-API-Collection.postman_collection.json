@@ -1917,6 +1917,222 @@
         }
       ],
       "description": "Species management endpoints"
+    },
+    {
+      "name": "Plant Events",
+      "description": "Calendar-style events linked to a plant — sourced manually or from a RAG treatment plan.",
+      "item": [
+        {
+          "name": "Create Plant Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plantId\": \"\",\n  \"eventType\": \"DISEASE_DETECTED\",\n  \"note\": \"Phát hiện Sâu đục lá cà phê\",\n  \"description\": \"Quan sát thấy các đường hầm đặc trưng do ấu trùng sâu đục lá tạo ra trên lá cà phê. Mức độ lây nhiễm vừa phải.\",\n  \"daysFromNow\": 0,\n  \"durationDays\": 1,\n  \"isPlanned\": false,\n  \"calculatedStartDate\": \"2026-03-05\",\n  \"calculatedEndDate\": \"2026-03-05\",\n  \"phiDays\": null,\n  \"ppeRequired\": null,\n  \"mrlNote\": null,\n  \"estimatedCost\": null,\n  \"sourcePlanId\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/plant-events",
+              "host": ["{{baseUrl}}"],
+              "path": ["plant-events"]
+            },
+            "description": "Create a single PlantEvent. Set eventType to one of: IRRIGATION, NUTRITION, WEED_CONTROL, PRUNING, SCOUTING, DISEASE_DETECTED, TREATMENT_APPLICATION, QUARANTINE, HEALTH_RECOVERY, PHENOLOGY, REPOT, HARVEST."
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Create Plant Events (from RAG Plan)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"plantId\": \"\",\n    \"eventType\": \"DISEASE_DETECTED\",\n    \"note\": \"Phát hiện bệnh\",\n    \"description\": \"Xác nhận mầm bệnh trên lá.\",\n    \"daysFromNow\": 0,\n    \"durationDays\": 1,\n    \"isPlanned\": false,\n    \"calculatedStartDate\": \"2026-03-05\",\n    \"calculatedEndDate\": \"2026-03-05\",\n    \"sourcePlanId\": \"\"\n  },\n  {\n    \"plantId\": \"\",\n    \"eventType\": \"TREATMENT_APPLICATION\",\n    \"note\": \"Phun thuốc lần 1\",\n    \"description\": \"Phun Copper Oxychloride 0.3% toàn bộ tán lá. PHI: 14 ngày.\",\n    \"daysFromNow\": 1,\n    \"durationDays\": 1,\n    \"isPlanned\": true,\n    \"calculatedStartDate\": \"2026-03-06\",\n    \"calculatedEndDate\": \"2026-03-06\",\n    \"phiDays\": 14,\n    \"ppeRequired\": \"Mặt nạ phòng độc, găng tay chống hóa chất, ủng cao su, bảo hộ toàn thân\",\n    \"mrlNote\": \"Tuân thủ MRL của EU cho Copper Oxychloride. Bắt buộc tuân thủ thời gian cách ly.\",\n    \"estimatedCost\": \"150,000 VND\",\n    \"sourcePlanId\": \"\"\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["plant-events", "bulk"]
+            },
+            "description": "Import an entire RAG-generated treatment plan schedule at once. All events in the array should share the same plantId and sourcePlanId."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Plant Event",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Updated note\",\n  \"description\": \"Updated description with corrected dosage.\",\n  \"isPlanned\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/:eventId",
+              "host": ["{{baseUrl}}"],
+              "path": ["plant-events", ":eventId"],
+              "variable": [
+                { "key": "eventId", "value": "", "description": "PlantEvent MongoDB ID" }
+              ]
+            },
+            "description": "Partially update a PlantEvent. Only provided fields are updated (null-safe)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plant Event by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/:eventId",
+              "host": ["{{baseUrl}}"],
+              "path": ["plant-events", ":eventId"],
+              "variable": [
+                { "key": "eventId", "value": "" }
+              ]
+            },
+            "description": "Retrieve a single PlantEvent by its MongoDB ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Events by Plant",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/plant/:plantId?page=0&size=20&sortBy=calculatedStartDate&sortDir=ASC",
+              "host": ["{{baseUrl}}"],
+              "path": ["plant-events", "plant", ":plantId"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "sortBy", "value": "calculatedStartDate" },
+                { "key": "sortDir", "value": "ASC" }
+              ],
+              "variable": [
+                { "key": "plantId", "value": "", "description": "Plant MongoDB ID" }
+              ]
+            },
+            "description": "List all events for a plant, sorted by scheduled date ascending (calendar order)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Events by Plant + EventType",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/plant/:plantId/type/:eventType?page=0&size=20&sortBy=calculatedStartDate&sortDir=ASC",
+              "host": ["{{baseUrl}}"],
+              "path": ["plant-events", "plant", ":plantId", "type", ":eventType"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "sortBy", "value": "calculatedStartDate" },
+                { "key": "sortDir", "value": "ASC" }
+              ],
+              "variable": [
+                { "key": "plantId", "value": "" },
+                {
+                  "key": "eventType",
+                  "value": "TREATMENT_APPLICATION",
+                  "description": "One of: IRRIGATION, NUTRITION, WEED_CONTROL, PRUNING, SCOUTING, DISEASE_DETECTED, TREATMENT_APPLICATION, QUARANTINE, HEALTH_RECOVERY, PHENOLOGY, REPOT, HARVEST"
+                }
+              ]
+            },
+            "description": "Filter events for a plant by a specific EventType."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Events by Plant + Planned Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/plant/:plantId/planned?isPlanned=true&page=0&size=20&sortBy=calculatedStartDate&sortDir=ASC",
+              "host": ["{{baseUrl}}"],
+              "path": ["plant-events", "plant", ":plantId", "planned"],
+              "query": [
+                { "key": "isPlanned", "value": "true", "description": "true = scheduled future events; false = immediate/recorded events" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "sortBy", "value": "calculatedStartDate" },
+                { "key": "sortDir", "value": "ASC" }
+              ],
+              "variable": [
+                { "key": "plantId", "value": "" }
+              ]
+            },
+            "description": "Filter plant events by planned status. isPlanned=true returns the upcoming schedule; false returns recorded/immediate events."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Events by Source Plan ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/plan/:sourcePlanId?page=0&size=20&sortBy=calculatedStartDate&sortDir=ASC",
+              "host": ["{{baseUrl}}"],
+              "path": ["plant-events", "plan", ":sourcePlanId"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "sortBy", "value": "calculatedStartDate" },
+                { "key": "sortDir", "value": "ASC" }
+              ],
+              "variable": [
+                { "key": "sourcePlanId", "value": "", "description": "MongoDB planId from the RAG TreatmentPlan document" }
+              ]
+            },
+            "description": "Retrieve all events that were generated from a specific RAG TreatmentPlan. Useful for previewing or deleting an imported schedule."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Plant Event",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/:eventId",
+              "host": ["{{baseUrl}}"],
+              "path": ["plant-events", ":eventId"],
+              "variable": [
+                { "key": "eventId", "value": "" }
+              ]
+            },
+            "description": "Hard-delete a single PlantEvent by ID."
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {

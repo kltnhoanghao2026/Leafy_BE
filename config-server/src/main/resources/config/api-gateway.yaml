@@ -109,6 +109,18 @@ spring:
                     name: plantManagementServiceCircuitBreaker
                     fallbackUri: forward:/fallback/plant-management-service
 
+            # Plant Events Routes (Plant Management)
+            - id: plant-events-service
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/plant-events/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
             # Profile Service Routes
             - id: profile-service
               uri: lb://profile-service
