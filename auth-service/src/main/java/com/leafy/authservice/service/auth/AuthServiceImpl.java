@@ -192,34 +192,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("OTP resent successfully for email: {}", email);
         return true;
     }
-    
-    @Override
-    public AuthResponse register(RegisterRequest request, String userAgent, String deviceId,
-                                HttpServletRequest httpRequest, HttpServletResponse response) {
-        log.info("Registration attempt - Email: {}", request.getEmail());
 
-        validateEmailAndPhoneAvailability(request.getEmail(), request.getPhoneNumber());
-
-        User newUser = User.builder()
-                .email(request.getEmail())
-                .phoneNumber(request.getPhoneNumber())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .role(Role.USER) // Default role for new registrations
-                .build();
-
-        User savedUser = userRepository.save(newUser);
-        log.info("User registered successfully - User ID: {}", savedUser.getId());
-
-        return authenticateAndBuildResponse(
-            savedUser,
-            deviceId,
-            userAgent,
-            request.getAppVersion(),
-            response,
-            "Registration complete with tokens"
-        );
-    }
-    
     @Override
     public AuthResponse login(LoginRequest request, String userAgent, String deviceId,
                              HttpServletRequest httpRequest, HttpServletResponse response) {
