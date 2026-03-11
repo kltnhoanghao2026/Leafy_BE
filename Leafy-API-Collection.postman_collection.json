@@ -83,8 +83,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "description": "Login from web browser (Chrome on Windows). Device type will be detected as WEB from User-Agent."
           },
@@ -134,8 +139,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "description": "Login from iPhone. Device type will be detected as MOBILE."
           },
@@ -185,8 +195,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "description": "Login from Android device. Device type will be detected as MOBILE."
           },
@@ -236,8 +251,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "description": "Login from iPad. Device type will be detected as TABLET."
           },
@@ -276,8 +296,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/refresh",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "refresh"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
             },
             "description": "Refresh access token for web clients using HttpOnly cookie."
           },
@@ -322,8 +347,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/refresh/mobile",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "refresh", "mobile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh",
+                "mobile"
+              ]
             },
             "description": "Refresh access token for mobile clients. Returns both new access and refresh tokens."
           },
@@ -345,8 +376,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/logout",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "logout"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
             },
             "description": "Logout web client. Blacklists both access and refresh tokens."
           },
@@ -372,8 +408,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/logout/mobile",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "logout", "mobile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout",
+                "mobile"
+              ]
             },
             "description": "Logout mobile client. Blacklists both tokens."
           },
@@ -411,8 +453,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/v1/devices",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "devices"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "devices"
+              ]
             },
             "description": "Get list of all registered devices for the authenticated user. Shows device type, name, platform, last used time, etc."
           },
@@ -430,8 +477,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/v1/devices/:deviceId",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "devices", ":deviceId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "devices",
+                ":deviceId"
+              ],
               "variable": [
                 {
                   "key": "deviceId",
@@ -456,8 +509,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/v1/devices/others",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "devices", "others"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "devices",
+                "others"
+              ]
             },
             "description": "Remove all devices except the current one. Useful for 'Sign out from all other devices' feature."
           },
@@ -496,8 +555,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/files/upload",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", "upload"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "upload"
+              ]
             },
             "description": "Upload file to S3 and create metadata record"
           },
@@ -515,8 +579,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/download/:fileId",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", "download", ":fileId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "download",
+                ":fileId"
+              ],
               "variable": [
                 {
                   "key": "fileId",
@@ -541,8 +611,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/download/s3-key/:s3Key",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", "download", "s3-key", ":s3Key"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "download",
+                "s3-key",
+                ":s3Key"
+              ],
               "variable": [
                 {
                   "key": "s3Key",
@@ -567,8 +644,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/presigned-url/:fileId?expirationMinutes=60",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", "presigned-url", ":fileId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "presigned-url",
+                ":fileId"
+              ],
               "query": [
                 {
                   "key": "expirationMinutes",
@@ -608,8 +691,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/files",
-              "host": ["{{baseUrl}}"],
-              "path": ["files"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files"
+              ]
             },
             "description": "Create file metadata record"
           },
@@ -635,8 +722,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/files/:fileId",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", ":fileId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                ":fileId"
+              ],
               "variable": [
                 {
                   "key": "fileId",
@@ -661,8 +753,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/:fileId",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", ":fileId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                ":fileId"
+              ],
               "variable": [
                 {
                   "key": "fileId",
@@ -687,8 +784,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/:fileId/details",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", ":fileId", "details"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                ":fileId",
+                "details"
+              ],
               "variable": [
                 {
                   "key": "fileId",
@@ -713,8 +816,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/s3-key/:s3Key",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", "s3-key", ":s3Key"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "s3-key",
+                ":s3Key"
+              ],
               "variable": [
                 {
                   "key": "s3Key",
@@ -739,8 +848,12 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files?page=0&size=20&sortBy=createdAt&sortDir=DESC",
-              "host": ["{{baseUrl}}"],
-              "path": ["files"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -780,8 +893,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/active?page=0&size=20&sortBy=createdAt&sortDir=DESC",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", "active"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "active"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -821,8 +939,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/user/:uploadedBy?page=0&size=20&sortBy=createdAt&sortDir=DESC",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", "user", ":uploadedBy"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "user",
+                ":uploadedBy"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -869,8 +993,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/search?searchTerm=example&page=0&size=20&sortBy=createdAt&sortDir=DESC",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", "search"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "search"
+              ],
               "query": [
                 {
                   "key": "searchTerm",
@@ -915,8 +1044,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/:fileId",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", ":fileId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                ":fileId"
+              ],
               "variable": [
                 {
                   "key": "fileId",
@@ -941,8 +1075,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/:fileId/activate",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", ":fileId", "activate"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                ":fileId",
+                "activate"
+              ],
               "variable": [
                 {
                   "key": "fileId",
@@ -967,8 +1107,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/:fileId/deactivate",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", ":fileId", "deactivate"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                ":fileId",
+                "deactivate"
+              ],
               "variable": [
                 {
                   "key": "fileId",
@@ -993,8 +1139,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/files/check-s3-key?s3Key=files/example.pdf",
-              "host": ["{{baseUrl}}"],
-              "path": ["files", "check-s3-key"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "check-s3-key"
+              ],
               "query": [
                 {
                   "key": "s3Key",
@@ -1057,8 +1208,13 @@
                 },
                 "url": {
                   "raw": "{{baseUrl}}/auth/login",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["auth", "login"]
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
                 }
               },
               "response": []
@@ -1104,8 +1260,13 @@
                 },
                 "url": {
                   "raw": "{{baseUrl}}/auth/login",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["auth", "login"]
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
                 },
                 "description": "This should automatically logout the first WEB device and allow only one WEB device active."
               },
@@ -1138,8 +1299,13 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/v1/devices",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["v1", "devices"]
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "devices"
+                  ]
                 }
               },
               "response": []
@@ -1174,8 +1340,13 @@
                 },
                 "url": {
                   "raw": "{{baseUrl}}/auth/login",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["auth", "login"]
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
                 }
               },
               "response": []
@@ -1204,8 +1375,13 @@
                 },
                 "url": {
                   "raw": "{{baseUrl}}/auth/login",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["auth", "login"]
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
                 }
               },
               "response": []
@@ -1234,8 +1410,13 @@
                 },
                 "url": {
                   "raw": "{{baseUrl}}/auth/login",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["auth", "login"]
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
                 }
               },
               "response": []
@@ -1270,8 +1451,13 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/v1/devices",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["v1", "devices"]
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "devices"
+                  ]
                 }
               },
               "response": []
@@ -1281,6 +1467,1820 @@
         }
       ],
       "description": "Complete test scenarios for device management features"
+    },
+    {
+      "name": "Plant Management",
+      "item": [
+        {
+          "name": "Create Plant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plants"
+              ]
+            },
+            "description": "Creating new plant",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Plant\",\n  \"speciesId\": \"uuid\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Plant",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plants/:plantId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plants",
+                ":plantId"
+              ],
+              "variable": [
+                {
+                  "key": "plantId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Updating plant",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Plant\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plant by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plants/:plantId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plants",
+                ":plantId"
+              ],
+              "variable": [
+                {
+                  "key": "plantId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Getting plant by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Plants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plants?page=0&size=20&sortBy=createdAt&sortDir=DESC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plants"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "sortDir",
+                  "value": "DESC"
+                }
+              ]
+            },
+            "description": "Getting all plants with pagination"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plants by Species ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plants/species/:speciesId?page=0&size=20&sortBy=createdAt&sortDir=DESC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plants",
+                "species",
+                ":speciesId"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "sortDir",
+                  "value": "DESC"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "speciesId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Getting plants by species ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plants by Farm Plot ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plants/farm-plot/:farmPlotId?page=0&size=20&sortBy=createdAt&sortDir=DESC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plants",
+                "farm-plot",
+                ":farmPlotId"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "sortDir",
+                  "value": "DESC"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "farmPlotId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Getting plants by farm plot ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Plant",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plants/:plantId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plants",
+                ":plantId"
+              ],
+              "variable": [
+                {
+                  "key": "plantId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Deleting plant"
+          },
+          "response": []
+        }
+      ],
+      "description": "Plant management endpoints"
+    },
+    {
+      "name": "Species Management",
+      "item": [
+        {
+          "name": "Create Species",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/species",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "species"
+              ]
+            },
+            "description": "Creating new species",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commonName\": \"New Species\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Species",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/species/:speciesId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "species",
+                ":speciesId"
+              ],
+              "variable": [
+                {
+                  "key": "speciesId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Updating species",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commonName\": \"Updated Species\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Species by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/species/:speciesId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "species",
+                ":speciesId"
+              ],
+              "variable": [
+                {
+                  "key": "speciesId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Getting species by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Species",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/species?page=0&size=20&sortBy=commonName&sortDir=ASC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "species"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "commonName"
+                },
+                {
+                  "key": "sortDir",
+                  "value": "ASC"
+                }
+              ]
+            },
+            "description": "Getting all species with pagination"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Species",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/species/:speciesId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "species",
+                ":speciesId"
+              ],
+              "variable": [
+                {
+                  "key": "speciesId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Deleting species"
+          },
+          "response": []
+        }
+      ],
+      "description": "Species management endpoints"
+    },
+    {
+      "name": "Plant Events",
+      "description": "Calendar-style events linked to a plant — sourced manually or from a RAG treatment plan.",
+      "item": [
+        {
+          "name": "Create Plant Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plantId\": \"\",\n  \"eventType\": \"DISEASE_DETECTED\",\n  \"note\": \"Phát hiện Sâu đục lá cà phê\",\n  \"description\": \"Quan sát thấy các đường hầm đặc trưng do ấu trùng sâu đục lá tạo ra trên lá cà phê. Mức độ lây nhiễm vừa phải.\",\n  \"daysFromNow\": 0,\n  \"durationDays\": 1,\n  \"isPlanned\": false,\n  \"calculatedStartDate\": \"2026-03-05\",\n  \"calculatedEndDate\": \"2026-03-05\",\n  \"phiDays\": null,\n  \"ppeRequired\": null,\n  \"mrlNote\": null,\n  \"estimatedCost\": null,\n  \"sourcePlanId\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/plant-events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plant-events"
+              ]
+            },
+            "description": "Create a single PlantEvent. Set eventType to one of: IRRIGATION, NUTRITION, WEED_CONTROL, PRUNING, SCOUTING, DISEASE_DETECTED, TREATMENT_APPLICATION, QUARANTINE, HEALTH_RECOVERY, PHENOLOGY, REPOT, HARVEST."
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Create Plant Events (from RAG Plan)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"plantId\": \"\",\n    \"eventType\": \"DISEASE_DETECTED\",\n    \"note\": \"Phát hiện bệnh\",\n    \"description\": \"Xác nhận mầm bệnh trên lá.\",\n    \"daysFromNow\": 0,\n    \"durationDays\": 1,\n    \"isPlanned\": false,\n    \"calculatedStartDate\": \"2026-03-05\",\n    \"calculatedEndDate\": \"2026-03-05\",\n    \"sourcePlanId\": \"\"\n  },\n  {\n    \"plantId\": \"\",\n    \"eventType\": \"TREATMENT_APPLICATION\",\n    \"note\": \"Phun thuốc lần 1\",\n    \"description\": \"Phun Copper Oxychloride 0.3% toàn bộ tán lá. PHI: 14 ngày.\",\n    \"daysFromNow\": 1,\n    \"durationDays\": 1,\n    \"isPlanned\": true,\n    \"calculatedStartDate\": \"2026-03-06\",\n    \"calculatedEndDate\": \"2026-03-06\",\n    \"phiDays\": 14,\n    \"ppeRequired\": \"Mặt nạ phòng độc, găng tay chống hóa chất, ủng cao su, bảo hộ toàn thân\",\n    \"mrlNote\": \"Tuân thủ MRL của EU cho Copper Oxychloride. Bắt buộc tuân thủ thời gian cách ly.\",\n    \"estimatedCost\": \"150,000 VND\",\n    \"sourcePlanId\": \"\"\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plant-events",
+                "bulk"
+              ]
+            },
+            "description": "Import an entire RAG-generated treatment plan schedule at once. All events in the array should share the same plantId and sourcePlanId."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Plant Event",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Updated note\",\n  \"description\": \"Updated description with corrected dosage.\",\n  \"isPlanned\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/:eventId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plant-events",
+                ":eventId"
+              ],
+              "variable": [
+                {
+                  "key": "eventId",
+                  "value": "",
+                  "description": "PlantEvent MongoDB ID"
+                }
+              ]
+            },
+            "description": "Partially update a PlantEvent. Only provided fields are updated (null-safe)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plant Event by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/:eventId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plant-events",
+                ":eventId"
+              ],
+              "variable": [
+                {
+                  "key": "eventId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Retrieve a single PlantEvent by its MongoDB ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Events by Plant",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/plant/:plantId?page=0&size=20&sortBy=calculatedStartDate&sortDir=ASC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plant-events",
+                "plant",
+                ":plantId"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "calculatedStartDate"
+                },
+                {
+                  "key": "sortDir",
+                  "value": "ASC"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "plantId",
+                  "value": "",
+                  "description": "Plant MongoDB ID"
+                }
+              ]
+            },
+            "description": "List all events for a plant, sorted by scheduled date ascending (calendar order)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Events by Plant + EventType",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/plant/:plantId/type/:eventType?page=0&size=20&sortBy=calculatedStartDate&sortDir=ASC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plant-events",
+                "plant",
+                ":plantId",
+                "type",
+                ":eventType"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "calculatedStartDate"
+                },
+                {
+                  "key": "sortDir",
+                  "value": "ASC"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "plantId",
+                  "value": ""
+                },
+                {
+                  "key": "eventType",
+                  "value": "TREATMENT_APPLICATION",
+                  "description": "One of: IRRIGATION, NUTRITION, WEED_CONTROL, PRUNING, SCOUTING, DISEASE_DETECTED, TREATMENT_APPLICATION, QUARANTINE, HEALTH_RECOVERY, PHENOLOGY, REPOT, HARVEST"
+                }
+              ]
+            },
+            "description": "Filter events for a plant by a specific EventType."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Events by Plant + Planned Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/plant/:plantId/planned?isPlanned=true&page=0&size=20&sortBy=calculatedStartDate&sortDir=ASC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plant-events",
+                "plant",
+                ":plantId",
+                "planned"
+              ],
+              "query": [
+                {
+                  "key": "isPlanned",
+                  "value": "true",
+                  "description": "true = scheduled future events; false = immediate/recorded events"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "calculatedStartDate"
+                },
+                {
+                  "key": "sortDir",
+                  "value": "ASC"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "plantId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Filter plant events by planned status. isPlanned=true returns the upcoming schedule; false returns recorded/immediate events."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Events by Source Plan ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/plan/:sourcePlanId?page=0&size=20&sortBy=calculatedStartDate&sortDir=ASC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plant-events",
+                "plan",
+                ":sourcePlanId"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "calculatedStartDate"
+                },
+                {
+                  "key": "sortDir",
+                  "value": "ASC"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "sourcePlanId",
+                  "value": "",
+                  "description": "MongoDB planId from the RAG TreatmentPlan document"
+                }
+              ]
+            },
+            "description": "Retrieve all events that were generated from a specific RAG TreatmentPlan. Useful for previewing or deleting an imported schedule."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Plant Event",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/plant-events/:eventId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "plant-events",
+                ":eventId"
+              ],
+              "variable": [
+                {
+                  "key": "eventId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Hard-delete a single PlantEvent by ID."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Profile Service",
+      "description": "Endpoints for managing user profiles and preferences",
+      "item": [
+        {
+          "name": "Profiles",
+          "description": "CRUD operations and management for User Profiles",
+          "item": [
+            {
+              "name": "Create Profile",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"phoneNumber\": \"+1234567890\",\n  \"dateOfBirth\": \"1990-01-01\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Profile by ID",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/:profileId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    ":profileId"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "profileId",
+                      "value": ""
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Smith\",\n  \"phoneNumber\": \"+1987654321\",\n  \"dateOfBirth\": \"1990-01-01\",\n  \"bio\": \"Updated bio\",\n  \"avatarUrl\": \"https://example.com/avatar.jpg\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Profile by User ID",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/user/:userId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    "user",
+                    ":userId"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "userId",
+                      "value": "{{userId}}"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Smith\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Profile by ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/:profileId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    ":profileId"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "profileId",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Profile Details by ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/:profileId/details",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    ":profileId",
+                    "details"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "profileId",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Profile by User ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/user/:userId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    "user",
+                    ":userId"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "userId",
+                      "value": "{{userId}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Profile by Email",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/email/:email",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    "email",
+                    ":email"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "email",
+                      "value": "user@example.com"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Profile by Phone Number",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/phone/:phoneNumber",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    "phone",
+                    ":phoneNumber"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "phoneNumber",
+                      "value": "+1234567890"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Profiles (Paginated)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles?page=0&size=20&sortBy=createdAt&sortDir=DESC",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sortBy",
+                      "value": "createdAt"
+                    },
+                    {
+                      "key": "sortDir",
+                      "value": "DESC"
+                    }
+                  ],
+                  "variable": []
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Active Profiles",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/active?page=0&size=20&sortBy=createdAt&sortDir=DESC",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    "active"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sortBy",
+                      "value": "createdAt"
+                    },
+                    {
+                      "key": "sortDir",
+                      "value": "DESC"
+                    }
+                  ],
+                  "variable": []
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Search Profiles",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/search?searchTerm=John&page=0&size=20&sortBy=createdAt&sortDir=DESC",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "searchTerm",
+                      "value": "John"
+                    },
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sortBy",
+                      "value": "createdAt"
+                    },
+                    {
+                      "key": "sortDir",
+                      "value": "DESC"
+                    }
+                  ],
+                  "variable": []
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Profile by ID",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/:profileId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    ":profileId"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "profileId",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Profile by User ID",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/user/:userId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    "user",
+                    ":userId"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "userId",
+                      "value": "{{userId}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Activate Profile",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/:profileId/activate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    ":profileId",
+                    "activate"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "profileId",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Deactivate Profile",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/:profileId/deactivate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    ":profileId",
+                    "deactivate"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "profileId",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Check Profile Exists by User ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/profiles/exists/user/:userId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "profiles",
+                    "exists",
+                    "user",
+                    ":userId"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "userId",
+                      "value": "{{userId}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "User Preferences",
+          "description": "Configuration settings for users",
+          "item": [
+            {
+              "name": "Get My Preferences",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "me"
+                  ],
+                  "query": [],
+                  "variable": []
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Preferences by User ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/user/:userId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "user",
+                    ":userId"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "key": "userId",
+                      "value": "{{userId}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update General Settings",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/general",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "general"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"language\": \"en\",\n  \"timezone\": \"UTC\",\n  \"dateFormat\": \"YYYY-MM-DD\",\n  \"timeFormat\": \"24h\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Security Settings",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/security",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "security"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"twoFactorEnabled\": false,\n  \"loginAlerts\": true,\n  \"trustedDevicesOnly\": false\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Privacy Settings",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/privacy",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "privacy"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"profileVisibility\": \"PUBLIC\",\n  \"activityStatusVisible\": true,\n  \"readReceipts\": true\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Sync Settings",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/sync",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "sync"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"autoSync\": true,\n  \"syncOverWifiOnly\": true,\n  \"syncInterval\": 60\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Appearance Settings",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/appearance",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "appearance"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"theme\": \"SYSTEM\",\n  \"fontSize\": \"MEDIUM\",\n  \"colorScheme\": \"BLUE\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Message Settings",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/message",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "message"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"emailNotifications\": true,\n  \"pushNotifications\": true,\n  \"marketingEmails\": false\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Notification Settings",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/notification",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "notification"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"systemAlerts\": true,\n  \"reminders\": true,\n  \"promotions\": false,\n  \"quietHoursEnabled\": false,\n  \"quietHoursStart\": \"22:00\",\n  \"quietHoursEnd\": \"07:00\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Utilities Settings",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/utilities",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "utilities"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"showTooltips\": true,\n  \"enableAnimations\": true,\n  \"compactMode\": false\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get General Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/general",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "general"
+                  ],
+                  "query": [],
+                  "variable": []
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Privacy Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/privacy",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "privacy"
+                  ],
+                  "query": [],
+                  "variable": []
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Notification Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/notification",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "notification"
+                  ],
+                  "query": [],
+                  "variable": []
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Reset Preferences to Defaults",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/preferences/reset",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "preferences",
+                    "reset"
+                  ],
+                  "query": [],
+                  "variable": []
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
     }
   ],
   "auth": {

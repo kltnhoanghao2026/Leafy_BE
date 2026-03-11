@@ -1,0 +1,451 @@
+﻿diff --git a/profile-service/src/main/java/com/leafy/profileservice/controller/ProfileController.java b/profile-service/src/main/java/com/leafy/profileservice/controller/ProfileController.java
+index e3192db..234e4b6 100644
+--- a/profile-service/src/main/java/com/leafy/profileservice/controller/ProfileController.java
++++ b/profile-service/src/main/java/com/leafy/profileservice/controller/ProfileController.java
+@@ -275,6 +275,20 @@ public class ProfileController {
+         return ResponseEntity.ok(ApiResponse.success(response));
+     }
+ 
++    /**
++     * Mark a profile as verified
++     *
++     * @param profileId the profile ID
++     * @return the updated profile response
++     */
++    @PatchMapping("/{profileId}/verify")
++    @PreAuthorize("hasRole('ADMIN')")
++    public ResponseEntity<ApiResponse<ProfileResponse>> verifyProfile(@PathVariable String profileId) {
++        log.info("PATCH /profiles/{}/verify - Marking profile as verified", profileId);
++        ProfileResponse response = profileService.verifyProfile(profileId);
++        return ResponseEntity.ok(ApiResponse.success(response));
++    }
++
+     /**
+      * Check if profile exists for user ID
+      *
+diff --git a/profile-service/src/main/java/com/leafy/profileservice/dto/request/profile/ProfileCreateRequest.java b/profile-service/src/main/java/com/leafy/profileservice/dto/request/profile/ProfileCreateRequest.java
+index c01b42e..6543050 100644
+--- a/profile-service/src/main/java/com/leafy/profileservice/dto/request/profile/ProfileCreateRequest.java
++++ b/profile-service/src/main/java/com/leafy/profileservice/dto/request/profile/ProfileCreateRequest.java
+@@ -1,7 +1,10 @@
+ package com.leafy.profileservice.dto.request.profile;
+ 
+ import com.leafy.profileservice.dto.request.preferences.UserPreferenceRequest;
++import com.leafy.profileservice.model.enums.UserRole;
++import jakarta.validation.Valid;
+ import jakarta.validation.constraints.NotBlank;
++import jakarta.validation.constraints.NotNull;
+ import lombok.*;
+ import lombok.experimental.FieldDefaults;
+ 
+@@ -25,9 +28,13 @@ public class ProfileCreateRequest {
+ 
+     String avatar;
+ 
+-    String certificate;
++    @NotNull(message = "Role is required")
++    UserRole role;
++
++    String specialty;
+ 
+     String bio;
+ 
++    @Valid
+     UserPreferenceRequest userPreference;
+ }
+diff --git a/profile-service/src/main/java/com/leafy/profileservice/dto/request/profile/ProfileUpdateRequest.java b/profile-service/src/main/java/com/leafy/profileservice/dto/request/profile/ProfileUpdateRequest.java
+index cb2c84d..efbc74f 100644
+--- a/profile-service/src/main/java/com/leafy/profileservice/dto/request/profile/ProfileUpdateRequest.java
++++ b/profile-service/src/main/java/com/leafy/profileservice/dto/request/profile/ProfileUpdateRequest.java
+@@ -1,6 +1,7 @@
+ package com.leafy.profileservice.dto.request.profile;
+ 
+ import com.leafy.profileservice.dto.request.preferences.UserPreferenceRequest;
++import com.leafy.profileservice.model.enums.UserRole;
+ import lombok.*;
+ import lombok.experimental.FieldDefaults;
+ 
+@@ -14,13 +15,11 @@ import lombok.experimental.FieldDefaults;
+ @FieldDefaults(level = AccessLevel.PRIVATE)
+ public class ProfileUpdateRequest {
+ 
+-    String fullName;
+-
+-    String profilePicture;
+-
+     String avatar;
+ 
+-    String certificate;
++    UserRole role;
++
++    String specialty;
+ 
+     String bio;
+ 
+diff --git a/profile-service/src/main/java/com/leafy/profileservice/dto/response/profile/ProfileDetailsResponse.java b/profile-service/src/main/java/com/leafy/profileservice/dto/response/profile/ProfileDetailsResponse.java
+index 69a8c20..0eb554a 100644
+--- a/profile-service/src/main/java/com/leafy/profileservice/dto/response/profile/ProfileDetailsResponse.java
++++ b/profile-service/src/main/java/com/leafy/profileservice/dto/response/profile/ProfileDetailsResponse.java
+@@ -1,6 +1,8 @@
+ package com.leafy.profileservice.dto.response.profile;
+ 
++import com.leafy.profileservice.dto.CertificateDto;
+ import com.leafy.profileservice.dto.response.preferences.UserPreferenceResponse;
++import com.leafy.profileservice.model.enums.UserRole;
+ import lombok.*;
+ import lombok.experimental.FieldDefaults;
+ 
+@@ -26,7 +28,13 @@ public class ProfileDetailsResponse {
+ 
+     String avatar;
+ 
+-    String certificate;
++    UserRole role;
++
++    String specialty;
++
++    java.util.List<CertificateDto> certificates;
++
++    Boolean isVerified;
+ 
+     String bio;
+ 
+diff --git a/profile-service/src/main/java/com/leafy/profileservice/dto/response/profile/ProfileResponse.java b/profile-service/src/main/java/com/leafy/profileservice/dto/response/profile/ProfileResponse.java
+index e4e0a14..106bd28 100644
+--- a/profile-service/src/main/java/com/leafy/profileservice/dto/response/profile/ProfileResponse.java
++++ b/profile-service/src/main/java/com/leafy/profileservice/dto/response/profile/ProfileResponse.java
+@@ -1,6 +1,8 @@
+ package com.leafy.profileservice.dto.response.profile;
+ 
+ import com.leafy.profileservice.dto.response.preferences.UserPreferenceResponse;
++import com.leafy.profileservice.dto.CertificateDto;
++import com.leafy.profileservice.model.enums.UserRole;
+ import lombok.*;
+ import lombok.experimental.FieldDefaults;
+ 
+@@ -26,7 +28,13 @@ public class ProfileResponse {
+ 
+     String avatar;
+ 
+-    String certificate;
++    UserRole role;
++
++    String specialty;
++
++    java.util.List<CertificateDto> certificates;
++
++    Boolean isVerified;
+ 
+     String bio;
+ 
+diff --git a/profile-service/src/main/java/com/leafy/profileservice/mapper/ProfileMapper.java b/profile-service/src/main/java/com/leafy/profileservice/mapper/ProfileMapper.java
+index 525dd79..33b4c40 100644
+--- a/profile-service/src/main/java/com/leafy/profileservice/mapper/ProfileMapper.java
++++ b/profile-service/src/main/java/com/leafy/profileservice/mapper/ProfileMapper.java
+@@ -16,10 +16,7 @@ import java.util.List;
+  * Mapper interface for Profile entity and DTOs
+  * Uses MapStruct for automatic mapping generation
+  */
+-@Mapper(
+-        componentModel = "spring",
+-        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE
+-)
++@Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+ public interface ProfileMapper {
+ 
+     /**
+@@ -28,6 +25,8 @@ public interface ProfileMapper {
+      * @param request the create request
+      * @return the profile entity
+      */
++    @Mapping(target = "id", ignore = true)
++    @Mapping(target = "isVerified", ignore = true)
+     Profile toEntity(ProfileCreateRequest request);
+ 
+     /**
+@@ -36,6 +35,9 @@ public interface ProfileMapper {
+      * @param profile the profile entity
+      * @return the profile response
+      */
++    @Mapping(target = "email", ignore = true)
++    @Mapping(target = "phoneNumber", ignore = true)
++    @Mapping(target = "certificates", ignore = true)
+     ProfileResponse toResponse(Profile profile);
+ 
+     /**
+@@ -44,6 +46,9 @@ public interface ProfileMapper {
+      * @param profile the profile entity
+      * @return the profile details response
+      */
++    @Mapping(target = "email", ignore = true)
++    @Mapping(target = "phoneNumber", ignore = true)
++    @Mapping(target = "certificates", ignore = true)
+     ProfileDetailsResponse toDetailsResponse(Profile profile);
+ 
+     /**
+@@ -66,5 +71,9 @@ public interface ProfileMapper {
+     @Mapping(target = "lastModifiedAt", ignore = true)
+     @Mapping(target = "createdBy", ignore = true)
+     @Mapping(target = "lastModifiedBy", ignore = true)
++    @Mapping(target = "active", ignore = true)
++    @Mapping(target = "fullName", ignore = true)
++    @Mapping(target = "profilePicture", ignore = true)
++    @Mapping(target = "isVerified", ignore = true)
+     void updateEntityFromRequest(ProfileUpdateRequest request, @MappingTarget Profile profile);
+ }
+diff --git a/profile-service/src/main/java/com/leafy/profileservice/model/Profile.java b/profile-service/src/main/java/com/leafy/profileservice/model/Profile.java
+index 48bbf53..e47ef48 100644
+--- a/profile-service/src/main/java/com/leafy/profileservice/model/Profile.java
++++ b/profile-service/src/main/java/com/leafy/profileservice/model/Profile.java
+@@ -1,6 +1,7 @@
+ package com.leafy.profileservice.model;
+ 
+ import com.leafy.common.model.BaseModel;
++import com.leafy.profileservice.model.enums.UserRole;
+ import lombok.*;
+ import lombok.experimental.FieldDefaults;
+ import org.springframework.data.mongodb.core.index.Indexed;
+@@ -47,9 +48,20 @@ public class Profile extends BaseModel {
+     String avatar;
+ 
+     /**
+-     * URL to user's certificate document
++     * User's primary role in the platform
+      */
+-    String certificate;
++    UserRole role;
++
++    /**
++     * User's area of specialty (e.g., crop types, soil analysis)
++     */
++    String specialty;
++
++    /**
++     * Flag indicating if the user has been verified by an admin
++     */
++    @Builder.Default
++    Boolean isVerified = false;
+ 
+     /**
+      * User's biography or description
+diff --git a/profile-service/src/main/java/com/leafy/profileservice/service/profile/ProfileService.java b/profile-service/src/main/java/com/leafy/profileservice/service/profile/ProfileService.java
+index c3e8667..665dc6e 100644
+--- a/profile-service/src/main/java/com/leafy/profileservice/service/profile/ProfileService.java
++++ b/profile-service/src/main/java/com/leafy/profileservice/service/profile/ProfileService.java
+@@ -133,4 +133,12 @@ public interface ProfileService {
+      * @return true if exists, false otherwise
+      */
+     boolean existsByUserId(String userId);
++
++    /**
++     * Mark a profile as verified
++     *
++     * @param profileId the profile ID
++     * @return the updated profile response
++     */
++    ProfileResponse verifyProfile(String profileId);
+ }
+diff --git a/profile-service/src/main/java/com/leafy/profileservice/service/profile/ProfileServiceImpl.java b/profile-service/src/main/java/com/leafy/profileservice/service/profile/ProfileServiceImpl.java
+index 90b8d47..74b35ba 100644
+--- a/profile-service/src/main/java/com/leafy/profileservice/service/profile/ProfileServiceImpl.java
++++ b/profile-service/src/main/java/com/leafy/profileservice/service/profile/ProfileServiceImpl.java
+@@ -6,8 +6,14 @@ import com.leafy.profileservice.dto.request.profile.ProfileCreateRequest;
+ import com.leafy.profileservice.dto.request.profile.ProfileUpdateRequest;
+ import com.leafy.profileservice.dto.response.profile.ProfileDetailsResponse;
+ import com.leafy.profileservice.dto.response.profile.ProfileResponse;
++import com.leafy.profileservice.mapper.CertificateMapper;
+ import com.leafy.profileservice.mapper.ProfileMapper;
++import com.leafy.profileservice.model.ApprovalRequest;
++import com.leafy.profileservice.model.Certificate;
+ import com.leafy.profileservice.model.Profile;
++import com.leafy.profileservice.model.enums.CertificateStatus;
++import com.leafy.profileservice.model.enums.UserRole;
++import com.leafy.profileservice.repository.ApprovalRequestRepository;
+ import com.leafy.profileservice.repository.ProfileRepository;
+ import com.leafy.profileservice.client.AuthClient;
+ import com.leafy.profileservice.client.dto.UserResponse;
+@@ -19,6 +25,9 @@ import org.springframework.data.domain.Pageable;
+ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
+ 
++import java.util.List;
++import java.util.stream.Collectors;
++
+ /**
+  * Implementation of ProfileService
+  * Handles all business logic for profile management
+@@ -30,7 +39,9 @@ import org.springframework.transaction.annotation.Transactional;
+ public class ProfileServiceImpl implements ProfileService {
+ 
+     private final ProfileRepository profileRepository;
++    private final ApprovalRequestRepository approvalRequestRepository;
+     private final ProfileMapper profileMapper;
++    private final CertificateMapper certificateMapper;
+     private final AuthClient authClient;
+ 
+     @Override
+@@ -84,8 +95,7 @@ public class ProfileServiceImpl implements ProfileService {
+     public ProfileResponse getProfileById(String profileId) {
+         log.info("Getting profile by ID: {}", profileId);
+         Profile profile = getProfileEntityById(profileId);
+-        ProfileResponse response = profileMapper.toResponse(profile);
+-        return enrichWithUserInfo(response, profile.getUserId());
++        return buildFullProfileResponse(profile);
+     }
+ 
+     @Override
+@@ -94,7 +104,7 @@ public class ProfileServiceImpl implements ProfileService {
+         log.info("Getting profile details by ID: {}", profileId);
+         Profile profile = getProfileEntityById(profileId);
+         ProfileDetailsResponse response = profileMapper.toDetailsResponse(profile);
+-        enrichWithUserInfo(response, profile.getUserId());
++        enrichProfileDetailsResponse(response, profile);
+         return response;
+     }
+ 
+@@ -117,8 +127,7 @@ public class ProfileServiceImpl implements ProfileService {
+                     log.error("Profile not found for user ID: {}", userId);
+                     return new AppException(ErrorCode.ACC_ACCOUNT_NOT_FOUND);
+                 });
+-        ProfileResponse response = profileMapper.toResponse(profile);
+-        return enrichWithUserInfo(response, userId);
++        return buildFullProfileResponse(profile);
+     }
+ 
+     @Override
+@@ -126,7 +135,7 @@ public class ProfileServiceImpl implements ProfileService {
+     public Page<ProfileResponse> getAllProfiles(Pageable pageable) {
+         log.info("Getting all profiles with pagination");
+         Page<Profile> profiles = profileRepository.findAll(pageable);
+-        return profiles.map(profile -> enrichWithUserInfo(profileMapper.toResponse(profile), profile.getUserId()));
++        return profiles.map(this::buildFullProfileResponse);
+     }
+ 
+     @Override
+@@ -134,7 +143,7 @@ public class ProfileServiceImpl implements ProfileService {
+     public Page<ProfileResponse> getActiveProfiles(Pageable pageable) {
+         log.info("Getting all active profiles with pagination");
+         Page<Profile> profiles = profileRepository.findByActiveTrue(pageable);
+-        return profiles.map(profile -> enrichWithUserInfo(profileMapper.toResponse(profile), profile.getUserId()));
++        return profiles.map(this::buildFullProfileResponse);
+     }
+ 
+     @Override
+@@ -142,7 +151,7 @@ public class ProfileServiceImpl implements ProfileService {
+     public Page<ProfileResponse> searchProfiles(String searchTerm, Pageable pageable) {
+         log.info("Searching profiles with term: {}", searchTerm);
+         Page<Profile> profiles = profileRepository.searchProfiles(searchTerm, pageable);
+-        return profiles.map(profile -> enrichWithUserInfo(profileMapper.toResponse(profile), profile.getUserId()));
++        return profiles.map(this::buildFullProfileResponse);
+     }
+ 
+     @Override
+@@ -150,13 +159,21 @@ public class ProfileServiceImpl implements ProfileService {
+         log.info("Deleting profile with ID: {}", profileId);
+         Profile profile = getProfileEntityById(profileId);
+         profileRepository.delete(profile);
++        // 5. Delete associated approval requests
++        approvalRequestRepository.deleteByProfileId(profileId);
+         log.info("Profile deleted successfully with ID: {}", profileId);
+     }
+ 
+     @Override
+     public void deleteProfileByUserId(String userId) {
+-        log.info("Deleting profile by user ID: {}", userId);
+-        profileRepository.deleteByUserId(userId);
++        log.info("Deleting profile for user ID: {}", userId);
++        Profile profile = profileRepository.findByUserId(userId)
++                .orElseThrow(() -> new AppException(ErrorCode.ACC_ACCOUNT_NOT_FOUND));
++
++        profileRepository.delete(profile);
++
++        // Delete associated approval requests
++        approvalRequestRepository.deleteByProfileId(profile.getId());
+         log.info("Profile deleted successfully for user ID: {}", userId);
+     }
+ 
+@@ -167,8 +184,7 @@ public class ProfileServiceImpl implements ProfileService {
+         profile.setActive(true);
+         Profile activatedProfile = profileRepository.save(profile);
+         log.info("Profile activated successfully with ID: {}", profileId);
+-        ProfileResponse response = profileMapper.toResponse(activatedProfile);
+-        return enrichWithUserInfo(response, activatedProfile.getUserId());
++        return buildFullProfileResponse(activatedProfile);
+     }
+ 
+     @Override
+@@ -178,8 +194,7 @@ public class ProfileServiceImpl implements ProfileService {
+         profile.setActive(false);
+         Profile deactivatedProfile = profileRepository.save(profile);
+         log.info("Profile deactivated successfully with ID: {}", profileId);
+-        ProfileResponse response = profileMapper.toResponse(deactivatedProfile);
+-        return enrichWithUserInfo(response, deactivatedProfile.getUserId());
++        return buildFullProfileResponse(deactivatedProfile);
+     }
+ 
+     @Override
+@@ -188,6 +203,19 @@ public class ProfileServiceImpl implements ProfileService {
+         return profileRepository.existsByUserId(userId);
+     }
+ 
++    private ProfileResponse buildFullProfileResponse(Profile profile) {
++        ProfileResponse response = profileMapper.toResponse(profile);
++
++        // Map ONLY APPROVED certificates back to the profile wrapper
++        List<Certificate> approvedCertificates = approvalRequestRepository.findByProfileId(profile.getId()).stream()
++                .filter(req -> req.getStatus() == CertificateStatus.APPROVED)
++                .flatMap(req -> req.getCertificates().stream())
++                .toList();
++        response.setCertificates(certificateMapper.toDtoList(approvedCertificates));
++
++        return enrichWithUserInfo(response, profile.getUserId());
++    }
++
+     private ProfileResponse enrichWithUserInfo(ProfileResponse response, String userId) {
+         try {
+             ApiResponse<UserResponse> apiResponse = authClient.getUserById(userId);
+@@ -198,22 +226,39 @@ public class ProfileServiceImpl implements ProfileService {
+             }
+         } catch (Exception e) {
+             log.warn("Failed to fetch user info for userId: {}. Error: {}", userId, e.getMessage());
+-            // It's acceptable to return profile without user info if auth-service fails
+         }
+         return response;
+     }
+ 
+-    private void enrichWithUserInfo(ProfileDetailsResponse response, String userId) {
++    private void enrichProfileDetailsResponse(ProfileDetailsResponse response, Profile profile) {
+         try {
+-            ApiResponse<UserResponse> apiResponse = authClient.getUserById(userId);
++            ApiResponse<UserResponse> apiResponse = authClient.getUserById(profile.getUserId());
+             if (apiResponse != null && apiResponse.data() != null) {
+                 UserResponse user = apiResponse.data();
+                 response.setEmail(user.getEmail());
+                 response.setPhoneNumber(user.getPhoneNumber());
+             }
+         } catch (Exception e) {
+-            log.warn("Failed to fetch user info for userId: {}. Error: {}", userId, e.getMessage());
+-            // It's acceptable to return profile without user info if auth-service fails
++            log.warn("Failed to fetch user info for userId: {}. Error: {}", profile.getUserId(), e.getMessage());
+         }
++
++        // Map ONLY APPROVED certificates back to the profile wrapper
++        List<Certificate> approvedCertificates = approvalRequestRepository.findByProfileId(profile.getId()).stream()
++                .filter(req -> req.getStatus() == CertificateStatus.APPROVED)
++                .flatMap(req -> req.getCertificates().stream())
++                .toList();
++        response.setCertificates(certificateMapper.toDtoList(approvedCertificates));
++    }
++
++    @Override
++    public ProfileResponse verifyProfile(String profileId) {
++        log.info("Verifying profile ID: {}", profileId);
++        Profile profile = getProfileEntityById(profileId);
++
++        profile.setIsVerified(true);
++        Profile savedProfile = profileRepository.save(profile);
++        log.info("Profile marked as verified successfully.");
++
++        return buildFullProfileResponse(savedProfile);
+     }
+ }

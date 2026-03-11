@@ -4,7 +4,10 @@ import com.leafy.common.model.BaseModel;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.FieldType;
 import org.springframework.data.mongodb.core.mapping.MongoId;
+
+import java.util.List;
 import java.util.Map;
 
 @Getter
@@ -16,7 +19,7 @@ import java.util.Map;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Species extends BaseModel {
 
-    @MongoId
+    @MongoId(FieldType.OBJECT_ID)
     String id;
 
     String commonName;
@@ -31,5 +34,5 @@ public class Species extends BaseModel {
     Double expectedYieldKg;
 
     // Relationships
-    java.util.List<String> commonDiseaseIds;
+    List<String> commonDiseaseIds;
 }
