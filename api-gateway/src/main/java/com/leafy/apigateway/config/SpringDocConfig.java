@@ -22,7 +22,7 @@ public class SpringDocConfig {
                 if (definitions != null) {
                         definitions.stream()
                                         .filter(routeDefinition -> routeDefinition.getId().matches(
-                                                        "auth-service|user-service|farm-service|file-service|notification-service|plant-management-service|profile-service"))
+                                                        "auth-service|user-service|farm-service|file-service|notification-service|plant-management-service|profile-service|rag-service"))
                                         .forEach(routeDefinition -> {
                                                 String name = routeDefinition.getId();
                                                 GroupedOpenApi.builder()
@@ -65,7 +65,12 @@ public class SpringDocConfig {
 
                 groups.add(GroupedOpenApi.builder()
                                 .group("profile-service")
-                                .pathsToMatch("/api/profiles/**", "/api/preferences/**")
+                                .pathsToMatch("/api/profiles/**")
+                                .build());
+
+                groups.add(GroupedOpenApi.builder()
+                                .group("rag-service")
+                                .pathsToMatch("/api/rag/**")
                                 .build());
 
                 return groups;
