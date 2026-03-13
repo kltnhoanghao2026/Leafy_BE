@@ -18,7 +18,7 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class CreateApprovalRequest {
 
-    @NotEmpty(message = "Certificates list cannot be empty")
+    @NotEmpty(message = "{validation.certificates.notEmpty}")
     @Valid
     List<AddCertificateRequest> certificates;
 }

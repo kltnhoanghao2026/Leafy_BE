@@ -19,12 +19,12 @@ public class SpeciesUpdateRequest {
 
     String cultivarName;
 
-    @PositiveOrZero(message = "Water frequency days must be positive or zero")
+    @PositiveOrZero(message = "{validation.species.waterFrequencyDays.positiveOrZero}")
     Integer waterFrequencyDays;
 
     String lightRequirements;
 
-    @PositiveOrZero(message = "Days to maturity must be positive or zero")
+    @PositiveOrZero(message = "{validation.species.daysToMaturity.positiveOrZero}")
     Integer daysToMaturity;
 
     String plantingWindow;
@@ -33,10 +33,10 @@ public class SpeciesUpdateRequest {
 
     Map<String, Object> idealEnv;
 
-    @PositiveOrZero(message = "Spacing must be positive or zero")
+    @PositiveOrZero(message = "{validation.species.spacing.positiveOrZero}")
     Double spacing;
 
-    @PositiveOrZero(message = "Expected yield must be positive or zero")
+    @PositiveOrZero(message = "{validation.species.expectedYield.positiveOrZero}")
     Double expectedYieldKg;
 
     List<String> commonDiseaseIds;

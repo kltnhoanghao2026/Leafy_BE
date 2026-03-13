@@ -19,16 +19,16 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserCreateRequest {
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email must be valid")
+    @NotBlank(message = "{validation.email.required}")
+    @Email(message = "{validation.email.invalid}")
     String email;
 
-    @Pattern(regexp = "^(\\+84|0)[0-9]{9}$", message = "Phone number must be valid Vietnamese phone number")
+    @Pattern(regexp = "^(\\+84|0)[0-9]{9}$", message = "{validation.phoneNumber.pattern}")
     String phoneNumber;
 
-    @NotBlank(message = "Password is required")
+    @NotBlank(message = "{validation.password.required}")
     String password;
 
-    @NotNull(message = "Role is required")
+    @NotNull(message = "{validation.role.required}")
     Role role;
 }

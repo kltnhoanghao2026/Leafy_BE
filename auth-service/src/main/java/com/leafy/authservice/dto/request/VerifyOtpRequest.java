@@ -18,12 +18,12 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class VerifyOtpRequest {
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
+    @NotBlank(message = "{validation.email.required}")
+    @Email(message = "{validation.email.invalid}")
     String email;
 
-    @NotBlank(message = "OTP is required")
-    @Size(min = 6, max = 6, message = "OTP must be 6 digits")
-    @Pattern(regexp = "^[0-9]{6}$", message = "OTP must contain only digits")
+    @NotBlank(message = "{validation.otp.required}")
+    @Size(min = 6, max = 6, message = "{validation.otp.pattern}")
+    @Pattern(regexp = "^[0-9]{6}$", message = "{validation.otp.pattern}")
     String otp;
 }

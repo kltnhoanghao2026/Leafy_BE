@@ -17,18 +17,18 @@ import java.util.Map;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class SpeciesCreateRequest {
 
-    @NotBlank(message = "Common name is required")
+    @NotBlank(message = "{validation.species.commonName.required}")
     String commonName;
 
     String cultivarName;
 
-    @NotNull(message = "Water frequency days is required")
-    @PositiveOrZero(message = "Water frequency days must be positive or zero")
+    @NotNull(message = "{validation.species.waterFrequencyDays.required}")
+    @PositiveOrZero(message = "{validation.species.waterFrequencyDays.positiveOrZero}")
     Integer waterFrequencyDays;
 
     String lightRequirements;
 
-    @PositiveOrZero(message = "Days to maturity must be positive or zero")
+    @PositiveOrZero(message = "{validation.species.daysToMaturity.positiveOrZero}")
     Integer daysToMaturity;
 
     String plantingWindow;
@@ -37,10 +37,10 @@ public class SpeciesCreateRequest {
 
     Map<String, Object> idealEnv;
 
-    @PositiveOrZero(message = "Spacing must be positive or zero")
+    @PositiveOrZero(message = "{validation.species.spacing.positiveOrZero}")
     Double spacing;
 
-    @PositiveOrZero(message = "Expected yield must be positive or zero")
+    @PositiveOrZero(message = "{validation.species.expectedYield.positiveOrZero}")
     Double expectedYieldKg;
 
     List<String> commonDiseaseIds;

@@ -17,21 +17,21 @@ import java.time.LocalDate;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PlantEventCreateRequest {
 
-    @NotBlank(message = "Plant ID is required")
+    @NotBlank(message = "{validation.plantId.required}")
     String plantId;
 
-    @NotNull(message = "Event type is required")
+    @NotNull(message = "{validation.event.type.required}")
     EventType eventType;
 
-    @NotBlank(message = "Note is required")
+    @NotBlank(message = "{validation.event.note.required}")
     String note;
 
     String description;
 
-    @PositiveOrZero(message = "days_from_now must be zero or positive")
+    @PositiveOrZero(message = "{validation.event.daysFromNow.positiveOrZero}")
     Integer daysFromNow;
 
-    @PositiveOrZero(message = "duration_days must be zero or positive")
+    @PositiveOrZero(message = "{validation.event.durationDays.positiveOrZero}")
     Integer durationDays;
 
     boolean isPlanned;

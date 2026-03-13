@@ -15,10 +15,10 @@ import java.time.LocalDateTime;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PlantCreateRequest {
 
-    @NotBlank(message = "Plant number is required")
+    @NotBlank(message = "{validation.plant.number.required}")
     String plantNumber;
 
-    @NotBlank(message = "Plant status is required")
+    @NotBlank(message = "{validation.plant.status.required}")
     String plantStatus;
 
     String nickName;
@@ -31,12 +31,12 @@ public class PlantCreateRequest {
     LocalDateTime germinationDate;
     LocalDateTime actualHarvestDate;
 
-    @PositiveOrZero(message = "Total yield must be positive or zero")
+    @PositiveOrZero(message = "{validation.plant.totalYield.positiveOrZero}")
     Double totalYieldKg;
 
-    @NotBlank(message = "Species ID is required")
+    @NotBlank(message = "{validation.speciesId.required}")
     String speciesId;
 
-    @NotBlank(message = "Farm plot ID is required")
+    @NotBlank(message = "{validation.farmPlotId.required}")
     String farmPlotId;
 }

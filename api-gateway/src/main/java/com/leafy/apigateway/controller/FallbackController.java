@@ -1,52 +1,65 @@
 package com.leafy.apigateway.controller;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @RestController
 @RequestMapping("/fallback")
+@RequiredArgsConstructor
 public class FallbackController {
 
-    @GetMapping("/auth-service")
-    public Mono<ResponseEntity<Map<String, Object>>> authServiceFallback() {
+    private final MessageSource messageSource;
+
+    @RequestMapping("/auth-service")
+    public Mono<ResponseEntity<Map<String, Object>>> authServiceFallback(ServerWebExchange exchange) {
         log.warn("Auth service is unavailable - Circuit breaker activated");
-        return Mono.just(createFallbackResponse("Auth service is temporarily unavailable"));
+        return Mono.just(createFallbackResponse(exchange));
     }
 
-    @GetMapping("/user-service")
-    public Mono<ResponseEntity<Map<String, Object>>> userServiceFallback() {
+    @RequestMapping("/user-service")
+    public Mono<ResponseEntity<Map<String, Object>>> userServiceFallback(ServerWebExchange exchange) {
         log.warn("User service is unavailable - Circuit breaker activated");
-        return Mono.just(createFallbackResponse("User service is temporarily unavailable"));
+        return Mono.just(createFallbackResponse(exchange));
     }
 
-    @GetMapping("/farm-service")
-    public Mono<ResponseEntity<Map<String, Object>>> farmServiceFallback() {
+    @RequestMapping("/farm-service")
+    public Mono<ResponseEntity<Map<String, Object>>> farmServiceFallback(ServerWebExchange exchange) {
         log.warn("Farm service is unavailable - Circuit breaker activated");
-        return Mono.just(createFallbackResponse("Farm service is temporarily unavailable"));
+        return Mono.just(createFallbackResponse(exchange));
     }
 
-    @GetMapping("/file-service")
-    public Mono<ResponseEntity<Map<String, Object>>> fileServiceFallback() {
+    @RequestMapping("/file-service")
+    public Mono<ResponseEntity<Map<String, Object>>> fileServiceFallback(ServerWebExchange exchange) {
         log.warn("File service is unavailable - Circuit breaker activated");
-        return Mono.just(createFallbackResponse("File service is temporarily unavailable"));
+        return Mono.just(createFallbackResponse(exchange));
     }
 
-    @GetMapping("/notification-service")
-    public Mono<ResponseEntity<Map<String, Object>>> notificationServiceFallback() {
+    @RequestMapping("/notification-service")
+    public Mono<ResponseEntity<Map<String, Object>>> notificationServiceFallback(ServerWebExchange exchange) {
         log.warn("Notification service is unavailable - Circuit breaker activated");
-        return Mono.just(createFallbackResponse("Notification service is temporarily unavailable"));
+        return Mono.just(createFallbackResponse(exchange));
     }
 
-    private ResponseEntity<Map<String, Object>> createFallbackResponse(String message) {
+    private ResponseEntity<Map<String, Object>> createFallbackResponse(ServerWebExchange exchange) {
+        Locale locale = Optional.ofNullable(
+                exchange.getRequest().getHeaders().getFirst(HttpHeaders.ACCEPT_LANGUAGE))
+                .map(Locale::forLanguageTag)
+                .orElse(new Locale("vi"));
+        String message = messageSource.getMessage("error.gateway.service.unavailable", null, locale);
         Map<String, Object> response = new HashMap<>();
         response.put("status", "error");
         response.put("message", message);

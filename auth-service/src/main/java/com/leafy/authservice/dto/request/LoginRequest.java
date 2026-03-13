@@ -14,14 +14,14 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class LoginRequest {
-    
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
+
+    @NotBlank(message = "{validation.email.required}")
+    @Email(message = "{validation.email.invalid}")
     String email;
-    
-    @NotBlank(message = "Password is required")
+
+    @NotBlank(message = "{validation.password.required}")
     String password;
-    
+
     // Optional: App version for mobile apps
     String appVersion;
 }

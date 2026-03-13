@@ -18,17 +18,17 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ProfileCreateRequest {
 
-    @NotBlank(message = "User ID is required")
+    @NotBlank(message = "{validation.userId.required}")
     String userId;
 
-    @NotBlank(message = "Full name is required")
+    @NotBlank(message = "{validation.fullName.required}")
     String fullName;
 
     String profilePicture;
 
     String avatar;
 
-    @NotNull(message = "Role is required")
+    @NotNull(message = "{validation.profile.role.required}")
     UserRole role;
 
     String specialty;

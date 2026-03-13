@@ -1,6 +1,9 @@
 spring:
   application:
     name: auth-service
+  messages:
+    basename: i18n/messages
+    encoding: UTF-8
   config:
     import: configserver:http://localhost:8888
   cloud:

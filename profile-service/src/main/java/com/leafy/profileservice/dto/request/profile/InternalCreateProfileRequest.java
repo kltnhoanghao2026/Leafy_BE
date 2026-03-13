@@ -14,6 +14,6 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class InternalCreateProfileRequest {
 
-    @NotBlank(message = "User ID is required")
+    @NotBlank(message = "{validation.userId.required}")
     String userId;
 }

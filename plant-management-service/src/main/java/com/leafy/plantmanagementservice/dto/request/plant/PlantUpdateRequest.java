@@ -26,7 +26,7 @@ public class PlantUpdateRequest {
     LocalDateTime germinationDate;
     LocalDateTime actualHarvestDate;
 
-    @PositiveOrZero(message = "Total yield must be positive or zero")
+    @PositiveOrZero(message = "{validation.plant.totalYield.positiveOrZero}")
     Double totalYieldKg;
 
     String speciesId;

@@ -1,6 +1,9 @@
 spring:
   application:
     name: api-gateway
+  messages:
+    basename: i18n/messages,i18n/gateway-messages
+    encoding: UTF-8
   config:
     import: configserver:http://localhost:8888
   cloud:

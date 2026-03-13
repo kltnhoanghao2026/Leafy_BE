@@ -12,15 +12,15 @@ import java.time.LocalDate;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AddCertificateRequest {
 
-    @NotBlank(message = "Title is required")
+    @NotBlank(message = "{validation.certificate.title.required}")
     String title;
 
-    @NotBlank(message = "Issued by is required")
+    @NotBlank(message = "{validation.certificate.issuedBy.required}")
     String issuedBy;
 
-    @NotBlank(message = "Proof URL is required")
+    @NotBlank(message = "{validation.certificate.proofUrl.required}")
     String proofUrl;
 
-    @NotNull(message = "Issue date is required")
+    @NotNull(message = "{validation.certificate.issueDate.required}")
     LocalDate issueDate;
 }

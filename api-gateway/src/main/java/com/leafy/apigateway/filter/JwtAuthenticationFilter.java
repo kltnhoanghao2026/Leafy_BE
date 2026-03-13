@@ -1,6 +1,9 @@
 package com.leafy.apigateway.filter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leafy.apigateway.config.PublicEndpointsConfig;
+import com.leafy.common.dto.ApiResponse;
+import com.leafy.common.exception.ErrorCode;
 import com.leafy.common.utils.JwtUtil;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
@@ -8,16 +11,22 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.context.MessageSource;
 import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+
+import java.util.Locale;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -28,15 +37,21 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     @Qualifier("reactiveRedisTemplate")
     ReactiveRedisTemplate<String, String> redisTemplate;
-    
+
     PublicEndpointsConfig publicEndpointsConfig;
+    MessageSource messageSource;
+    ObjectMapper objectMapper;
 
     public JwtAuthenticationFilter(JwtUtil jwtUtil,
                                    @Qualifier("reactiveRedisTemplate") ReactiveRedisTemplate<String, String> redisTemplate,
-                                   PublicEndpointsConfig publicEndpointsConfig) {
+                                   PublicEndpointsConfig publicEndpointsConfig,
+                                   MessageSource messageSource,
+                                   ObjectMapper objectMapper) {
         this.jwtUtil = jwtUtil;
         this.redisTemplate = redisTemplate;
         this.publicEndpointsConfig = publicEndpointsConfig;
+        this.messageSource = messageSource;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -54,31 +69,31 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         String token = extractJwtFromRequest(request);
 
         if (token == null) {
-            return onError(exchange, "Missing or invalid authorization token", HttpStatus.UNAUTHORIZED);
+            return onError(exchange, ErrorCode.AUTH_UNAUTHENTICATED);
         }
 
         // Validate token signature and expiration
         try {
             if (!jwtUtil.validateToken(token)) {
-                return onError(exchange, "Invalid JWT token", HttpStatus.UNAUTHORIZED);
+                return onError(exchange, ErrorCode.JWT_INVALID_TOKEN);
             }
         } catch (Exception e) {
             log.error("JWT validation error: {}", e.getMessage());
-            return onError(exchange, "JWT validation failed", HttpStatus.UNAUTHORIZED);
+            return onError(exchange, ErrorCode.JWT_INVALID_TOKEN);
         }
 
         // Verify this is an access token
         String tokenType = jwtUtil.extractTokenType(token);
         if (!"access".equals(tokenType)) {
             log.warn("Attempted to use non-access token for authentication");
-            return onError(exchange, "Invalid token type", HttpStatus.UNAUTHORIZED);
+            return onError(exchange, ErrorCode.JWT_INVALID_TOKEN);
         }
 
         // Extract JTI for blacklist check
         String jti = jwtUtil.extractJti(token);
         if (jti == null) {
             log.error("Token missing JTI claim");
-            return onError(exchange, "Invalid token structure", HttpStatus.UNAUTHORIZED);
+            return onError(exchange, ErrorCode.JWT_INVALID_TOKEN);
         }
 
         // Check if access token is blacklisted using correct Redis key pattern
@@ -87,7 +102,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 .flatMap(exists -> {
                     if (Boolean.TRUE.equals(exists)) {
                         log.warn("Attempted to use blacklisted token - JTI: {}", jti);
-                        return onError(exchange, "Token has been revoked", HttpStatus.UNAUTHORIZED);
+                        return onError(exchange, ErrorCode.TOKEN_REVOKED);
                     }
 
                     // Extract user information and add to request headers for common SecurityContextFilter
@@ -117,7 +132,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 })
                 .onErrorResume(e -> {
                     log.error("Error checking token blacklist: {}", e.getMessage());
-                    return onError(exchange, "Authentication service error", HttpStatus.INTERNAL_SERVER_ERROR);
+                    return onError(exchange, ErrorCode.SYS_UNCATEGORIZED);
                 });
     }
 
@@ -142,10 +157,25 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         return null;
     }
 
-    private Mono<Void> onError(ServerWebExchange exchange, String message, HttpStatus status) {
-        log.error("Authentication error: {}", message);
-        exchange.getResponse().setStatusCode(status);
-        return exchange.getResponse().setComplete();
+    private Mono<Void> onError(ServerWebExchange exchange, ErrorCode errorCode) {
+        Locale locale = Optional.ofNullable(
+                exchange.getRequest().getHeaders().getFirst(HttpHeaders.ACCEPT_LANGUAGE))
+                .map(Locale::forLanguageTag)
+                .orElse(new Locale("vi"));
+        String message = messageSource.getMessage(errorCode.getMessageKey(), null, errorCode.getMessageKey(), locale);
+        log.error("Authentication error [{}]: {}", errorCode.getCode(), message);
+
+        ApiResponse<?> body = ApiResponse.error(errorCode.getCode(), message, null);
+        exchange.getResponse().setStatusCode(errorCode.getHttpStatus());
+        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        try {
+            byte[] bytes = objectMapper.writeValueAsBytes(body);
+            DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(bytes);
+            return exchange.getResponse().writeWith(Mono.just(buffer));
+        } catch (Exception e) {
+            log.error("Failed to write error response: {}", e.getMessage());
+            return exchange.getResponse().setComplete();
+        }
     }
 
     @Override

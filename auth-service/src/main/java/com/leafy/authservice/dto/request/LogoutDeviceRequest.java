@@ -18,6 +18,6 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class LogoutDeviceRequest {
 
-    @NotBlank(message = "Device ID is required")
+    @NotBlank(message = "{validation.deviceId.required}")
     String deviceId;
 }

@@ -16,7 +16,7 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UpdateCertificateStatusRequest {
 
-    @NotNull(message = "Status is required")
+    @NotNull(message = "{validation.certificate.status.required}")
     CertificateStatus status;
 
     String reason;

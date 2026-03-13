@@ -17,10 +17,10 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserUpdateRequest {
 
-    @Email(message = "Email must be valid")
+    @Email(message = "{validation.email.invalid}")
     String email;
 
-    @Pattern(regexp = "^(\\+84|0)[0-9]{9}$", message = "Phone number must be valid Vietnamese phone number")
+    @Pattern(regexp = "^(\\+84|0)[0-9]{9}$", message = "{validation.phoneNumber.pattern}")
     String phoneNumber;
 
     String password;
