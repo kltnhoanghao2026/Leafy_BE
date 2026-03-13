@@ -10,3 +10,8 @@ spring:
       username: ${MONGODB_USERNAME}
       password: ${MONGODB_PASSWORD}
       authentication-database: admin
+
+bondhub:
+  security:
+    gateway-auth:
+      enabled: true

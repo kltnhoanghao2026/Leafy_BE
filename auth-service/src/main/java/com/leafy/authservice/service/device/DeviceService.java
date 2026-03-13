@@ -28,8 +28,9 @@ public interface DeviceService {
      * @param deviceId Device ID
      * @param userId   User ID
      * @param jti      Refresh token JTI
+        * @param sessionId JWT session ID
      */
-    void updateDeviceToken(String deviceId, String userId, String jti);
+        void updateDeviceToken(String deviceId, String userId, String jti, String sessionId);
     
     /**
      * Get device by user ID and device ID

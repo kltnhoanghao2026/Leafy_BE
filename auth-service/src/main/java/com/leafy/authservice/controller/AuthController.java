@@ -2,6 +2,7 @@ package com.leafy.authservice.controller;
 
 import com.leafy.authservice.dto.request.InitialRegisterRequest;
 import com.leafy.authservice.dto.request.LoginRequest;
+import com.leafy.authservice.dto.request.LogoutDeviceRequest;
 import com.leafy.authservice.dto.request.RefreshTokenRequest;
 import com.leafy.authservice.dto.request.RegisterRequest;
 import com.leafy.authservice.dto.request.ResendOtpRequest;
@@ -100,31 +101,6 @@ public class AuthController {
         } else {
            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
         }
-    }
-
-    /**
-     * Register endpoint (legacy - direct registration without OTP)
-     * Creates a new user account and issues access and refresh tokens
-     *
-     * @param registerRequest the registration request
-     * @param userAgent User-Agent header
-     * @param deviceId X-Device-ID header
-     * @param httpRequest the HTTP request
-     * @param response the HTTP response (for setting cookies on web clients)
-     * @return authentication response with tokens
-     */
-    @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse>> register(
-            @Valid @RequestBody RegisterRequest registerRequest,
-            @RequestHeader(value = "User-Agent", required = false) String userAgent,
-            @RequestHeader(value = "X-Device-ID", required = false) String deviceId,
-            HttpServletRequest httpRequest,
-            HttpServletResponse response) {
-        log.info("POST /auth/register - Email: {}", registerRequest.getEmail());
-        
-        AuthResponse authResponse = authService.register(registerRequest, userAgent, deviceId, httpRequest, response);
-        
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(authResponse));
     }
     
     /**
@@ -234,6 +210,37 @@ public class AuthController {
         
         authService.logout(request, refreshTokenRequest, response, DeviceType.MOBILE);
         
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Logout all devices for the authenticated user.
+     * Revokes all refresh sessions and associated access tokens by access JTI.
+     */
+    @PostMapping("/logout-device")
+    public ResponseEntity<Void> logoutDevice(
+            @Valid @RequestBody LogoutDeviceRequest logoutDeviceRequest,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        log.debug("POST /auth/logout-device");
+
+        authService.logoutDevice(request, logoutDeviceRequest, response);
+
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Logout all other devices for the authenticated user.
+     * Keeps current session and revokes the rest.
+     */
+    @PostMapping("/logout-other")
+    public ResponseEntity<Void> logoutOther(
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        log.debug("POST /auth/logout-other");
+
+        authService.logoutOther(request, response);
+
         return ResponseEntity.noContent().build();
     }
 }

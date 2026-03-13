@@ -44,6 +44,9 @@ public enum ErrorCode {
         OTP_PURPOSE_MISMATCH(HttpStatus.BAD_REQUEST, 2014, "error.otp.purpose.mismatch"),
         OTP_NOT_FOUND(HttpStatus.NOT_FOUND, 2015, "error.otp.not.found"),
         REGISTRATION_DATA_EXPIRED(HttpStatus.BAD_REQUEST, 2016, "error.registration.data.expired"),
+        PLANT_NOT_FOUND(HttpStatus.NOT_FOUND, 2017, "error.plant.not.found"),
+        SPECIES_NOT_FOUND(HttpStatus.NOT_FOUND, 2018, "error.species.not.found"),
+        PLANT_EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, 2019, "error.plant.event.not.found"),
 
         // Role and permission errors (21xx)
         ROLE_NOT_FOUND(HttpStatus.NOT_FOUND, 2101, "error.role.not.found"),

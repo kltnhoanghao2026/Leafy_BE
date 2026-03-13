@@ -85,12 +85,13 @@ public class DeviceServiceImpl implements DeviceService {
     
     @Override
     @Transactional
-    public void updateDeviceToken(String deviceId, String userId, String jti) {
+    public void updateDeviceToken(String deviceId, String userId, String jti, String sessionId) {
         deviceRepository.findByUserIdAndDeviceId(userId, deviceId)
                 .ifPresent(device -> {
                     device.setCurrentRefreshTokenJti(jti);
+                    device.setSessionId(sessionId);
                     deviceRepository.save(device);
-                    log.debug("Updated device {} token JTI to: {}", deviceId, jti);
+                    log.debug("Updated device {} token JTI/sessionId", deviceId);
                 });
     }
     

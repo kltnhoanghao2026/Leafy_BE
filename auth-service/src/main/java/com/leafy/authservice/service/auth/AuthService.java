@@ -2,6 +2,7 @@ package com.leafy.authservice.service.auth;
 
 import com.leafy.authservice.dto.request.InitialRegisterRequest;
 import com.leafy.authservice.dto.request.LoginRequest;
+import com.leafy.authservice.dto.request.LogoutDeviceRequest;
 import com.leafy.authservice.dto.request.RefreshTokenRequest;
 import com.leafy.authservice.dto.request.RegisterRequest;
 import com.leafy.authservice.dto.request.VerifyOtpRequest;
@@ -47,20 +48,7 @@ public interface AuthService {
      * @return true if OTP was resent successfully
      */
     boolean resendOtp(String email);
-    
-    /**
-     * Register new user and issue tokens
-     *
-     * @param registerRequest the registration request
-     * @param userAgent User-Agent header
-     * @param deviceId X-Device-ID header
-     * @param httpRequest the HTTP request
-     * @param response the HTTP response (for setting cookies on web clients)
-     * @return authentication response with tokens
-     */
-    AuthResponse register(RegisterRequest registerRequest, String userAgent, String deviceId,
-                         HttpServletRequest httpRequest, HttpServletResponse response);
-    
+
     /**
      * Authenticate user and issue tokens
      *
@@ -96,4 +84,22 @@ public interface AuthService {
      */
     void logout(HttpServletRequest request, RefreshTokenRequest refreshTokenRequest, 
                 HttpServletResponse response, DeviceType deviceType);
+
+    /**
+     * Logout all devices for the authenticated user.
+     * Revokes all refresh sessions and associated access tokens.
+     *
+     * @param request the HTTP request (contains access token)
+     * @param response the HTTP response (for clearing cookie on web clients)
+     */
+    void logoutDevice(HttpServletRequest request, LogoutDeviceRequest logoutDeviceRequest, HttpServletResponse response);
+
+    /**
+     * Logout all other devices for the authenticated user.
+     * Keeps the current access token session active and revokes all others.
+     *
+     * @param request the HTTP request (contains current access token)
+     * @param response the HTTP response
+     */
+    void logoutOther(HttpServletRequest request, HttpServletResponse response);
 }

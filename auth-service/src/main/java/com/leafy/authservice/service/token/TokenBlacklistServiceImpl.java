@@ -25,6 +25,7 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
     
     BlacklistTokenRepository blacklistTokenRepository;
     RateLimitRepository rateLimitRepository;
+    RefreshSessionService refreshSessionService;
     
     @Override
     public void blacklistAccessToken(String jti, String userId, long remainingLifetime) {
@@ -65,6 +66,8 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
             // Refresh tokens typically have longer TTL (30 days)
             long ttlSeconds = 2592000L; // 30 days
             LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(ttlSeconds);
+
+            refreshSessionService.revokeSessionByJti(jti);
             
             BlacklistToken blacklistToken = BlacklistToken.builder()
                     .jti(jti)

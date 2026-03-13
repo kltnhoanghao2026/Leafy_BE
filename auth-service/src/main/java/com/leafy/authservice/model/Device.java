@@ -92,4 +92,9 @@ public class Device extends BaseModel {
      * Current refresh token JTI associated with this device
      */
     String currentRefreshTokenJti;
+
+    /**
+     * Current JWT sessionId associated with this device.
+     */
+    String sessionId;
 }
