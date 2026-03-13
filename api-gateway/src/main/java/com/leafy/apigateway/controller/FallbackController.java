@@ -54,12 +54,34 @@ public class FallbackController {
         return Mono.just(createFallbackResponse(exchange));
     }
 
+    @RequestMapping("/rag-service")
+    public Mono<ResponseEntity<Map<String, Object>>> ragServiceFallback(ServerWebExchange exchange) {
+        log.warn("RAG service is unavailable - Circuit breaker activated");
+        return Mono.just(createFallbackResponse(exchange, "error.gateway.rag-service.unavailable"));
+    }
+
+    @RequestMapping({"/disease-detection-service", "/disease-classification-service"})
+    public Mono<ResponseEntity<Map<String, Object>>> diseaseDetectionServiceFallback(ServerWebExchange exchange) {
+        log.warn("Disease detection service is unavailable - Circuit breaker activated");
+        return Mono.just(createFallbackResponse(exchange, "error.gateway.disease-detection-service.unavailable"));
+    }
+
     private ResponseEntity<Map<String, Object>> createFallbackResponse(ServerWebExchange exchange) {
+        return createFallbackResponse(exchange, "error.gateway.service.unavailable");
+    }
+
+    private ResponseEntity<Map<String, Object>> createFallbackResponse(
+            ServerWebExchange exchange,
+            String messageKey) {
         Locale locale = Optional.ofNullable(
                 exchange.getRequest().getHeaders().getFirst(HttpHeaders.ACCEPT_LANGUAGE))
                 .map(Locale::forLanguageTag)
                 .orElse(new Locale("vi"));
-        String message = messageSource.getMessage("error.gateway.service.unavailable", null, locale);
+        String message = messageSource.getMessage(
+                messageKey,
+                null,
+                messageSource.getMessage("error.gateway.service.unavailable", null, locale),
+                locale);
         Map<String, Object> response = new HashMap<>();
         response.put("status", "error");
         response.put("message", message);
