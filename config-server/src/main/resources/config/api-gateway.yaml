@@ -229,6 +229,26 @@ spring:
               filters:
                 - RewritePath=/disease-classification-service/v3/api-docs, /v3/api-docs
 
+            #IOT Metrics Collector Service
+            - id: iot-metrics-collector-service
+              uri: lb://iot-metrics-collector-service
+              predicates:
+                - Path=/api/iot/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: iotMetricsCollectorServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/iot-metrics-collector-service
+
+              #OpenAPI Documentation for IOT Metrics Collector Service
+            - id: iot-metrics-collector-service-openapi
+              uri: lb://iot-metrics-collector-service
+              predicates:
+                - Path=/iot-metrics-collector-service/v3/api-docs/**
+              filters:
+                - RewritePath=/iot-metrics-collector-service/v3/api-docs, /v3/api-docs
+
           globalCors:
             cors-configurations:
               "[/**]":
@@ -331,6 +351,8 @@ resilience4j:
          baseConfig: default
       diseaseClassificationServiceCircuitBreaker:
         baseConfig: default
+      iotMetricsCollectorServiceCircuitBreaker:
+        baseConfig: default
 
   timelimiter:
     configs:
@@ -354,6 +376,8 @@ resilience4j:
       ragServiceCircuitBreaker:
         timeoutDuration: 120s
       diseaseClassificationServiceCircuitBreaker:
+        baseConfig: default
+      iotMetricsCollectorServiceCircuitBreaker:
         baseConfig: default
 
 # JWT Configuration
@@ -390,6 +414,8 @@ springdoc:
         url: /rag-service/v3/api-docs
       - name: disease-classification-service
         url: /disease-classification-service/v3/api-docs
+      - name: iot-metrics-collector-service
+        url: /iot-metrics-collector-service/v3/api-docs
     operations-sorter: method
     tags-sorter: alpha
     display-request-duration: true

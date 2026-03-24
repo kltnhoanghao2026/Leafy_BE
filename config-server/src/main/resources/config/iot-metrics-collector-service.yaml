@@ -1,0 +1,51 @@
+server:
+  port: ${SERVER_PORT:8091}
+
+spring:
+  application:
+    name: iot-metrics-collector-service
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:leafy_iot_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres123}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+app:
+  mqtt:
+    url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+    client-id: ${MQTT_CLIENT_ID:iot-metrics-collector-service}
+    topics:
+      - coffee/prod/devices/+/telemetry
+      - coffee/prod/devices/+/status
+      - coffee/prod/devices/+/image/meta
+      - coffee/prod/devices/+/ack
+    qos: 1
+    completion-timeout: 5000
+    automatic-reconnect: true
+    clean-session: true
+    connection-timeout: 10
+    keep-alive-interval: 20

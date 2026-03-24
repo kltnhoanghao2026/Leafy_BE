@@ -1,6 +1,7 @@
 package com.leafy.iotmetricscollectorservice.model;
 
 import com.leafy.iotmetricscollectorservice.model.base.BaseAuditEntity;
+import com.leafy.iotmetricscollectorservice.model.enums.AlertSeverity;
 import com.leafy.iotmetricscollectorservice.model.ref.FarmPlotRef;
 import com.leafy.iotmetricscollectorservice.model.ref.FarmZoneRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
