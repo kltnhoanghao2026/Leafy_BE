@@ -4,6 +4,7 @@ import com.leafy.common.security.SecurityContextFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -48,9 +49,10 @@ public class SecurityConfig {
 
                 // Configure authorization
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Public endpoints
                         .requestMatchers("/auth/**").permitAll()
-                    .requestMatchers("/internal/**").permitAll()
+                        .requestMatchers("/internal/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
 
                         // Swagger/OpenAPI endpoints
@@ -79,15 +81,23 @@ public class SecurityConfig {
 
         // Allowed origins (configure based on environment)
         configuration.setAllowedOrigins(List.of(
-                "http://localhost:3000" // React dev server
-
+                "http://localhost:3000",
+                "http://localhost:5173"
         ));
 
         // Allowed HTTP methods
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
 
         // Allowed headers
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "User-Agent",
+                "X-Device-ID",
+                "X-User-Id",
+                "X-Device-Id"
+        ));
 
         // Expose headers (for custom headers in response)
         configuration.setExposedHeaders(List.of("Authorization"));

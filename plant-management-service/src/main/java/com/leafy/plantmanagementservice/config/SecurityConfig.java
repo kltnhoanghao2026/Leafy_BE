@@ -4,6 +4,7 @@ import com.leafy.common.security.SecurityContextFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -42,6 +43,7 @@ public class SecurityConfig {
 
                 // Configure authorization
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Public endpoints
                         .requestMatchers("/actuator/**").permitAll()
 
@@ -75,14 +77,23 @@ public class SecurityConfig {
 
         // Allowed origins
         configuration.setAllowedOrigins(List.of(
-                "http://localhost:3000" // React dev server
+                "http://localhost:3000",
+                "http://localhost:5173"
         ));
 
         // Allowed HTTP methods
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
 
         // Allowed headers
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "User-Agent",
+                "X-Device-ID",
+                "X-User-Id",
+                "X-Device-Id"
+        ));
 
         // Expose headers
         configuration.setExposedHeaders(List.of("Authorization"));
