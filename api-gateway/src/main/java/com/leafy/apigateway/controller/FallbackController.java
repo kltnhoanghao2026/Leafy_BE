@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
@@ -49,11 +50,18 @@ public class FallbackController {
     public Mono<ResponseEntity<Map<String, Object>>> ragServiceFallback() {
         log.warn("RAG service is unavailable - Circuit breaker activated");
         return Mono.just(createFallbackResponse("RAG service is temporarily unavailable"));
+    }
       
     @GetMapping("/disease-classification-service")
     public Mono<ResponseEntity<Map<String, Object>>> diseaseClassificationService() {
         log.warn("Disease classification service is unavailable - Circuit breaker activated");
         return Mono.just(createFallbackResponse("Disease classification service is temporarily unavailable"));
+    }
+
+    @RequestMapping("/community-feed-service")
+    public Mono<ResponseEntity<Map<String, Object>>> communityFeedServiceFallback() {
+        log.warn("Community feed service is unavailable - Circuit breaker activated");
+        return Mono.just(createFallbackResponse("Community feed service is temporarily unavailable"));
     }
 
     private ResponseEntity<Map<String, Object>> createFallbackResponse(String message) {

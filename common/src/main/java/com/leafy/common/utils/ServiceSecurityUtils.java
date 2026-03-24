@@ -35,4 +35,16 @@ public class ServiceSecurityUtils {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return (UserPrincipal) authentication.getPrincipal();
     }
+
+    /**
+     * Get the current authenticated user's profile ID from security context
+     *
+     * @return the profile ID of the authenticated user
+     * @throws ClassCastException if the principal is not a UserPrincipal
+     */
+    public static String getCurrentProfileId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        return principal.getProfileId();
+    }
 }

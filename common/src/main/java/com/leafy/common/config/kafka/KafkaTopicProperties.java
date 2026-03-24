@@ -14,6 +14,7 @@ public class KafkaTopicProperties {
     private UserEvents userEvents = new UserEvents();
     private MessageEvents messageEvents = new MessageEvents();
     private NotificationEvents notificationEvents = new NotificationEvents();
+    private CommunityEvents communityEvents = new CommunityEvents();
 
     @Getter
     @Setter
@@ -44,5 +45,12 @@ public class KafkaTopicProperties {
 
     }
 
-
+    @Getter
+    @Setter
+    public static class CommunityEvents {
+        private String commentCreated = "community.comment.created";
+        private String commentDeleted = "community.comment.deleted";
+        private String voteCreated = "community.vote.created";
+        private String voteDeleted = "community.vote.deleted";
+    }
 }

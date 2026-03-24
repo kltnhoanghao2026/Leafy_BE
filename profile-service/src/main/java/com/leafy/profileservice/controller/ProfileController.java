@@ -71,7 +71,7 @@ public class ProfileController {
      * @return the updated profile response
      */
     @PutMapping("/user/{userId}")
-    @PreAuthorize("hasRole('ADMIN') or @userSecurityService.isCurrentUser(#userId)")
+    @PreAuthorize("hasRole('ADMIN') or @profileSecurityService.isCurrentUser(#userId)")
     public ResponseEntity<ApiResponse<ProfileResponse>> updateProfileByUserId(
             @PathVariable String userId,
             @Valid @RequestBody ProfileUpdateRequest request) {
@@ -115,7 +115,7 @@ public class ProfileController {
      * @return the profile response
      */
     @GetMapping("/user/{userId}")
-    @PreAuthorize("hasRole('ADMIN') or @userSecurityService.isCurrentUser(#userId)")
+    @PreAuthorize("hasRole('ADMIN') or @profileSecurityService.isCurrentUser(#userId)")
     public ResponseEntity<ApiResponse<ProfileResponse>> getProfileByUserId(@PathVariable String userId) {
         log.info("GET /profiles/user/{} - Getting profile by user ID", userId);
         ProfileResponse response = profileService.getProfileByUserId(userId);
@@ -296,7 +296,7 @@ public class ProfileController {
      * @return true if exists, false otherwise
      */
     @GetMapping("/exists/user/{userId}")
-    @PreAuthorize("hasRole('ADMIN') or @userSecurityService.isCurrentUser(#userId)")
+    @PreAuthorize("hasRole('ADMIN') or @profileSecurityService.isCurrentUser(#userId)")
     public ResponseEntity<ApiResponse<Boolean>> existsByUserId(@PathVariable String userId) {
         log.info("GET /profiles/exists/user/{} - Checking if profile exists for user", userId);
         boolean exists = profileService.existsByUserId(userId);

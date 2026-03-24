@@ -17,4 +17,10 @@ public enum EventType {
     
     // System Events (matching KafkaTopicProperties.SystemEvents)
     // Add system events here when defined
+    
+    // Community Events
+    COMMENT_CREATED,
+    COMMENT_DELETED,
+    VOTE_CREATED,
+    VOTE_DELETED
 }

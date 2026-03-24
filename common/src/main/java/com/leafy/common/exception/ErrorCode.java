@@ -61,7 +61,12 @@ public enum ErrorCode {
         INVALID_YEAR_ATTRIBUTE_PAIR(HttpStatus.BAD_REQUEST, 2204, "error.invalid.year.attribute.pair"),
         INVALID_OPERATION(HttpStatus.BAD_REQUEST, 2205, "error.invalid.operation"),
         INVALID_PROMOTION_CONDITION(HttpStatus.BAD_REQUEST, 2206, "error.invalid.promotion.condition"),
-        ACC_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, 2207, "error.acc.password.mismatch")
+        ACC_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, 2207, "error.acc.password.mismatch"),
+        INVALID_POST_TYPE_CONSTRAINT(HttpStatus.BAD_REQUEST, 2208, "error.invalid.post.type.constraint"),
+
+        // Community errors (3xxx)
+        POST_NOT_FOUND(HttpStatus.NOT_FOUND, 3001, "error.post.not.found"),
+        COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, 3002, "error.comment.not.found")
 
         ;
 

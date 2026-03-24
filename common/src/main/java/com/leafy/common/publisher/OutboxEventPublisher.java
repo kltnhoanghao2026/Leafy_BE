@@ -2,6 +2,8 @@ package com.leafy.common.publisher;
 
 import com.leafy.common.config.kafka.KafkaTopicProperties;
 import com.leafy.common.event.account.AccountRegisteredEvent;
+import com.leafy.common.event.community.CommentEvent;
+import com.leafy.common.event.community.VoteEvent;
 import com.leafy.common.model.kafka.EventType;
 import com.leafy.common.model.kafka.OutboxEvent;
 import com.leafy.common.repository.OutboxEventRepository;
@@ -123,6 +125,10 @@ public class OutboxEventPublisher {
             case USER_VERIFIED -> kafkaTopicProperties.getUserEvents().getVerified();
             case USER_ENABLED -> kafkaTopicProperties.getUserEvents().getEnabled();
             case USER_DISABLED -> kafkaTopicProperties.getUserEvents().getDisabled();
+            case COMMENT_CREATED -> kafkaTopicProperties.getCommunityEvents().getCommentCreated();
+            case COMMENT_DELETED -> kafkaTopicProperties.getCommunityEvents().getCommentDeleted();
+            case VOTE_CREATED -> kafkaTopicProperties.getCommunityEvents().getVoteCreated();
+            case VOTE_DELETED -> kafkaTopicProperties.getCommunityEvents().getVoteDeleted();
         };
     }
 
@@ -130,6 +136,8 @@ public class OutboxEventPublisher {
         return switch (eventType) {
             case USER_REGISTERED, USER_UPDATED, USER_DELETED, 
                  USER_VERIFIED, USER_ENABLED, USER_DISABLED -> AccountRegisteredEvent.class;
+            case COMMENT_CREATED, COMMENT_DELETED -> CommentEvent.class;
+            case VOTE_CREATED, VOTE_DELETED -> VoteEvent.class;
         };
     }
 }

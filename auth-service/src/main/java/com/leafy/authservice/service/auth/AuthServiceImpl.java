@@ -5,7 +5,6 @@ import com.leafy.authservice.dto.request.InitialRegisterRequest;
 import com.leafy.authservice.dto.request.LoginRequest;
 import com.leafy.authservice.dto.request.LogoutDeviceRequest;
 import com.leafy.authservice.dto.request.RefreshTokenRequest;
-import com.leafy.authservice.dto.request.RegisterRequest;
 import com.leafy.authservice.dto.request.VerifyOtpRequest;
 import com.leafy.authservice.dto.response.AuthResponse;
 import com.leafy.authservice.dto.response.RegistrationInitResponse;
@@ -19,6 +18,8 @@ import com.leafy.authservice.service.jwt.JwtService;
 import com.leafy.authservice.service.otp.OtpService;
 import com.leafy.authservice.service.token.RefreshSessionService;
 import com.leafy.authservice.service.token.TokenBlacklistService;
+import com.leafy.authservice.client.ProfileServiceClient;
+import com.leafy.authservice.client.dto.ProfileCreateRequest;
 import com.leafy.common.config.JwtProperties;
 import com.leafy.common.enums.Role;
 import com.leafy.common.exception.AppException;
@@ -37,7 +38,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
-import java.util.UUID;
 
 /**
  * Authentication Service implementation
@@ -59,6 +59,7 @@ public class AuthServiceImpl implements AuthService {
     OtpService otpService;
     RegistrationDataRepository registrationDataRepository;
     RefreshSessionService refreshSessionService;
+    ProfileServiceClient profileServiceClient;
 
     @NonFinal
     @Value("${security.rate-limit.login.max-attempts:5}")
@@ -153,13 +154,31 @@ public class AuthServiceImpl implements AuthService {
         registrationDataRepository.delete(registrationData);
         otpService.deleteOtp(verifyRequest.getEmail());
 
+        String profileId = null;
+        try {
+            ProfileCreateRequest profileRequest = ProfileCreateRequest.builder()
+                    .userId(savedUser.getId())
+                    .fullName(savedUser.getEmail().split("@")[0])
+                    .role("FARMER") // match UserRole.FARMER in profile-service
+                    .build();
+
+            var profileResponse = profileServiceClient.createProfile(profileRequest);
+            if (profileResponse != null && profileResponse.data() != null) {
+                profileId = profileResponse.data().getId();
+                log.info("Profile created synchronously for user: {}", savedUser.getId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to create profile synchronously for user {}: {}", savedUser.getId(), e.getMessage());
+        }
+
         return authenticateAndBuildResponse(
             savedUser,
             deviceId,
             userAgent,
             registrationData.getAppVersion(),
             response,
-            "Registration complete with tokens"
+            "Registration complete with tokens",
+            profileId
         );
     }
     
@@ -192,34 +211,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("OTP resent successfully for email: {}", email);
         return true;
     }
-    
-    @Override
-    public AuthResponse register(RegisterRequest request, String userAgent, String deviceId,
-                                HttpServletRequest httpRequest, HttpServletResponse response) {
-        log.info("Registration attempt - Email: {}", request.getEmail());
 
-        validateEmailAndPhoneAvailability(request.getEmail(), request.getPhoneNumber());
-
-        User newUser = User.builder()
-                .email(request.getEmail())
-                .phoneNumber(request.getPhoneNumber())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .role(Role.USER) // Default role for new registrations
-                .build();
-
-        User savedUser = userRepository.save(newUser);
-        log.info("User registered successfully - User ID: {}", savedUser.getId());
-
-        return authenticateAndBuildResponse(
-            savedUser,
-            deviceId,
-            userAgent,
-            request.getAppVersion(),
-            response,
-            "Registration complete with tokens"
-        );
-    }
-    
     @Override
     public AuthResponse login(LoginRequest request, String userAgent, String deviceId,
                              HttpServletRequest httpRequest, HttpServletResponse response) {
@@ -246,7 +238,8 @@ public class AuthServiceImpl implements AuthService {
                 userAgent,
                 request.getAppVersion(),
                 response,
-                "Login successful"
+                "Login successful",
+                null
         );
     }
     
@@ -525,12 +518,13 @@ public class AuthServiceImpl implements AuthService {
                                                       String userAgent,
                                                       String appVersion,
                                                       HttpServletResponse response,
-                                                      String successLogPrefix) {
+                                                      String successLogPrefix,
+                                                      String profileId) {
         var device = deviceService.registerOrUpdateDevice(user.getId(), deviceId, userAgent, appVersion);
         String finalDeviceId = device.getDeviceId();
         DeviceType deviceType = device.getDeviceType();
 
-        String accessToken = jwtService.generateAccessToken(user, finalDeviceId);
+        String accessToken = jwtService.generateAccessToken(user, finalDeviceId, profileId);
         String refreshToken = jwtService.generateRefreshToken(user, finalDeviceId);
         String accessTokenJti = jwtService.extractJti(accessToken);
 

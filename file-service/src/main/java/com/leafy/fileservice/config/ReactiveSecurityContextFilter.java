@@ -26,6 +26,7 @@ public class ReactiveSecurityContextFilter implements WebFilter {
     private static final String HEADER_USER_ID = "X-User-Id";
     private static final String HEADER_USER_EMAIL = "X-User-Email";
     private static final String HEADER_USER_ROLES = "X-User-Roles";
+    private static final String HEADER_PROFILE_ID = "X-Profile-Id";
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
@@ -33,6 +34,7 @@ public class ReactiveSecurityContextFilter implements WebFilter {
         String userId = request.getHeaders().getFirst(HEADER_USER_ID);
         String email = request.getHeaders().getFirst(HEADER_USER_EMAIL);
         String rolesHeader = request.getHeaders().getFirst(HEADER_USER_ROLES);
+        String profileId = request.getHeaders().getFirst(HEADER_PROFILE_ID);
 
         if (userId != null && email != null) {
             try {
@@ -48,6 +50,7 @@ public class ReactiveSecurityContextFilter implements WebFilter {
                         null, // userAgent
                         null, // requestDeviceId
                         null, // remainingTTL
+                        profileId, // profileId
                         authorities);
 
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(

@@ -39,4 +39,18 @@ public class ProfileSecurityServiceImpl implements ProfileSecurityService {
             return false;
         }
     }
+
+    @Override
+    public boolean isCurrentUser(String userId) {
+        try {
+            String currentUserId = ServiceSecurityUtils.getCurrentAccountId();
+            boolean isCurrentUser = currentUserId.equals(userId);
+            log.debug("Checking if current user ({}) matches target user ({}): {}",
+                    currentUserId, userId, isCurrentUser);
+            return isCurrentUser;
+        } catch (Exception e) {
+            log.error("Error checking if current user matches target user: {}", e.getMessage());
+            return false;
+        }
+    }
 }

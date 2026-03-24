@@ -40,7 +40,7 @@ public interface AuthService {
      */
     AuthResponse verifyOtpAndRegister(VerifyOtpRequest verifyRequest, String userAgent, String deviceId,
                                      HttpServletRequest httpRequest, HttpServletResponse response);
-    
+
     /**
      * Resend OTP for registration
      *

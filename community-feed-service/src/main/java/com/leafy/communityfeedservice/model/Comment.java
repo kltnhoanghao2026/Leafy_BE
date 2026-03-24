@@ -1,0 +1,60 @@
+package com.leafy.communityfeedservice.model;
+
+
+import com.leafy.common.model.BaseModel;
+import com.leafy.communityfeedservice.model.embedded.PostMedia;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.Builder;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.FieldType;
+import org.springframework.data.mongodb.core.mapping.MongoId;
+
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@EqualsAndHashCode(callSuper = false)
+@FieldDefaults(level = AccessLevel.PRIVATE)
+@Document("comments")
+public class Comment extends BaseModel {
+
+    @MongoId(FieldType.OBJECT_ID)
+    String id;
+
+    @Indexed
+    String postId;
+
+    @Indexed
+    String authorId;
+
+    @Indexed
+    String parentId;
+
+    String content;
+
+    List<PostMedia> media;
+
+    @Builder.Default
+    int replyDepth = 0;
+
+    @Builder.Default
+    int replyCount = 0;
+
+    @Builder.Default
+    int upvoteCount = 0;
+
+    @Builder.Default
+    int downvoteCount = 0;
+
+    @Builder.Default
+    boolean isEdited = false;
+}

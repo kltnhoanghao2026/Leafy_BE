@@ -27,6 +27,7 @@
         <module>file-service</module>
         <module>notification-service</module>
         <module>plant-management-service</module>
+        <module>community-feed-service</module>
     </modules>
 
 

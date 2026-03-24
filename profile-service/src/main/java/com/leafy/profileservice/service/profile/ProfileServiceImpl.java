@@ -59,8 +59,7 @@ public class ProfileServiceImpl implements ProfileService {
         Profile savedProfile = profileRepository.save(profile);
         log.info("Profile created successfully with ID: {}", savedProfile.getId());
 
-        ProfileResponse response = profileMapper.toResponse(savedProfile);
-        return enrichWithUserInfo(response, savedProfile.getUserId());
+        return profileMapper.toResponse(savedProfile);
     }
 
     @Override

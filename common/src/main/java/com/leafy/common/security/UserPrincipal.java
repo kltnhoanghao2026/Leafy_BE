@@ -22,6 +22,7 @@ public class UserPrincipal implements UserDetails {
     private final String userAgent;
     private final String requestDeviceId;
     private final Long remainingTTL;
+    private final String profileId;
     private final Collection<? extends GrantedAuthority> authorities;
 
     @Override
@@ -64,5 +65,12 @@ public class UserPrincipal implements UserDetails {
      */
     public String getId() {
         return userId;
+    }
+
+    /**
+     * Get profile ID from security context
+     */
+    public String getProfileId() {
+        return profileId;
     }
 }
