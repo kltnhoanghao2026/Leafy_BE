@@ -44,7 +44,6 @@ public class UserPreferenceController {
      * @return user preference response
      */
     @GetMapping("/user/{userId}")
-    @PreAuthorize("hasRole('ADMIN') or @userSecurityService.isCurrentUser(#userId)")
     public ResponseEntity<ApiResponse<UserPreferenceResponse>> getPreferencesByUserId(@PathVariable String userId) {
         log.info("GET /preferences/user/{} - Getting user preferences", userId);
         UserPreferenceResponse response = userPreferenceService.getPreferencesByUserId(userId);

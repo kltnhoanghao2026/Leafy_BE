@@ -35,9 +35,10 @@ public class JwtUtil {
      * @param deviceId Device ID
      * @return JWT access token
      */
-    public String generateAccessToken(String userId, String email, Role role, String sessionId, String deviceId) {
+    public String generateAccessToken(String userId, String email, Role role, String sessionId, String deviceId, String profileId) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
+        claims.put("profileId", profileId);
         claims.put("email", email);
         claims.put("sessionId", sessionId);
         claims.put("deviceId", deviceId);
@@ -134,6 +135,16 @@ public class JwtUtil {
      */
     public String extractEmail(String token) {
         return extractClaim(token, claims -> claims.get("email", String.class));
+    }
+
+    /**
+     * Extract profile ID from token
+     *
+     * @param token JWT token
+     * @return Profile ID
+     */
+    public String extractProfileId(String token) {
+        return extractClaim(token, claims -> claims.get("profileId", String.class));
     }
 
     /**

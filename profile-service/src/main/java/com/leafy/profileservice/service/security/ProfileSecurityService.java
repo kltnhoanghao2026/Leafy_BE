@@ -13,4 +13,12 @@ public interface ProfileSecurityService {
      */
     boolean isOwner(String profileId);
 
+    /**
+     * Check if the current authenticated user matches the given user ID.
+     *
+     * @param userId target user ID
+     * @return true if current user ID matches, false otherwise
+     */
+    boolean isCurrentUser(String userId);
+
 }

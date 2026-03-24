@@ -95,6 +95,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     String email = jwtUtil.extractEmail(token);
                     String role = jwtUtil.extractRole(token);
                     String deviceId = jwtUtil.extractDeviceId(token);
+                    String profileId = jwtUtil.extractProfileId(token);
                     long remainingTtl = jwtUtil.getRemainingTtl(token);
 
                     // Extract User-Agent and X-Device-ID from original request
@@ -107,6 +108,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                             .header("X-User-Roles", role != null ? role : "")
                             .header("X-JWT-Id", jti)
                             .header("X-Device-Id", deviceId != null ? deviceId : "")
+                            .header("X-Profile-Id", profileId != null ? profileId : "")
                             .header("X-Remaining-TTL", String.valueOf(remainingTtl))
                             .header("User-Agent", userAgent != null ? userAgent : "")
                             .header("X-Device-ID", requestDeviceId != null ? requestDeviceId : "")

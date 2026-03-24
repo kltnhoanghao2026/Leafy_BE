@@ -31,6 +31,7 @@ public class SecurityContextFilter extends OncePerRequestFilter {
     private static final String HEADER_REMAINING_TTL = "X-Remaining-TTL";
     private static final String HEADER_USER_AGENT = "User-Agent";
     private static final String HEADER_X_DEVICE_ID = "X-Device-ID";
+    private static final String HEADER_PROFILE_ID = "X-Profile-Id";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -44,6 +45,7 @@ public class SecurityContextFilter extends OncePerRequestFilter {
         String deviceId = request.getHeader(HEADER_DEVICE_ID);
         String userAgent = request.getHeader(HEADER_USER_AGENT);
         String requestDeviceId = request.getHeader(HEADER_X_DEVICE_ID);
+        String profileId = request.getHeader(HEADER_PROFILE_ID);
         Long remainingTTL = request.getHeader(HEADER_REMAINING_TTL) != null ?
                 Long.parseLong(request.getHeader(HEADER_REMAINING_TTL)) : null;
 
@@ -52,7 +54,7 @@ public class SecurityContextFilter extends OncePerRequestFilter {
                 List<GrantedAuthority> authorities = parseRoles(rolesHeader);
 
                 UserPrincipal userPrincipal = new UserPrincipal(userId, email, jti, deviceId, 
-                        userAgent, requestDeviceId, remainingTTL, authorities);
+                        userAgent, requestDeviceId, remainingTTL, profileId, authorities);
 
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         userPrincipal,

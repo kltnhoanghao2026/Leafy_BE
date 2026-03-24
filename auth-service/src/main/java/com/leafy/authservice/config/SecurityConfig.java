@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
                         .requestMatchers("/auth/**").permitAll()
+                    .requestMatchers("/internal/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
 
                         // Swagger/OpenAPI endpoints

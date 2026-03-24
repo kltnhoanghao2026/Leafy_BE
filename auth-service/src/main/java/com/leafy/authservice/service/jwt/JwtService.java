@@ -10,6 +10,16 @@ import com.leafy.authservice.model.User;
 public interface JwtService {
     
     /**
+     * Generate an access token for the given user with specific profileId
+     *
+     * @param user the user for whom to generate the token
+     * @param deviceId the device ID
+     * @param profileId the profile ID
+     * @return the generated JWT access token
+     */
+    String generateAccessToken(User user, String deviceId, String profileId);
+    
+    /**
      * Generate an access token for the given user
      *
      * @param user the user for whom to generate the token

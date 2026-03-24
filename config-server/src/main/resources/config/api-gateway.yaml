@@ -229,6 +229,26 @@ spring:
               filters:
                 - RewritePath=/disease-classification-service/v3/api-docs, /v3/api-docs
 
+            # Community Feed Service Routes
+            - id: community-feed-service
+              uri: lb://community-feed-service
+              predicates:
+                - Path=/api/posts/**, /api/comments/**, /api/votes/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: communityFeedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/community-feed-service
+
+            # OpenAPI Documentation Routes for Community Feed Service
+            - id: community-feed-service-openapi
+              uri: lb://community-feed-service
+              predicates:
+                - Path=/community-feed-service/v3/api-docs/**
+              filters:
+                - RewritePath=/community-feed-service/v3/api-docs, /v3/api-docs
+
           globalCors:
             cors-configurations:
               "[/**]":
@@ -331,6 +351,8 @@ resilience4j:
          baseConfig: default
       diseaseClassificationServiceCircuitBreaker:
         baseConfig: default
+      communityFeedServiceCircuitBreaker:
+        baseConfig: default
 
   timelimiter:
     configs:
@@ -354,6 +376,8 @@ resilience4j:
       ragServiceCircuitBreaker:
         timeoutDuration: 120s
       diseaseClassificationServiceCircuitBreaker:
+        baseConfig: default
+      communityFeedServiceCircuitBreaker:
         baseConfig: default
 
 # JWT Configuration
@@ -390,6 +414,8 @@ springdoc:
         url: /rag-service/v3/api-docs
       - name: disease-classification-service
         url: /disease-classification-service/v3/api-docs
+      - name: community-feed-service
+        url: /community-feed-service/v3/api-docs
     operations-sorter: method
     tags-sorter: alpha
     display-request-duration: true
