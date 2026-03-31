@@ -66,7 +66,13 @@ public enum ErrorCode {
 
         // Community errors (3xxx)
         POST_NOT_FOUND(HttpStatus.NOT_FOUND, 3001, "error.post.not.found"),
-        COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, 3002, "error.comment.not.found")
+        COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, 3002, "error.comment.not.found"),
+
+        // Farm errors (4xxx)
+        FARM_PLOT_NOT_FOUND(HttpStatus.NOT_FOUND, 4001, "error.farm.plot.not.found"),
+        FARM_ZONE_NOT_FOUND(HttpStatus.NOT_FOUND, 4002, "error.farm.zone.not.found"),
+        FARM_PLOT_CODE_DUPLICATE(HttpStatus.CONFLICT, 4003, "error.farm.plot.code.duplicate"),
+        FARM_ZONE_NAME_DUPLICATE(HttpStatus.CONFLICT, 4004, "error.farm.zone.name.duplicate")
 
         ;
 

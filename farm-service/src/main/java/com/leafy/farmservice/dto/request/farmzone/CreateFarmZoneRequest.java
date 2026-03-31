@@ -1,6 +1,5 @@
-package com.leafy.farmservice.dto.request;
+package com.leafy.farmservice.dto.request.farmzone;
 
-import com.leafy.farmservice.model.enums.FarmZoneStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
@@ -9,7 +8,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class UpdateFarmZoneRequest {
+public class CreateFarmZoneRequest {
     private String zoneName;
     private String zoneCode;
     private String description;
@@ -19,5 +18,4 @@ public class UpdateFarmZoneRequest {
     private LocalDate plantingDate;
     private BigDecimal elevationM;
     private Map<String, Object> boundaryGeojson;
-    private FarmZoneStatus status;
 }

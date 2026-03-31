@@ -1,12 +1,13 @@
 package com.leafy.farmservice.controller;
 
-import com.leafy.farmservice.dto.request.CreateFarmPlotRequest;
-import com.leafy.farmservice.dto.request.UpdateFarmPlotRequest;
-import com.leafy.farmservice.dto.response.FarmPlotResponse;
-import com.leafy.farmservice.service.FarmPlotService;
+import com.leafy.common.dto.ApiResponse;
+import com.leafy.farmservice.dto.request.farmplot.CreateFarmPlotRequest;
+import com.leafy.farmservice.dto.request.farmplot.UpdateFarmPlotRequest;
+import com.leafy.farmservice.dto.response.farmplot.FarmPlotResponse;
+import com.leafy.farmservice.service.farmplot.FarmPlotService;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,31 +19,31 @@ public class FarmPlotController {
     private final FarmPlotService farmPlotService;
 
     @PostMapping
-    public ResponseEntity<FarmPlotResponse> create(@RequestBody CreateFarmPlotRequest request) {
-        return ResponseEntity.ok(farmPlotService.create(request));
+    public ResponseEntity<ApiResponse<FarmPlotResponse>> create(@RequestBody CreateFarmPlotRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(farmPlotService.create(request)));
     }
 
     @GetMapping
-    public ResponseEntity<List<FarmPlotResponse>> getByOwner(@RequestParam UUID ownerUserId) {
-        return ResponseEntity.ok(farmPlotService.getByOwner(ownerUserId));
+    public ResponseEntity<ApiResponse<List<FarmPlotResponse>>> getByOwner(@RequestParam String ownerUserId) {
+        return ResponseEntity.ok(ApiResponse.success(farmPlotService.getByOwner(ownerUserId)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<FarmPlotResponse> getById(@PathVariable UUID id) {
-        return ResponseEntity.ok(farmPlotService.getById(id));
+    public ResponseEntity<ApiResponse<FarmPlotResponse>> getById(@PathVariable String id) {
+        return ResponseEntity.ok(ApiResponse.success(farmPlotService.getById(id)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<FarmPlotResponse> update(
-            @PathVariable UUID id,
-            @RequestBody UpdateFarmPlotRequest request
-    ) {
-        return ResponseEntity.ok(farmPlotService.update(id, request));
+    public ResponseEntity<ApiResponse<FarmPlotResponse>> update(
+            @PathVariable String id,
+            @RequestBody UpdateFarmPlotRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(farmPlotService.update(id, request)));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> softDelete(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<Void>> softDelete(@PathVariable String id) {
         farmPlotService.softDelete(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.successWithoutData());
     }
 }

@@ -1,19 +1,18 @@
-package com.leafy.farmservice.dto.response;
+package com.leafy.farmservice.dto.response.farmzone;
 
 import com.leafy.farmservice.model.enums.FarmZoneStatus;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.UUID;
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
 @Builder
 public class FarmZoneResponse {
-    private UUID id;
-    private UUID farmPlotId;
+    private String id;
+    private String farmPlotId;
     private String zoneName;
     private String zoneCode;
     private String description;
@@ -24,6 +23,6 @@ public class FarmZoneResponse {
     private BigDecimal elevationM;
     private Map<String, Object> boundaryGeojson;
     private FarmZoneStatus status;
-    private Instant createdAt;
-    private Instant updatedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime lastModifiedAt;
 }

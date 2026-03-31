@@ -1,18 +1,14 @@
-package com.leafy.farmservice.dto.response;
+package com.leafy.farmservice.dto.request.farmplot;
 
 import com.leafy.farmservice.model.enums.FarmPlotStatus;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.Map;
-import java.util.UUID;
-import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 
 @Getter
-@Builder
-public class FarmPlotResponse {
-    private UUID id;
-    private UUID ownerUserId;
+@Setter
+public class UpdateFarmPlotRequest {
     private String name;
     private String code;
     private String description;
@@ -25,6 +21,4 @@ public class FarmPlotResponse {
     private Double longitude;
     private Map<String, Object> boundaryGeojson;
     private FarmPlotStatus status;
-    private Instant createdAt;
-    private Instant updatedAt;
 }

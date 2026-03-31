@@ -3,14 +3,13 @@ package com.leafy.farmservice.repository;
 import com.leafy.farmservice.model.FarmZone;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.mongodb.repository.MongoRepository;
 
-public interface FarmZoneRepository extends JpaRepository<FarmZone, UUID> {
+public interface FarmZoneRepository extends MongoRepository<FarmZone, String> {
 
-    List<FarmZone> findByFarmPlotIdAndDeletedAtIsNull(UUID farmPlotId);
+    List<FarmZone> findByFarmPlotIdAndActiveTrue(String farmPlotId);
 
-    Optional<FarmZone> findByIdAndDeletedAtIsNull(UUID id);
+    Optional<FarmZone> findByIdAndActiveTrue(String id);
 
-    boolean existsByFarmPlotIdAndZoneNameAndDeletedAtIsNull(UUID farmPlotId, String zoneName);
+    boolean existsByFarmPlotIdAndZoneNameAndActiveTrue(String farmPlotId, String zoneName);
 }

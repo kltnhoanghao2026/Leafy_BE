@@ -1,6 +1,5 @@
-package com.leafy.farmservice.dto.request;
+package com.leafy.farmservice.dto.request.farmplot;
 
-import com.leafy.farmservice.model.enums.FarmPlotStatus;
 import java.math.BigDecimal;
 import java.util.Map;
 import lombok.Getter;
@@ -8,7 +7,8 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class UpdateFarmPlotRequest {
+public class CreateFarmPlotRequest {
+    private String ownerUserId;
     private String name;
     private String code;
     private String description;
@@ -20,5 +20,4 @@ public class UpdateFarmPlotRequest {
     private Double latitude;
     private Double longitude;
     private Map<String, Object> boundaryGeojson;
-    private FarmPlotStatus status;
 }
