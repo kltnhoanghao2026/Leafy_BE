@@ -1,5 +1,6 @@
 package com.leafy.farmservice.dto.request.farmplot;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import java.math.BigDecimal;
 import java.util.Map;
 import lombok.Getter;
@@ -8,9 +9,9 @@ import lombok.Setter;
 @Getter
 @Setter
 public class CreateFarmPlotRequest {
-    private String ownerUserId;
+    @JsonAlias("ownerUserId")
+    private String ownerProfileId;
     private String name;
-    private String code;
     private String description;
     private BigDecimal areaM2;
     private String addressLine;

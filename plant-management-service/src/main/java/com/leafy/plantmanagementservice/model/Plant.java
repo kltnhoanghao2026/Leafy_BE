@@ -1,6 +1,7 @@
 package com.leafy.plantmanagementservice.model;
 
 import com.leafy.common.model.BaseModel;
+import com.leafy.plantmanagementservice.model.enums.PlantStatus;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -21,7 +22,7 @@ public class Plant extends BaseModel {
     String id;
 
     String plantNumber;
-    String plantStatus;
+    PlantStatus plantStatus;
     String nickName;
     String tagCode;
     String batchNumber;
@@ -35,4 +36,5 @@ public class Plant extends BaseModel {
     // Relationships
     String speciesId;
     String farmPlotId;
+    String farmZoneId;
 }

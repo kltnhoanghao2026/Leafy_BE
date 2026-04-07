@@ -17,6 +17,8 @@ public class PlantEventResponse {
 
     String id;
     String plantId;
+    String farmPlotId;
+    String farmZoneId;
     EventType eventType;
     String note;
     String description;

@@ -1,7 +1,7 @@
 import uuid
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -16,10 +16,17 @@ class TreatmentPlanDoc(BaseModel):
     planId: str = Field(default_factory=lambda: str(uuid.uuid4()))
     userId: str = Field(..., description="ID of the user who triggered the plan generation.")
     question: str = Field(..., description="Original user question that produced this plan.")
-    plant_id: Optional[str] = Field(None, description="Plant ID extracted from the TreatmentPlan.")
-    disease_name: Optional[str] = Field(None, description="Disease name from the TreatmentPlan.")
-    severity_level: Optional[str] = Field(None)
+    plantId: Optional[str] = Field(None, description="Plant ID extracted from the TreatmentPlan.")
+    diseaseName: Optional[str] = Field(None, description="Disease name from the TreatmentPlan.")
+    severityLevel: Optional[str] = Field(None)
     urgency: Optional[str] = Field(None)
+    source: Optional[Literal["websearch", "documents"]] = Field(
+        None,
+        description=(
+            "Primary evidence source used when creating this plan. "
+            "Accepted values: `websearch`, `documents`."
+        ),
+    )
     plan: Dict[str, Any] = Field(..., description="Full serialized TreatmentPlan object.")
     source_documents: Optional[List[Dict[str, Any]]] = Field(
         None,

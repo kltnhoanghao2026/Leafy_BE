@@ -27,6 +27,12 @@ public class PlantEvent extends BaseModel {
     @Indexed
     String plantId;
 
+    @Indexed
+    String farmPlotId;
+
+    @Indexed
+    String farmZoneId;
+
     // ── Core Event Fields ────────────────────────────────────────────────────
     EventType eventType;
 

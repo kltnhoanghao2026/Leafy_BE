@@ -1,7 +1,9 @@
 package com.leafy.plantmanagementservice.dto.request.plant;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import com.leafy.plantmanagementservice.model.enums.PlantStatus;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -18,8 +20,8 @@ public class PlantCreateRequest {
     @NotBlank(message = "Plant number is required")
     String plantNumber;
 
-    @NotBlank(message = "Plant status is required")
-    String plantStatus;
+    @NotNull(message = "Plant status is required")
+    PlantStatus plantStatus;
 
     String nickName;
     String tagCode;

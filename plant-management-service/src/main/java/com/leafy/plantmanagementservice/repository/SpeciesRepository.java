@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface SpeciesRepository extends MongoRepository<Species, String> {
     Optional<Species> findByCommonName(String commonName);
+
+    Optional<Species> findByCommonNameIgnoreCase(String commonName);
 }

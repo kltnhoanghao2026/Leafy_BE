@@ -10,3 +10,15 @@ spring:
       username: ${MONGODB_USERNAME}
       password: ${MONGODB_PASSWORD}
       authentication-database: admin
+
+perenual:
+  api:
+    base-url: ${PERENUAL_API_BASE_URL:https://perenual.com/api}
+    key: ${PERENUAL_API_KEY:your_perenual_api_key_here}
+
+plant-management:
+  seeder:
+    species-count: 15
+    plant-count: 30
+    events-per-plant: 5
+    random-seed: 20260324

@@ -2,6 +2,9 @@ package com.leafy.profileservice.service.profile;
 
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
+import com.leafy.common.event.profile.ProfileEvent;
+import com.leafy.common.model.kafka.EventType;
+import com.leafy.common.publisher.OutboxEventPublisher;
 import com.leafy.profileservice.dto.request.profile.ProfileCreateRequest;
 import com.leafy.profileservice.dto.request.profile.ProfileUpdateRequest;
 import com.leafy.profileservice.dto.response.profile.ProfileDetailsResponse;
@@ -43,6 +46,7 @@ public class ProfileServiceImpl implements ProfileService {
     private final ProfileMapper profileMapper;
     private final CertificateMapper certificateMapper;
     private final AuthClient authClient;
+    private final OutboxEventPublisher outboxEventPublisher;
 
     @Override
     public ProfileResponse createProfile(ProfileCreateRequest request) {
@@ -59,6 +63,8 @@ public class ProfileServiceImpl implements ProfileService {
         Profile savedProfile = profileRepository.save(profile);
         log.info("Profile created successfully with ID: {}", savedProfile.getId());
 
+        publishProfileEvent(savedProfile, EventType.PROFILE_CREATED);
+
         return profileMapper.toResponse(savedProfile);
     }
 
@@ -72,6 +78,7 @@ public class ProfileServiceImpl implements ProfileService {
         Profile updatedProfile = profileRepository.save(profile);
 
         log.info("Profile updated successfully with ID: {}", updatedProfile.getId());
+        publishProfileEvent(updatedProfile, EventType.PROFILE_UPDATED);
         ProfileResponse response = profileMapper.toResponse(updatedProfile);
         return enrichWithUserInfo(response, updatedProfile.getUserId());
     }
@@ -247,6 +254,18 @@ public class ProfileServiceImpl implements ProfileService {
                 .flatMap(req -> req.getCertificates().stream())
                 .toList();
         response.setCertificates(certificateMapper.toDtoList(approvedCertificates));
+    }
+
+    private void publishProfileEvent(Profile profile, EventType eventType) {
+        ProfileEvent event = ProfileEvent.builder()
+                .profileId(profile.getId())
+                .fullName(profile.getFullName())
+                .avatar(profile.getAvatar())
+                .role(profile.getRole() != null ? profile.getRole().name() : null)
+                .isVerified(profile.getIsVerified())
+                .timestamp(System.currentTimeMillis())
+                .build();
+        outboxEventPublisher.saveAndPublish(profile.getId(), "PROFILE", eventType, event);
     }
 
     @Override

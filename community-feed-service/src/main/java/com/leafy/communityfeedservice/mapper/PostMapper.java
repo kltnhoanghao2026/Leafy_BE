@@ -7,6 +7,7 @@ import com.leafy.communityfeedservice.model.Post;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.mapstruct.ReportingPolicy;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
@@ -16,6 +17,8 @@ public interface PostMapper {
     @Mapping(target = "stats", ignore = true)
     Post toEntity(PostCreateRequest request);
 
+    @Mapping(target = "authorInfo", ignore = true)
+    @Mapping(target = "sharedPostInfo", ignore = true)
     PostResponse toResponse(Post post);
     
     @Mapping(target = "id", ignore = true)

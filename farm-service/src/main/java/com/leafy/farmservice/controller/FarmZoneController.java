@@ -7,16 +7,20 @@ import com.leafy.farmservice.dto.response.farmzone.FarmZoneResponse;
 import com.leafy.farmservice.service.farmzone.FarmZoneService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.AccessLevel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/farms")
+@RequestMapping("/farms")
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class FarmZoneController {
 
-    private final FarmZoneService farmZoneService;
+    FarmZoneService farmZoneService;
 
     @PostMapping("/plots/{farmPlotId}/zones")
     public ResponseEntity<ApiResponse<FarmZoneResponse>> create(
@@ -41,6 +45,12 @@ public class FarmZoneController {
             @PathVariable String id,
             @RequestBody UpdateFarmZoneRequest request) {
         return ResponseEntity.ok(ApiResponse.success(farmZoneService.update(id, request)));
+    }
+
+    @GetMapping("/admin/zones")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<FarmZoneResponse>>> getAllActive() {
+        return ResponseEntity.ok(ApiResponse.success(farmZoneService.getAllActive()));
     }
 
     @DeleteMapping("/zones/{id}")

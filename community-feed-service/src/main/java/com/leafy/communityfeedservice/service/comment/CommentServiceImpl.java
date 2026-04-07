@@ -12,16 +12,23 @@ import com.leafy.communityfeedservice.dto.response.CommentResponse;
 import com.leafy.communityfeedservice.mapper.CommentMapper;
 import com.leafy.communityfeedservice.model.Comment;
 import com.leafy.communityfeedservice.model.Post;
+import com.leafy.communityfeedservice.model.ProfileSummary;
 import com.leafy.communityfeedservice.repository.CommentRepository;
 import com.leafy.communityfeedservice.repository.PostRepository;
+import com.leafy.communityfeedservice.repository.ProfileSummaryRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +40,7 @@ public class CommentServiceImpl implements CommentService {
     PostRepository postRepository;
     CommentMapper commentMapper;
     OutboxEventPublisher outboxEventPublisher;
+    ProfileSummaryRepository profileSummaryRepository;
 
     @Override
     @Transactional
@@ -68,7 +76,7 @@ public class CommentServiceImpl implements CommentService {
         
         outboxEventPublisher.saveAndPublish(comment.getId(), "COMMENT", EventType.COMMENT_CREATED, eventPayload);
 
-        return commentMapper.toResponse(comment);
+        return enrichCommentResponse(commentMapper.toResponse(comment));
     }
 
     @Override
@@ -76,19 +84,27 @@ public class CommentServiceImpl implements CommentService {
         Comment comment = commentRepository.findById(id)
                 .filter(Comment::isActive)
                 .orElseThrow(() -> new AppException(ErrorCode.COMMENT_NOT_FOUND));
-        return commentMapper.toResponse(comment);
+        return enrichCommentResponse(commentMapper.toResponse(comment));
     }
 
     @Override
     public Page<CommentResponse> getCommentsByPostId(String postId, Pageable pageable) {
-        return commentRepository.findByPostIdAndParentIdIsNullAndActiveTrue(postId, pageable)
-                .map(commentMapper::toResponse);
+        Page<Comment> commentPage = commentRepository.findByPostIdAndParentIdIsNullAndActiveTrue(postId, pageable);
+        List<CommentResponse> responses = commentPage.getContent().stream()
+                .map(commentMapper::toResponse)
+                .collect(Collectors.toList());
+        enrichCommentResponses(responses);
+        return new PageImpl<>(responses, pageable, commentPage.getTotalElements());
     }
 
     @Override
     public Page<CommentResponse> getRepliesByCommentId(String parentId, Pageable pageable) {
-        return commentRepository.findByParentIdAndActiveTrue(parentId, pageable)
-                .map(commentMapper::toResponse);
+        Page<Comment> commentPage = commentRepository.findByParentIdAndActiveTrue(parentId, pageable);
+        List<CommentResponse> responses = commentPage.getContent().stream()
+                .map(commentMapper::toResponse)
+                .collect(Collectors.toList());
+        enrichCommentResponses(responses);
+        return new PageImpl<>(responses, pageable, commentPage.getTotalElements());
     }
 
     @Override
@@ -107,7 +123,7 @@ public class CommentServiceImpl implements CommentService {
         comment.setEdited(true);
         comment = commentRepository.save(comment);
 
-        return commentMapper.toResponse(comment);
+        return enrichCommentResponse(commentMapper.toResponse(comment));
     }
 
     @Override
@@ -133,5 +149,26 @@ public class CommentServiceImpl implements CommentService {
                 .build();
         
         outboxEventPublisher.saveAndPublish(comment.getId(), "COMMENT", EventType.COMMENT_DELETED, eventPayload);
+    }
+
+    private CommentResponse enrichCommentResponse(CommentResponse response) {
+        profileSummaryRepository.findById(response.getAuthorId())
+                .ifPresent(response::setAuthorInfo);
+        return response;
+    }
+
+    private void enrichCommentResponses(List<CommentResponse> responses) {
+        Set<String> authorIds = responses.stream()
+                .map(CommentResponse::getAuthorId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        if (authorIds.isEmpty()) return;
+
+        Map<String, ProfileSummary> profileMap = profileSummaryRepository
+                .findAllByIdIn(new ArrayList<>(authorIds)).stream()
+                .collect(Collectors.toMap(ProfileSummary::getId, Function.identity()));
+
+        responses.forEach(r -> r.setAuthorInfo(profileMap.get(r.getAuthorId())));
     }
 }

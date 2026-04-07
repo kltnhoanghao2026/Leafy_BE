@@ -1,5 +1,6 @@
 package com.leafy.plantmanagementservice.dto.response.plant;
 
+import com.leafy.plantmanagementservice.model.enums.PlantStatus;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -14,7 +15,7 @@ import java.time.LocalDateTime;
 public class PlantResponse {
     String id;
     String plantNumber;
-    String plantStatus;
+    PlantStatus plantStatus;
     String nickName;
     String tagCode;
     String batchNumber;

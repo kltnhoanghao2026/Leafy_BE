@@ -37,6 +37,30 @@ spring:
                     name: authServiceCircuitBreaker
                     fallbackUri: forward:/fallback/auth-service
 
+            # Seed Routes (Auth Service)
+            - id: seed-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/seed/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/auth-service
+
+            # Farm Seeder Route (must precede /api/farms/** for first-match routing; uses 120s timelimiter)
+            - id: farm-seeder-service
+              uri: lb://farm-service
+              predicates:
+                - Path=/api/farms/seeder/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/farm-service
+
             # Farm Service Routes
             - id: farm-service
               uri: lb://farm-service
@@ -73,6 +97,18 @@ spring:
                     name: notificationServiceCircuitBreaker
                     fallbackUri: forward:/fallback/notification-service
 
+            # Plant Management Seeder Route (must precede /api/plants/** for first-match routing; uses 120s timelimiter)
+            - id: plant-management-seeder
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/plants/seeder/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
             # Plant Management Service Routes
             - id: plant-management-service
               uri: lb://plant-management-service
@@ -102,6 +138,18 @@ spring:
               uri: lb://plant-management-service
               predicates:
                 - Path=/api/plant-events/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
+            # Treatment Plan Routes (Plant Management)
+            - id: treatment-plans-service
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/treatment-plans/**
               filters:
                 - StripPrefix=1
                 - name: CircuitBreaker
@@ -258,6 +306,32 @@ spring:
                 - RewritePath=/community-feed-service/v3/api-docs, /v3/api-docs
                 - RewritePath=/community-feed-service/v3/api-doc, /v3/api-doc
 
+            # Messages Service Routes
+            - id: messages-service
+              uri: lb://messages-server
+              predicates:
+                - Path=/api/messages/**, /api/conversations/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: messagesServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/messages-service
+
+            # Messages Service WebSocket Route
+            - id: messages-service-ws
+              uri: lb:ws://messages-server
+              predicates:
+                - Path=/ws/messages/**
+
+            # OpenAPI Documentation Routes for Messages Service
+            - id: messages-service-openapi
+              uri: lb://messages-server
+              predicates:
+                - Path=/messages-server/v3/api-docs/**
+              filters:
+                - RewritePath=/messages-server/v3/api-docs, /v3/api-docs
+
           globalCors:
             cors-configurations:
               "[/**]":
@@ -364,6 +438,10 @@ resilience4j:
         baseConfig: default
       communityFeedServiceCircuitBreaker:
         baseConfig: default
+      seedServiceCircuitBreaker:
+        baseConfig: default
+      messagesServiceCircuitBreaker:
+        baseConfig: default
 
   timelimiter:
     configs:
@@ -392,6 +470,8 @@ resilience4j:
         baseConfig: default
       communityFeedServiceCircuitBreaker:
         baseConfig: default
+      seedServiceCircuitBreaker:
+        timeoutDuration: 120s
 
 # JWT Configuration
 jwt:

@@ -24,6 +24,9 @@ public class RegisterRequest {
     @Pattern(regexp = "^(\\+84|0)[0-9]{9}$", message = "Phone number must be valid Vietnamese phone number")
     String phoneNumber;
 
+    @NotBlank(message = "Full name is required")
+    String fullName;
+
     @NotBlank(message = "Password is required")
     @Size(min = 8, message = "Password must be at least 8 characters long")
     String password;

@@ -7,16 +7,20 @@ import com.leafy.farmservice.dto.response.farmplot.FarmPlotResponse;
 import com.leafy.farmservice.service.farmplot.FarmPlotService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.AccessLevel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/farms/plots")
+@RequestMapping("/farms/plots")
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class FarmPlotController {
 
-    private final FarmPlotService farmPlotService;
+    FarmPlotService farmPlotService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<FarmPlotResponse>> create(@RequestBody CreateFarmPlotRequest request) {
@@ -25,8 +29,8 @@ public class FarmPlotController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<FarmPlotResponse>>> getByOwner(@RequestParam String ownerUserId) {
-        return ResponseEntity.ok(ApiResponse.success(farmPlotService.getByOwner(ownerUserId)));
+    public ResponseEntity<ApiResponse<List<FarmPlotResponse>>> getByOwner(@RequestParam String ownerProfileId) {
+        return ResponseEntity.ok(ApiResponse.success(farmPlotService.getByOwner(ownerProfileId)));
     }
 
     @GetMapping("/{id}")
@@ -39,6 +43,12 @@ public class FarmPlotController {
             @PathVariable String id,
             @RequestBody UpdateFarmPlotRequest request) {
         return ResponseEntity.ok(ApiResponse.success(farmPlotService.update(id, request)));
+    }
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<FarmPlotResponse>>> getAllActive() {
+        return ResponseEntity.ok(ApiResponse.success(farmPlotService.getAllActive()));
     }
 
     @DeleteMapping("/{id}")

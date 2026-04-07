@@ -19,7 +19,7 @@ public class FarmPlot extends BaseModel {
     private String id;
 
     @Indexed
-    private String ownerUserId;
+    private String ownerProfileId;
 
     private String name;
 

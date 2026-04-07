@@ -11,7 +11,7 @@ import lombok.Getter;
 @Builder
 public class FarmPlotResponse {
     private String id;
-    private String ownerUserId;
+    private String ownerProfileId;
     private String name;
     private String code;
     private String description;

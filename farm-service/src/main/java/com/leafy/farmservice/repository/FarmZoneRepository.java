@@ -9,6 +9,8 @@ public interface FarmZoneRepository extends MongoRepository<FarmZone, String> {
 
     List<FarmZone> findByFarmPlotIdAndActiveTrue(String farmPlotId);
 
+    List<FarmZone> findAllByActiveTrue();
+
     Optional<FarmZone> findByIdAndActiveTrue(String id);
 
     boolean existsByFarmPlotIdAndZoneNameAndActiveTrue(String farmPlotId, String zoneName);

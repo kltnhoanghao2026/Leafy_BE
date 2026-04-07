@@ -15,6 +15,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 public interface FarmPlotMapper {
 
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "code", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "lastModifiedAt", ignore = true)
@@ -29,7 +30,8 @@ public interface FarmPlotMapper {
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "ownerUserId", ignore = true)
+    @Mapping(target = "code", ignore = true)
+    @Mapping(target = "ownerProfileId", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "lastModifiedAt", ignore = true)
     @Mapping(target = "createdBy", ignore = true)

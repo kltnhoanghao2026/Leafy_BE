@@ -22,5 +22,9 @@ public enum EventType {
     COMMENT_CREATED,
     COMMENT_DELETED,
     VOTE_CREATED,
-    VOTE_DELETED
+    VOTE_DELETED,
+
+    // Profile Events
+    PROFILE_CREATED,
+    PROFILE_UPDATED
 }

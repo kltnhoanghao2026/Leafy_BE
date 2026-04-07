@@ -96,6 +96,7 @@ public class AuthServiceImpl implements AuthService {
         RegistrationData registrationData = RegistrationData.builder()
                 .email(request.getEmail())
                 .phoneNumber(request.getPhoneNumber())
+                .fullName(request.getFullName())
                 .hashedPassword(passwordEncoder.encode(request.getPassword()))
                 .appVersion(request.getAppVersion())
                 .ttl(registrationDataTtl)
@@ -158,7 +159,7 @@ public class AuthServiceImpl implements AuthService {
         try {
             ProfileCreateRequest profileRequest = ProfileCreateRequest.builder()
                     .userId(savedUser.getId())
-                    .fullName(savedUser.getEmail().split("@")[0])
+                    .fullName(registrationData.getFullName() != null ? registrationData.getFullName() : savedUser.getEmail().split("@")[0])
                     .role("FARMER") // match UserRole.FARMER in profile-service
                     .build();
 

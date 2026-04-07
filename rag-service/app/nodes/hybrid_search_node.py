@@ -16,14 +16,14 @@ def hybrid_search(state: GraphState) -> dict:
     """
     Perform hybrid search combining dense and sparse retrieval.
     
-    Uses the expanded query from HyDE to perform both:
+    Uses the incoming user question to perform both:
     1. Dense vector search (semantic similarity)
     2. Sparse BM25 search (keyword matching)
     
     Results are combined using Reciprocal Rank Fusion (RRF).
     
     Args:
-        state: Current graph state with expanded_query from HyDE
+        state: Current graph state
         
     Returns:
         Updated state with candidate_docs for reranking
@@ -31,17 +31,18 @@ def hybrid_search(state: GraphState) -> dict:
     logger.info("[HYBRID SEARCH] Running hybrid search")
     
     question = state["question"]
-    expanded_query = state.get("expanded_query", question)
+    user_id = state.get("user_id")
     
     # Get vector service
     vector_service = get_vector_service()
     
-    # Perform hybrid search
+    # Perform hybrid search, scoped to the user's own docs + public knowledge base
     candidate_docs = vector_service.hybrid_search(
-        query=expanded_query,
+        query=question,
         dense_k=20,  # Retrieve top-20 from vector search
         sparse_k=20,  # Retrieve top-20 from BM25
-        final_k=10   # Combine to top-10 candidates
+        final_k=10,   # Combine to top-10 candidates
+        user_id=user_id,
     )
     
     logger.info("[HYBRID SEARCH] Retrieved %d candidate documents", len(candidate_docs))

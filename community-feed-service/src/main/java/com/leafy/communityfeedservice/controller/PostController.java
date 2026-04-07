@@ -45,6 +45,17 @@ public class PostController {
         return ApiResponse.success(response);
     }
 
+    @GetMapping("/user/{userId}")
+    public ApiResponse<Page<PostResponse>> getPostsByUserId(
+            @PathVariable String userId,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size) {
+        Page<PostResponse> response = postService.getPostsByUserId(
+                userId,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        return ApiResponse.success(response);
+    }
+
     @PutMapping("/{id}")
     public ApiResponse<PostResponse> updatePost(
             @PathVariable String id,

@@ -23,6 +23,8 @@ public interface PlantEventMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "plantId", ignore = true)
+    @Mapping(target = "farmPlotId", ignore = true)
+    @Mapping(target = "farmZoneId", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "lastModifiedAt", ignore = true)
     @Mapping(target = "createdBy", ignore = true)

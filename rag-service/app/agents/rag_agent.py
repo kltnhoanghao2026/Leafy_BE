@@ -3,20 +3,20 @@ Advanced RAG Agent with Multi-Phase Pipeline
 
 Phases:
 1. [Implicit] Query enters system
-2. Advanced Retrieval: HyDE → Hybrid Search → Reranking
+2. Advanced Retrieval: Hybrid Search → Reranking
 3. Routing: Fast Path (Gemini Flash) or Deep Path (Web Search + Gemini Pro)
 4. Safety: Safety Auditor (Dosage & Regulatory) → Refinement Loop
 """
 
 from langgraph.graph import END, StateGraph
 import logging
+import os
 
 from app.agents.rag_state import GraphState
 
 logger = logging.getLogger(__name__)
 
 # Phase 2: Advanced Retrieval
-from app.nodes.hyde_node import hyde_expansion
 from app.nodes.hybrid_search_node import hybrid_search
 from app.nodes.reranker_node import rerank_documents
 
@@ -36,8 +36,25 @@ from app.nodes.refinement_node import refinement
 # Phase 5: Treatment Planning
 from app.nodes.treatment_planner_node import treatment_planner
 
+# Phase 6: History summarization
+from app.nodes.summarization_node import maybe_summarize
+
+# Phase 1.5: Intent classification
+from app.nodes.intent_classifier_node import classify_intent
+from app.nodes.chit_chat_node import chit_chat_response
+
 
 # === Conditional Edge Functions ===
+
+def route_by_intent(state: GraphState) -> str:
+    """Short-circuit chit-chat messages; send agricultural queries through full pipeline."""
+    intent = state.get("intent", "agricultural_query")
+    if intent == "chit_chat":
+        logger.info("[GRAPH] Chit-chat detected → CHIT-CHAT path (skip RAG)")
+        return "chit_chat"
+    logger.info("[GRAPH] Agricultural query → full RAG pipeline")
+    return "agricultural"
+
 
 def route_by_confidence(state: GraphState) -> str:
     """Route to planning, fast, or deep path based on router decision."""
@@ -68,17 +85,17 @@ def check_refinement_limit(state: GraphState) -> str:
     """Check if we can retry or hit max attempts."""
     import os
     refinement_count = state.get("refinement_count", 0)
-    max_attempts = int(os.getenv("MAX_REFINEMENT_ATTEMPTS", "2"))
+    max_attempts = int(os.getenv("MAX_REFINEMENT_ATTEMPTS", "3"))
     safety_passed = state.get("safety_passed", False)
     if safety_passed:
         logger.info("[GRAPH] Refinement successful → END")
         return "complete"
-    if refinement_count <= max_attempts:
+    if refinement_count < max_attempts:
         logger.info("[GRAPH] Retry refinement (%d/%d)", refinement_count, max_attempts)
         path_type = state.get("path_type", "deep")
         if path_type == "planning":
-            return "retry_plan"
-        return "retry_gen"
+            return "retry_plan_search"
+        return "retry_gen_search"
     else:
         logger.warning("[GRAPH] Max refinement attempts reached → END with fallback")
         return "complete"
@@ -86,26 +103,35 @@ def check_refinement_limit(state: GraphState) -> str:
 
 # === Graph Builder ===
 
-def build_graph():
+def build_graph(checkpointer=None):
     """
     Build the advanced RAG pipeline graph.
     
+    Args:
+        checkpointer: An initialised AsyncSqliteSaver (or any BaseCheckpointSaver)
+                      for persistent multi-turn memory. Pass None to disable persistence.
+
     Flow:
-    1. HyDE expansion
-    2. Hybrid search (dense + sparse)
-    3. Rerank documents
-    4. Route (fast vs deep vs planning)
-    5. Generate (fast, deep, or treatment plan)
-    6. Safety checks (dosage + regulatory combined)
-    7. Refinement loop if needed
+    1. Hybrid search (dense + sparse)
+    2. Rerank documents
+    3. Route (fast vs deep vs planning)
+    4. Generate (fast, deep, or treatment plan)
+    5. Safety checks (dosage + regulatory combined)
+    6. Refinement loop if needed
     """
     workflow = StateGraph(GraphState)
+
+    # === Phase 6: History summarization (entry point) ===
+    workflow.add_node("maybe_summarize", maybe_summarize)
+
+    # === Phase 1.5: Intent Classification ===
+    workflow.add_node("classify_intent", classify_intent)
+    workflow.add_node("chit_chat", chit_chat_response)
 
     # === Phase 0: Environment State ===
     workflow.add_node("env_state", fetch_env_state)
 
     # === Phase 2: Advanced Retrieval ===
-    workflow.add_node("hyde", hyde_expansion)
     workflow.add_node("hybrid_search", hybrid_search)
     workflow.add_node("reranker", rerank_documents)
     
@@ -124,13 +150,26 @@ def build_graph():
     workflow.add_node("treatment_planner", treatment_planner)
     
     # === Entry Point ===
-    workflow.set_entry_point("env_state")
+    workflow.set_entry_point("maybe_summarize")
+
+    # === Phase 6 → Phase 1.5 ===
+    workflow.add_edge("maybe_summarize", "classify_intent")
+
+    # === Phase 1.5: Intent routing ===
+    workflow.add_conditional_edges(
+        "classify_intent",
+        route_by_intent,
+        {
+            "chit_chat": "chit_chat",    # chit-chat fast path → END
+            "agricultural": "env_state",  # full RAG pipeline
+        }
+    )
+    workflow.add_edge("chit_chat", END)
 
     # === Phase 0 → Phase 2 ===
-    workflow.add_edge("env_state", "hyde")
+    workflow.add_edge("env_state", "hybrid_search")
 
     # === Phase 2 Flow (Linear) ===
-    workflow.add_edge("hyde", "hybrid_search")
     workflow.add_edge("hybrid_search", "reranker")
     workflow.add_edge("reranker", "router")
     
@@ -168,18 +207,22 @@ def build_graph():
         "refine",
         check_refinement_limit,
         {
-            "retry_gen": "deep_gen",           # Retry via deep gen for Q&A
-            "retry_plan": "treatment_planner", # Retry via treatment planner for plans
+            # Retry through web search first to fetch missing compliance context
+            # (MRL/PHI/legal updates), then regenerate.
+            "retry_gen_search": "web_search",            # Q&A path
+            "retry_plan_search": "web_search_plan",      # planning path
             "complete":  END,                  # Max attempts reached → END with fallback
         }
     )
 
     
-    # Compile the graph
-    app = workflow.compile()
+    # Compile the graph. The checkpointer is passed in from the FastAPI lifespan
+    # so that the AsyncSqliteSaver context manager stays open for the app's lifetime.
+    app = workflow.compile(checkpointer=checkpointer)
     
     return app
 
 
-# Singleton instance
-rag_app = build_graph()
+# Placeholder — replaced with a live graph during FastAPI startup (see main.py lifespan).
+# Using None here avoids running async code at import time.
+rag_app = None

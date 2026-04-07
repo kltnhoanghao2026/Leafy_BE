@@ -17,8 +17,11 @@ import java.time.LocalDate;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PlantEventCreateRequest {
 
-    @NotBlank(message = "Plant ID is required")
     String plantId;
+
+    String farmPlotId;
+
+    String farmZoneId;
 
     @NotNull(message = "Event type is required")
     EventType eventType;

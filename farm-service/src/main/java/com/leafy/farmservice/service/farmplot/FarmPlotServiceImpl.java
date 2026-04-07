@@ -9,33 +9,39 @@ import com.leafy.farmservice.mapper.FarmPlotMapper;
 import com.leafy.farmservice.model.FarmPlot;
 import com.leafy.farmservice.repository.FarmPlotRepository;
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.AccessLevel;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class FarmPlotServiceImpl implements FarmPlotService {
 
-    private final FarmPlotRepository farmPlotRepository;
-    private final FarmPlotMapper farmPlotMapper;
+    FarmPlotRepository farmPlotRepository;
+    FarmPlotMapper farmPlotMapper;
 
     @Override
     public FarmPlotResponse create(CreateFarmPlotRequest request) {
-        if (request.getCode() != null && !request.getCode().isBlank()
-                && farmPlotRepository.existsByCodeAndActiveTrue(request.getCode())) {
-            throw new AppException(ErrorCode.FARM_PLOT_CODE_DUPLICATE);
-        }
-
         FarmPlot farmPlot = farmPlotMapper.toEntity(request);
+        farmPlot.setCode(generateUniqueFarmPlotCode());
         farmPlot.setActive(true);
 
         return farmPlotMapper.toResponse(farmPlotRepository.save(farmPlot));
     }
 
     @Override
-    public List<FarmPlotResponse> getByOwner(String ownerUserId) {
+    public List<FarmPlotResponse> getByOwner(String ownerProfileId) {
         return farmPlotMapper.toResponseList(
-                farmPlotRepository.findByOwnerUserIdAndActiveTrue(ownerUserId));
+                farmPlotRepository.findByOwnerProfileIdAndActiveTrue(ownerProfileId));
+    }
+
+    @Override
+    public List<FarmPlotResponse> getAllActive() {
+        return farmPlotMapper.toResponseList(farmPlotRepository.findAllByActiveTrue());
     }
 
     @Override
@@ -46,12 +52,6 @@ public class FarmPlotServiceImpl implements FarmPlotService {
     @Override
     public FarmPlotResponse update(String id, UpdateFarmPlotRequest request) {
         FarmPlot farmPlot = getActiveFarmPlot(id);
-
-        if (request.getCode() != null && !request.getCode().isBlank()
-                && !request.getCode().equals(farmPlot.getCode())
-                && farmPlotRepository.existsByCodeAndActiveTrue(request.getCode())) {
-            throw new AppException(ErrorCode.FARM_PLOT_CODE_DUPLICATE);
-        }
 
         farmPlotMapper.updateEntityFromRequest(request, farmPlot);
 
@@ -68,5 +68,16 @@ public class FarmPlotServiceImpl implements FarmPlotService {
     private FarmPlot getActiveFarmPlot(String id) {
         return farmPlotRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new AppException(ErrorCode.FARM_PLOT_NOT_FOUND));
+    }
+
+    private String generateUniqueFarmPlotCode() {
+        String code;
+        do {
+            code = "FP-" + UUID.randomUUID().toString().replace("-", "")
+                    .substring(0, 8)
+                    .toUpperCase(Locale.ROOT);
+        } while (farmPlotRepository.existsByCode(code));
+
+        return code;
     }
 }

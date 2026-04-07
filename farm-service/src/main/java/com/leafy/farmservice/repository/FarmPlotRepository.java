@@ -7,9 +7,11 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface FarmPlotRepository extends MongoRepository<FarmPlot, String> {
 
-    List<FarmPlot> findByOwnerUserIdAndActiveTrue(String ownerUserId);
+    List<FarmPlot> findByOwnerProfileIdAndActiveTrue(String ownerProfileId);
+
+    List<FarmPlot> findAllByActiveTrue();
 
     Optional<FarmPlot> findByIdAndActiveTrue(String id);
 
-    boolean existsByCodeAndActiveTrue(String code);
+    boolean existsByCode(String code);
 }

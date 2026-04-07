@@ -39,6 +39,7 @@ logging.config.dictConfig({
 })
 
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from pydantic import BaseModel, Field
 
 from app.core.security import SecurityContextMiddleware
@@ -46,6 +47,8 @@ from app.exceptions.global_exception_handler import register_exception_handlers
 from app.controllers.chat_controller import router as chat_router
 from app.controllers.ingestion_controller import router as ingestion_router
 from app.controllers.treatment_plan_controller import router as treatment_plan_router
+import app.agents.rag_agent as rag_agent_module
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +60,27 @@ if _tracing_enabled:
 else:
     logger.warning("LangSmith tracing is DISABLED (LANGCHAIN_TRACING_V2 != true)")
 # ────────────────────────────────────────────────────────────────────────────
+
+
+@asynccontextmanager
+async def lifespan(fastapi_app: FastAPI):
+    """
+    FastAPI lifespan handler.
+
+    Initialises the AsyncSqliteSaver inside its own async context manager so the
+    underlying aiosqlite connection stays open for the entire lifetime of the service.
+    The compiled LangGraph is stored back onto the rag_agent module so all
+    coroutines that import `rag_agent_module.rag_app` see the live graph.
+    """
+    db_path = os.getenv("CHECKPOINT_DB_PATH", "checkpoints.db")
+    logger.info("[STARTUP] Initialising AsyncSqliteSaver at '%s'", db_path)
+    async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
+        rag_agent_module.rag_app = rag_agent_module.build_graph(checkpointer)
+        logger.info("[STARTUP] LangGraph RAG pipeline ready")
+        yield
+    # Connection is closed automatically when the async context exits on shutdown
+    rag_agent_module.rag_app = None
+    logger.info("[SHUTDOWN] AsyncSqliteSaver connection closed")
 
 tags_metadata = [
     {
@@ -71,7 +95,7 @@ tags_metadata = [
         "name": "Chat",
         "description": (
             "RAG-powered conversational endpoint. Queries are routed through a "
-            "LangGraph state-machine that runs hybrid search, HyDE expansion, "
+            "LangGraph state-machine that runs hybrid search, "
             "reranking, and self-correction before generating a grounded answer."
         ),
     },
@@ -87,6 +111,7 @@ tags_metadata = [
 
 app = FastAPI(
     title="RAG Service API",
+    lifespan=lifespan,
     description=(
         "## Overview\n"
         "A production-grade **Retrieval-Augmented Generation** service built with "
@@ -95,7 +120,6 @@ app = FastAPI(
         "```\n"
         "Client ──► /ingest  ──► [Parse → Chunk → Embed] ──► Qdrant Vector DB\n"
         "Client ──► /chat    ──► LangGraph Pipeline\n"
-        "                          ├── HyDE Query Expansion\n"
         "                          ├── Hybrid Search (Dense + BM25)\n"
         "                          ├── Cross-Encoder Reranking\n"
         "                          └── Grounded Generation (Gemini / GPT)\n"

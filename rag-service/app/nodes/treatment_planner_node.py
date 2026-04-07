@@ -15,6 +15,7 @@ from datetime import date, timedelta
 from app.agents.rag_state import GraphState
 from app.core.ai_providers import get_gemini_pro
 from app.schemas import TreatmentPlan, PlantEvent
+from langchain_core.messages import AIMessage
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ def treatment_planner(state: GraphState) -> dict:
     documents = state.get("documents", [])
     web_results = state.get("web_search_results") or []
     language = state.get("language", "English")
+    refinement_guidance = (state.get("refinement_guidance") or "").strip()
 
     logger.info("[TREATMENT PLANNER] Building structured treatment plan")
 
@@ -85,6 +87,14 @@ Web Sources (current regulations, local research, recent outbreak data):
             f"\n\nSAFETY CONSTRAINTS — the following issues were flagged by the safety auditor. "
             f"Your plan MUST avoid these:\n{issues_text}"
         )
+        if refinement_guidance:
+            safety_note += f"\n\nACTIONABLE REFINEMENT GUIDANCE:\n{refinement_guidance}"
+
+    export_context_keywords = [
+        "export", "xuất khẩu", "eu", "usda", "japan", "premium retail", "international",
+        "rainforest alliance", "4c", "mrl", "residue",
+    ]
+    export_context = any(k in question.lower() for k in export_context_keywords)
 
     # Format env_state context for the prompt
     env_state = state.get("env_state") or {}
@@ -126,25 +136,28 @@ EventType values and when to use them:
     HARVEST            — cherry picking event
 
 Rules:
-- First event: DISEASE_DETECTED, days_from_now: 0, isPlanned: false
+- First event: DISEASE_DETECTED, daysFromNow: 0, isPlanned: false
 - Final event: HEALTH_RECOVERY, isPlanned: true
 - Immediate actions today → isPlanned: false
 - All future scheduled actions → isPlanned: true
-- Calculate `days_from_now` from the protocol timings
-  (e.g. "repeat in 2 weeks" → second spray event has days_from_now = first_spray + 14)
+- Calculate `daysFromNow` from the protocol timings
+  (e.g. "repeat in 2 weeks" → second spray event has daysFromNow = first_spray + 14)
 - Be specific in `description`: include exact dosage, concentration, PPE, and application method.
-- Extract the plant ID from the user query and set it in `plant_id`.
-- For TREATMENT_APPLICATION events, you MUST populate these 3 dedicated fields:
-    • `phi_days`     → integer — the Pre-Harvest Interval in days from the product label
+- Extract the plant ID from the user query and set it in `plantId`.
+- For TREATMENT_APPLICATION events, you MUST populate these dedicated fields:
+    • `phiDays`     → integer — the Pre-Harvest Interval in days from the product label
                         (e.g. 7, 14, 21). Set to null for all other event types.
-    • `ppe_required` → string — full PPE list required for the application
+    • `ppeRequired` → string — full PPE list required for the application
                         (e.g. "Respirator, chemical-resistant gloves, rubber boots, protective coveralls").
                         Set to null for all other event types.
-    • `mrl_note`     → string — MRL compliance note for export/retail produce
+    • `mrlNote`     → string — required ONLY when produce targets export/premium retail
+                        channels or user explicitly asks for MRL/compliance details.
                         (e.g. "Comply with EU MRL for Captan. Strict PHI adherence mandatory.").
-                        Set to null for all other event types.
+                        If EXPORT_CONTEXT_DETECTED is false, set to null unless a warning is still useful.
 - Provide a realistic `estimated_cost` covering chemicals, tools, and effort required.
   (e.g., "$10-$20" or "500,000 VND").
+
+EXPORT_CONTEXT_DETECTED={export_context}
 
 CHEMICAL APPLICATION SAFETY — MANDATORY for every TREATMENT_APPLICATION event:
 When the treatment involves chemical pesticides or fungicides, the `description` field MUST
@@ -204,13 +217,18 @@ IMPORTANT: The entire output, including the plan description, notes, and ALL eve
     final_plan = plan.dict()
 
     for event in final_plan["schedule"]:
-        start = today + timedelta(days=event["days_from_now"])
-        end = start + timedelta(days=max(0, event["duration_days"] - 1))
-        event["calculated_start_date"] = start.isoformat()
-        event["calculated_end_date"] = end.isoformat()
+        start = today + timedelta(days=event["daysFromNow"])
+        end = start + timedelta(days=max(0, event["durationDays"] - 1))
+        event["calculatedStartDate"] = start.isoformat()
+        event["calculatedEndDate"] = end.isoformat()
 
-    # Sort schedule by days_from_now ascending (safety net)
-    final_plan["schedule"].sort(key=lambda e: e["days_from_now"])
+    if web_results:
+      final_plan["source"] = "websearch"
+    elif documents:
+      final_plan["source"] = "documents"
+
+    # Sort schedule by daysFromNow ascending (safety net)
+    final_plan["schedule"].sort(key=lambda e: e["daysFromNow"])
 
     # --- Build a flat text generation for safety auditors ---
     # Concatenates all event descriptions so dosage_auditor and regulatory_check
@@ -222,15 +240,18 @@ IMPORTANT: The entire output, including the plan description, notes, and ALL eve
     generation_text = "\n\n".join(generation_lines)
 
     logger.info(
-        "[TREATMENT PLANNER] Plan generated for plant_id=%s | disease=%s | events=%d | confidence=%.2f",
-        final_plan.get("plant_id"),
-        final_plan.get("disease_name"),
+      "[TREATMENT PLANNER] Plan generated for plantId=%s | disease=%s | source=%s | events=%d | confidence=%.2f",
+        final_plan.get("plantId"),
+        final_plan.get("diseaseName"),
+      final_plan.get("source"),
         len(final_plan["schedule"]),
-        final_plan.get("confidence_score", 0.0),
+        final_plan.get("confidenceScore", 0.0),
     )
 
     return {
         "generated_plan": final_plan,
-        "plant_id": final_plan.get("plant_id"),
+        "plant_id": final_plan.get("plantId"),
         "generation": generation_text,   # Consumed by dosage_auditor + regulatory_check
+        # Append AI turn to history so follow-up questions see the full plan context
+        "messages": [AIMessage(content=generation_text)],
     }

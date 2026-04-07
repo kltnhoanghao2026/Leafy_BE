@@ -1,5 +1,6 @@
 package com.leafy.communityfeedservice.dto.response;
 
+import com.leafy.communityfeedservice.model.ProfileSummary;
 import com.leafy.communityfeedservice.model.embedded.PostMedia;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -20,6 +21,7 @@ public class CommentResponse {
     String id;
     String postId;
     String authorId;
+    ProfileSummary authorInfo;
     String parentId;
     String content;
     List<PostMedia> media;

@@ -8,6 +8,7 @@ import java.util.List;
 public interface FarmZoneService {
     FarmZoneResponse create(String farmPlotId, CreateFarmZoneRequest request);
     List<FarmZoneResponse> getByFarmPlot(String farmPlotId);
+    List<FarmZoneResponse> getAllActive();
     FarmZoneResponse getById(String id);
     FarmZoneResponse update(String id, UpdateFarmZoneRequest request);
     void softDelete(String id);

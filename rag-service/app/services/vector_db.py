@@ -1,11 +1,29 @@
 import os
+import re
+import logging
 from typing import List, Optional
+import qdrant_client
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient, models as qdrant_models
 from dotenv import load_dotenv
 from app.core.ai_providers import get_embeddings_model
 
 load_dotenv()
+
+# Allow overriding the collection name via env var so old deployments keep
+# working without data loss while new ones use the updated name.
+_DEFAULT_COLLECTION = os.getenv("QDRANT_COLLECTION_NAME", "leafy_agri_knowledge")
+logger = logging.getLogger(__name__)
+
+
+def _extract_major_minor(version: str) -> Optional[tuple[int, int]]:
+    """Parse x.y from semantic versions such as 1.13.4 or 1.13.4-dev."""
+    if not version:
+        return None
+    parts = re.findall(r"\d+", str(version))
+    if len(parts) < 2:
+        return None
+    return int(parts[0]), int(parts[1])
 
 class VectorStoreService:
     _instance = None
@@ -27,13 +45,17 @@ class VectorStoreService:
     def _initialize(self):
         self.qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
         self.qdrant_api_key = os.getenv("QDRANT_API_KEY", None)
-        self.collection_name = "coffee_research"
+        self.collection_name = _DEFAULT_COLLECTION
         
         # Initialize Qdrant Client
         self.client = QdrantClient(
             url=self.qdrant_url,
-            api_key=self.qdrant_api_key
+            api_key=self.qdrant_api_key,
+            # Keep protocol compatibility checks enabled to avoid hidden data issues.
+            check_compatibility=True,
         )
+
+        self._validate_qdrant_compatibility()
         
         # Initialize Embeddings
         self.embeddings = get_embeddings_model()
@@ -54,6 +76,53 @@ class VectorStoreService:
         # Initialize BM25 for hybrid search (lazy-loaded on first use)
         self._bm25_index = None
         self._cached_documents = None
+
+    def _validate_qdrant_compatibility(self):
+        """Log client/server versions and fail early on hard incompatibilities."""
+        client_version = str(getattr(qdrant_client, "__version__", "unknown"))
+
+        try:
+            info = self.client.info()
+            if hasattr(info, "model_dump"):
+                info_dict = info.model_dump()
+            elif isinstance(info, dict):
+                info_dict = info
+            else:
+                info_dict = {}
+            server_version = str(info_dict.get("version") or getattr(info, "version", "unknown"))
+        except Exception as exc:
+            logger.warning("[QDRANT] Unable to fetch server version: %s", exc)
+            return
+
+        logger.info("[QDRANT] Client version=%s | Server version=%s", client_version, server_version)
+
+        expected_server_prefix = os.getenv("QDRANT_EXPECTED_SERVER_VERSION", "").strip()
+        if expected_server_prefix and not server_version.startswith(expected_server_prefix):
+            raise RuntimeError(
+                "Qdrant server version mismatch. "
+                f"Expected prefix '{expected_server_prefix}', got '{server_version}'. "
+                "Please align server/client versions instead of disabling compatibility checks."
+            )
+
+        client_mm = _extract_major_minor(client_version)
+        server_mm = _extract_major_minor(server_version)
+        if not client_mm or not server_mm:
+            return
+
+        if client_mm[0] != server_mm[0]:
+            raise RuntimeError(
+                "Qdrant major version mismatch detected. "
+                f"Client={client_version}, Server={server_version}. "
+                "Align both sides before running hybrid search."
+            )
+
+        if abs(client_mm[1] - server_mm[1]) > 2:
+            logger.warning(
+                "[QDRANT] Minor version gap is large (client=%s, server=%s). "
+                "Hybrid search may behave inconsistently.",
+                client_version,
+                server_version,
+            )
         
     def _ensure_collection_exists(self):
         """Check if collection exists, if not create it."""
@@ -68,7 +137,15 @@ class VectorStoreService:
 
     def add_documents(self, documents: List):
         """Add documents to the vector store."""
-        return self.vector_store.add_documents(documents)
+        result = self.vector_store.add_documents(documents)
+        # New content was added — invalidate BM25 so the next search rebuilds the index.
+        self.invalidate_bm25()
+        return result
+
+    def invalidate_bm25(self):
+        """Discard the in-memory BM25 index so it is rebuilt on next use."""
+        self._bm25_index = None
+        self._cached_documents = None
         
     def check_existing_hash(self, file_hash: str) -> bool:
         """Check if a document with this hash already exists."""
@@ -140,8 +217,8 @@ class VectorStoreService:
         
         return self._bm25_index
     
-    def _bm25_search(self, query: str, k: int = 10) -> List:
-        """Perform BM25 sparse keyword search."""
+    def _bm25_search(self, query: str, k: int = 10, user_id: Optional[str] = None) -> List:
+        """Perform BM25 sparse keyword search, optionally scoped to a user."""
         from langchain_core.documents import Document
         
         # Lazy-load BM25 index
@@ -155,14 +232,21 @@ class VectorStoreService:
         # Tokenize query
         tokenized_query = query.lower().split()
         
-        # Get BM25 scores
+        # Get BM25 scores over the full corpus
         scores = self._bm25_index.get_scores(tokenized_query)
         
-        # Get top-k indices
-        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
-        
-        # Return top documents
-        return [self._cached_documents[i] for i in top_indices]
+        # Walk top candidates in score order, applying user_id filter
+        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+        results = []
+        for i in top_indices:
+            doc = self._cached_documents[i]
+            doc_user = doc.metadata.get("user_id")
+            # Include if: public doc (no user_id), OR belongs to this user
+            if user_id is None or not doc_user or doc_user == user_id:
+                results.append(doc)
+            if len(results) >= k:
+                break
+        return results
     
     def _reciprocal_rank_fusion(self, dense_results: List, sparse_results: List, k: int = 10) -> List:
         """
@@ -197,7 +281,7 @@ class VectorStoreService:
         # Return top-k
         return [doc_map[doc_key] for doc_key, score in sorted_docs[:k]]
     
-    def hybrid_search(self, query: str, dense_k: int = 20, sparse_k: int = 20, final_k: int = 10) -> List:
+    def hybrid_search(self, query: str, dense_k: int = 20, sparse_k: int = 20, final_k: int = 10, user_id: Optional[str] = None) -> List:
         """
         Perform hybrid search combining dense vector search and sparse BM25 search.
         
@@ -206,16 +290,36 @@ class VectorStoreService:
             dense_k: Number of results from vector search
             sparse_k: Number of results from BM25 search
             final_k: Number of final combined results
+            user_id: When provided, restrict results to this user's documents
+                     plus all public/admin knowledge-base documents (no user_id).
             
         Returns:
             List of top-k documents after RRF fusion
         """
-        # Dense vector search
-        retriever = self.vector_store.as_retriever(search_kwargs={"k": dense_k})
+        # Dense vector search — apply Qdrant payload filter when user_id is provided
+        if user_id:
+            user_filter = qdrant_models.Filter(
+                should=[
+                    # The authenticated user's privately ingested documents
+                    qdrant_models.FieldCondition(
+                        key="metadata.user_id",
+                        match=qdrant_models.MatchValue(value=user_id),
+                    ),
+                    # Public / admin knowledge-base docs (field absent in payload)
+                    qdrant_models.IsEmptyCondition(
+                        is_empty=qdrant_models.PayloadField(key="metadata.user_id")
+                    ),
+                ]
+            )
+            search_kwargs = {"k": dense_k, "filter": user_filter}
+        else:
+            search_kwargs = {"k": dense_k}
+
+        retriever = self.vector_store.as_retriever(search_kwargs=search_kwargs)
         dense_results = retriever.invoke(query)
         
-        # Sparse BM25 search
-        sparse_results = self._bm25_search(query, k=sparse_k)
+        # Sparse BM25 search — same user scope
+        sparse_results = self._bm25_search(query, k=sparse_k, user_id=user_id)
         
         # Combine with RRF
         hybrid_results = self._reciprocal_rank_fusion(dense_results, sparse_results, k=final_k)

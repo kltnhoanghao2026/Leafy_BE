@@ -7,9 +7,61 @@ Injects safety feedback back into generation process.
 
 import os
 import logging
+from typing import List
 from app.agents.rag_state import GraphState
 
 logger = logging.getLogger(__name__)
+
+
+def _build_refinement_guidance(safety_issues: List[str]) -> str:
+    """Turn safety issues into explicit fix instructions for the next generation."""
+    if not safety_issues:
+        return ""
+
+    instructions = []
+    for issue in safety_issues:
+        issue_text = (issue or "").strip()
+        lowered = issue_text.lower()
+
+        if any(k in lowered for k in ("mrl", "residue", "export", "eu", "usda", "reg. 396/2005")):
+            instructions.append(
+                "You are missing MRL information for the target market. "
+                "Find or add the relevant MRL limits/residue warning (required only for export-oriented context)."
+            )
+            continue
+
+        if any(k in lowered for k in ("phi", "pre-harvest", "cach ly")):
+            instructions.append(
+                "You are missing PHI (pre-harvest interval) details. "
+                "Add a specific PHI duration by active ingredient or product group to ensure harvest safety."
+            )
+            continue
+
+        if any(k in lowered for k in ("ppe", "mask", "glove", "boot", "bao ho")):
+            instructions.append(
+                "You are missing PPE requirements. "
+                "Add the mandatory protective gear list (mask/respirator, gloves, boots, protective clothing)."
+            )
+            continue
+
+        if "banned" in lowered or "restricted" in lowered:
+            instructions.append(
+                "You recommended a banned or restricted substance. "
+                "Remove it and replace it with an active ingredient allowed by Vietnam regulations (PPD)."
+            )
+            continue
+
+        instructions.append(
+            f"You must fix this issue: {issue_text}. "
+            "Find or add the missing information in the revised response."
+        )
+
+    numbered = "\n".join(f"{idx + 1}. {text}" for idx, text in enumerate(instructions))
+    return (
+        "YOU MUST FIX ALL ISSUES BELOW BEFORE ANSWERING AGAIN:\n"
+        f"{numbered}\n"
+        "Do not repeat the previous response until the missing information has been resolved."
+    )
 
 
 def refinement(state: GraphState) -> dict:
@@ -30,11 +82,12 @@ def refinement(state: GraphState) -> dict:
     
     refinement_count = state.get("refinement_count", 0) + 1
     safety_issues = state.get("safety_issues", [])
+    refinement_guidance = _build_refinement_guidance(safety_issues)
     max_attempts = int(os.getenv("MAX_REFINEMENT_ATTEMPTS", "3"))
     
     logger.info("[REFINEMENT] Attempt %d/%d | Issues: %s", refinement_count, max_attempts, safety_issues)
     
-    if refinement_count > max_attempts:
+    if refinement_count >= max_attempts:
         logger.warning("[REFINEMENT] Max attempts (%d) reached — returning safe fallback response", max_attempts)
         
         # Fallback response when max attempts reached
@@ -52,6 +105,7 @@ def refinement(state: GraphState) -> dict:
             "refinement_count": refinement_count,
             "generation": fallback_generation,
             "safety_passed": True,  # Mark as passed to exit loop
+            "refinement_guidance": refinement_guidance,
         }
         
         # If this was a planning request that failed safety, 
@@ -76,5 +130,6 @@ def refinement(state: GraphState) -> dict:
     return {
         "refinement_count": refinement_count,
         "safety_passed": False,  # Keep failed to retry
+        "refinement_guidance": refinement_guidance,
     }
 

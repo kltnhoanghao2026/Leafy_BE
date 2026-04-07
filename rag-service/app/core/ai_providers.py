@@ -1,57 +1,49 @@
+import logging
 import os
+
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from sentence_transformers import CrossEncoder
 from dotenv import load_dotenv
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
+
 def get_embeddings_model():
-    """
-    Returns the configured Embeddings model.
-    Using FastEmbed (BAAI/bge-small-en-v1.5).
-    """
-    return FastEmbedEmbeddings(
-        model_name="BAAI/bge-small-en-v1.5"
-    )
+    """Returns FastEmbed embeddings (BAAI/bge-small-en-v1.5)."""
+    return FastEmbedEmbeddings(model_name="BAAI/bge-small-en-v1.5")
+
 
 def get_chat_model(temperature: float = 0) -> ChatOpenAI:
-    """
-    Returns the configured Chat LLM model.
-    Defaults to gpt-3.5-turbo
-    """
-    return ChatOpenAI(
-        model="gpt-3.5-turbo",
-        temperature=temperature
-    )
+    """Returns the OpenAI chat model used for structured-output nodes (router, auditor)."""
+    model_name = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+    return ChatOpenAI(model=model_name, temperature=temperature)
 
-def get_gemini_flash(temperature: float = 0) -> ChatGoogleGenerativeAI:
-    """
-    Returns Gemini Flash model for fast path generation.
-    Optimized for low latency and cost-effectiveness.
-    """
-    model_name = os.getenv("FAST_MODEL", "gemini-2.5-flash")
-    return ChatGoogleGenerativeAI(
-        model=model_name,
-        temperature=temperature,
-    )
 
-def get_gemini_pro(temperature: float = 0.3) -> ChatGoogleGenerativeAI:
+def get_gemini_flash(temperature: float = 0) -> ChatOpenAI:
     """
-    Returns Gemini Pro model for deep path generation.
-    Optimized for complex reasoning and research tasks.
+    Returns an OpenAI model for the fast generation path.
+    Configured via FAST_MODEL env var (default gpt-4o-mini).
     """
-    model_name = os.getenv("DEEP_MODEL", "gemini-2.5-flash")
-    return ChatGoogleGenerativeAI(
-        model=model_name,
-        temperature=temperature,
-    )
+    model_name = os.getenv("FAST_MODEL", "gpt-4o-mini")
+    logger.debug("[AI_PROVIDERS] Fast model: '%s'", model_name)
+    return ChatOpenAI(model=model_name, temperature=temperature)
+
+
+def get_gemini_pro(temperature: float = 0.3) -> ChatOpenAI:
+    """
+    Returns an OpenAI model for the deep generation path.
+    Configured via DEEP_MODEL env var (default gpt-4o).
+    """
+    model_name = os.getenv("DEEP_MODEL", "gpt-4o")
+    logger.debug("[AI_PROVIDERS] Deep model: '%s'", model_name)
+    return ChatOpenAI(model=model_name, temperature=temperature)
+
 
 def get_reranker_model() -> CrossEncoder:
-    """
-    Returns Cross-Encoder model for reranking documents.
-    Uses sentence-transformers cross-encoder architecture.
-    """
+    """Returns the cross-encoder reranker model."""
     model_name = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
     return CrossEncoder(model_name)
+

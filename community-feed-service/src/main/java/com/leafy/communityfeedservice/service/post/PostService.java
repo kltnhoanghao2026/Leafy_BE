@@ -10,6 +10,7 @@ public interface PostService {
     PostResponse createPost(PostCreateRequest request);
     PostResponse getPostById(String id);
     Page<PostResponse> getAllFeedAndSharedPosts(Pageable pageable);
+    Page<PostResponse> getPostsByUserId(String userId, Pageable pageable);
     PostResponse updatePost(String id, PostUpdateRequest request);
     void deletePost(String id);
 }

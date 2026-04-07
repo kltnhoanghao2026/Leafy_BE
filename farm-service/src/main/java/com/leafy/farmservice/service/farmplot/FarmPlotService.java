@@ -7,7 +7,8 @@ import java.util.List;
 
 public interface FarmPlotService {
     FarmPlotResponse create(CreateFarmPlotRequest request);
-    List<FarmPlotResponse> getByOwner(String ownerUserId);
+    List<FarmPlotResponse> getByOwner(String ownerProfileId);
+    List<FarmPlotResponse> getAllActive();
     FarmPlotResponse getById(String id);
     FarmPlotResponse update(String id, UpdateFarmPlotRequest request);
     void softDelete(String id);

@@ -12,4 +12,5 @@ import java.util.Collection;
 @Repository
 public interface PostRepository extends MongoRepository<Post, String> {
 	Page<Post> findByPostTypeIn(Collection<PostType> postTypes, Pageable pageable);
+	Page<Post> findByAuthorId(String authorId, Pageable pageable);
 }

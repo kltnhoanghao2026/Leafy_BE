@@ -11,15 +11,18 @@ import com.leafy.farmservice.repository.FarmPlotRepository;
 import com.leafy.farmservice.repository.FarmZoneRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.AccessLevel;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class FarmZoneServiceImpl implements FarmZoneService {
 
-    private final FarmZoneRepository farmZoneRepository;
-    private final FarmPlotRepository farmPlotRepository;
-    private final FarmZoneMapper farmZoneMapper;
+    FarmZoneRepository farmZoneRepository;
+    FarmPlotRepository farmPlotRepository;
+    FarmZoneMapper farmZoneMapper;
 
     @Override
     public FarmZoneResponse create(String farmPlotId, CreateFarmZoneRequest request) {
@@ -41,6 +44,11 @@ public class FarmZoneServiceImpl implements FarmZoneService {
     public List<FarmZoneResponse> getByFarmPlot(String farmPlotId) {
         return farmZoneMapper.toResponseList(
                 farmZoneRepository.findByFarmPlotIdAndActiveTrue(farmPlotId));
+    }
+
+    @Override
+    public List<FarmZoneResponse> getAllActive() {
+        return farmZoneMapper.toResponseList(farmZoneRepository.findAllByActiveTrue());
     }
 
     @Override

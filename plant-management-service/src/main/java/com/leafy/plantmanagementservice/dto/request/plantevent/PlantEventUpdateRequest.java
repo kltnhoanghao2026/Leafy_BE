@@ -14,6 +14,9 @@ import java.time.LocalDate;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PlantEventUpdateRequest {
 
+    String farmPlotId;
+    String farmZoneId;
+
     EventType eventType;
     String note;
     String description;

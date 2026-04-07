@@ -10,7 +10,6 @@ import lombok.Setter;
 @Setter
 public class UpdateFarmPlotRequest {
     private String name;
-    private String code;
     private String description;
     private BigDecimal areaM2;
     private String addressLine;

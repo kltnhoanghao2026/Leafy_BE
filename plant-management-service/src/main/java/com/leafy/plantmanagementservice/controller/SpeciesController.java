@@ -3,6 +3,7 @@ package com.leafy.plantmanagementservice.controller;
 import com.leafy.common.dto.ApiResponse;
 import com.leafy.plantmanagementservice.dto.request.species.SpeciesCreateRequest;
 import com.leafy.plantmanagementservice.dto.request.species.SpeciesUpdateRequest;
+import com.leafy.plantmanagementservice.dto.response.species.SpeciesSeedResponse;
 import com.leafy.plantmanagementservice.dto.response.species.SpeciesResponse;
 import com.leafy.plantmanagementservice.service.species.SpeciesService;
 import jakarta.validation.Valid;
@@ -18,7 +19,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/species")
+    @RequestMapping("/species")
 @RequiredArgsConstructor
 @Slf4j
 public class SpeciesController {
@@ -75,5 +76,16 @@ public class SpeciesController {
         log.info("DELETE /species/{} - Deleting species", speciesId);
         speciesService.deleteSpecies(speciesId);
         return ResponseEntity.ok(ApiResponse.successWithoutData());
+    }
+
+    @PostMapping("/seed/perenual")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<SpeciesSeedResponse>> seedSpeciesFromPerenual(
+            @RequestParam(defaultValue = "1") int startPage,
+            @RequestParam(defaultValue = "1") int pages,
+            @RequestParam(defaultValue = "30") int perPage) {
+        log.info("POST /species/seed/perenual - Seeding species from Perenual API");
+        SpeciesSeedResponse response = speciesService.seedSpeciesFromPerenual(startPage, pages, perPage);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

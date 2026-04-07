@@ -27,6 +27,7 @@ public interface CommentMapper {
     @Mapping(target = "active", ignore = true)
     Comment toEntity(CommentCreateRequest request);
 
+    @Mapping(target = "authorInfo", ignore = true)
     CommentResponse toResponse(Comment comment);
 
     @Mapping(target = "id", ignore = true)

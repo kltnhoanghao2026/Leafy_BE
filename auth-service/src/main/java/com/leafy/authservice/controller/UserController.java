@@ -3,12 +3,9 @@ package com.leafy.authservice.controller;
 import com.leafy.authservice.dto.request.UserCreateRequest;
 import com.leafy.authservice.dto.request.UserUpdateRequest;
 import com.leafy.authservice.dto.response.UserDetailsResponse;
-import com.leafy.authservice.dto.response.UserProfileSeederResponse;
 import com.leafy.authservice.dto.response.UserResponse;
-import com.leafy.authservice.service.seeder.UserProfileSeederService;
 import com.leafy.authservice.service.user.UserService;
 import com.leafy.common.dto.ApiResponse;
-import com.leafy.common.enums.Role;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +18,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -34,7 +30,6 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
-    private final UserProfileSeederService userProfileSeederService;
 
     /**
      * Create a new user
@@ -43,7 +38,7 @@ public class UserController {
      * @return the created user response
      */
     @PostMapping
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> createUser(@Valid @RequestBody UserCreateRequest request) {
         log.info("POST /users - Creating new user");
         UserResponse response = userService.createUser(request);
@@ -59,7 +54,7 @@ public class UserController {
      * @return the updated user response
      */
     @PutMapping("/{userId}")
-    @PreAuthorize("hasAuthority('ADMIN') or @userSecurityService.isCurrentUser(#userId)")
+    @PreAuthorize("hasRole('ADMIN') or @userSecurityService.isCurrentUser(#userId)")
     public ResponseEntity<ApiResponse<UserResponse>> updateUser(
             @PathVariable String userId,
             @Valid @RequestBody UserUpdateRequest request) {
@@ -75,7 +70,7 @@ public class UserController {
      * @return the user response
      */
     @GetMapping("/{userId}")
-    @PreAuthorize("hasAuthority('ADMIN') or @userSecurityService.isCurrentUser(#userId)")
+    @PreAuthorize("hasRole('ADMIN') or @userSecurityService.isCurrentUser(#userId)")
     public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable String userId) {
         log.info("GET /users/{} - Getting user by ID", userId);
         UserResponse response = userService.getUserById(userId);
@@ -89,7 +84,7 @@ public class UserController {
      * @return the user details response
      */
     @GetMapping("/{userId}/details")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserDetailsResponse>> getUserDetailsById(@PathVariable String userId) {
         log.info("GET /users/{}/details - Getting user details by ID", userId);
         UserDetailsResponse response = userService.getUserDetailsById(userId);
@@ -106,7 +101,7 @@ public class UserController {
      * @return page of user responses
      */
     @GetMapping
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<UserResponse>>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -133,7 +128,7 @@ public class UserController {
      * @return page of active user responses
      */
     @GetMapping("/active")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<UserResponse>>> getActiveUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -162,7 +157,7 @@ public class UserController {
      * @return page of user responses
      */
     @GetMapping("/search")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<UserResponse>>> searchUsers(
             @RequestParam String searchTerm,
             @RequestParam(defaultValue = "0") int page,
@@ -180,15 +175,6 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @GetMapping("/seed")
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<ApiResponse<UserProfileSeederResponse>> seedUsersAndProfilesViaGet(
-            @RequestParam(name = "q", defaultValue = "10") int quantity) {
-        log.info("GET /users/seed - Seeding users and profiles. Quantity: {}", quantity);
-        UserProfileSeederResponse response = userProfileSeederService.seedUsersAndProfiles(quantity);
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
     /**
      * Delete (deactivate) user by ID
      *
@@ -196,7 +182,7 @@ public class UserController {
      * @return success response
      */
     @DeleteMapping("/{userId}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable String userId) {
         log.info("DELETE /users/{} - Deleting user", userId);
         userService.deleteUser(userId);
@@ -210,7 +196,7 @@ public class UserController {
      * @return the activated user response
      */
     @PatchMapping("/{userId}/activate")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> activateUser(@PathVariable String userId) {
         log.info("PATCH /users/{}/activate - Activating user", userId);
         UserResponse response = userService.activateUser(userId);
@@ -224,7 +210,7 @@ public class UserController {
      * @return the deactivated user response
      */
     @PatchMapping("/{userId}/deactivate")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> deactivateUser(@PathVariable String userId) {
         log.info("PATCH /users/{}/deactivate - Deactivating user", userId);
         UserResponse response = userService.deactivateUser(userId);
@@ -239,7 +225,7 @@ public class UserController {
      * @return success response
      */
     @PatchMapping("/{userId}/change-password")
-    @PreAuthorize("hasAuthority('ADMIN') or @userSecurityService.isCurrentUser(#userId)")
+    @PreAuthorize("hasRole('ADMIN') or @userSecurityService.isCurrentUser(#userId)")
     public ResponseEntity<ApiResponse<Void>> changePassword(
             @PathVariable String userId,
             @RequestBody Map<String, String> requestBody) {

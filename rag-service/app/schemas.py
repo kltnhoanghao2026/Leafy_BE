@@ -131,9 +131,15 @@ EventTypeEnum = Literal[
     "HARVEST",              # Cherry picking — used for totalYieldKg tracking
 ]
 
+TreatmentPlanSourceEnum = Literal["websearch", "documents"]
+
 
 class PlantEvent(BaseModel):
-    """A single scheduled action in the treatment plan."""
+    """A single scheduled action in the treatment plan.
+
+    Field names are camelCase to match plant-management-service
+    PlantEventCreateRequest DTO exactly.
+    """
 
     eventType: EventTypeEnum = Field(
         ...,
@@ -153,15 +159,15 @@ class PlantEvent(BaseModel):
             "• HARVEST — cherry picking event"
         ),
     )
-    days_from_now: int = Field(
+    daysFromNow: int = Field(
         ...,
         description=(
             "Offset in days from today: 0 = today, 1 = tomorrow, 14 = two weeks, etc. "
             "Calculate gaps from the protocol timing "
-            "(e.g. 'repeat in 2 weeks' → second event has days_from_now = first + 14)."
+            "(e.g. 'repeat in 2 weeks' → second event has daysFromNow = first + 14)."
         ),
     )
-    duration_days: int = Field(
+    durationDays: int = Field(
         default=1,
         description="How many calendar days the task spans. Usually 1 for discrete actions.",
     )
@@ -181,7 +187,8 @@ class PlantEvent(BaseModel):
         ...,
         description="True if this is a future scheduled event. False if it should happen immediately (today).",
     )
-    phi_days: Optional[int] = Field(
+    # ── Chemical application safety fields (TREATMENT_APPLICATION only) ───────
+    phiDays: Optional[int] = Field(
         default=None,
         description=(
             "Pre-Harvest Interval in days (Thời gian cách ly). "
@@ -190,7 +197,7 @@ class PlantEvent(BaseModel):
             "(e.g. 7, 14, 21). Leave null for non-chemical events."
         ),
     )
-    ppe_required: Optional[str] = Field(
+    ppeRequired: Optional[str] = Field(
         default=None,
         description=(
             "Personal Protective Equipment requirements (Bảo hộ lao động). "
@@ -200,7 +207,7 @@ class PlantEvent(BaseModel):
             "Leave null for non-chemical events."
         ),
     )
-    mrl_note: Optional[str] = Field(
+    mrlNote: Optional[str] = Field(
         default=None,
         description=(
             "Maximum Residue Limit note (Dư lượng tối đa cho phép — MRL). "
@@ -211,27 +218,52 @@ class PlantEvent(BaseModel):
             "Leave null for non-chemical events."
         ),
     )
+    estimatedCost: Optional[str] = Field(
+        default=None,
+        description=(
+            "Estimated cost for this specific event (chemicals, labour). "
+            "e.g. '200,000 VND' or '$5–$10'. Leave null if unknown."
+        ),
+    )
+    # ── Scope fields (set by caller, not by LLM) ─────────────────────────────
+    farmPlotId: Optional[str] = Field(
+        default=None,
+        description="Farm plot ID this event belongs to. Populated by the caller from plant context.",
+    )
+    farmZoneId: Optional[str] = Field(
+        default=None,
+        description="Farm zone ID this event belongs to. Populated by the caller from plant context.",
+    )
+    # ── Source tracking (filled after plan is persisted to MongoDB) ───────────
+    sourcePlanId: Optional[str] = Field(
+        default=None,
+        description="ID of the TreatmentPlan MongoDB document that generated this event.",
+    )
 
 
 class TreatmentPlan(BaseModel):
-    """Structured recovery plan for a diseased plant."""
+    """Structured recovery plan for a diseased plant.
+
+    Field names are camelCase to match the plant-management-service TreatmentPlan
+    MongoDB model and PlantEventCreateRequest DTO.
+    """
 
     # --- Identity ---
-    plant_id: str = Field(
+    plantId: str = Field(
         ...,
         description="The ID of the plant extracted from the user query.",
     )
-    disease_name: str = Field(
+    diseaseName: str = Field(
         ...,
         description="Full name of the identified disease, e.g. 'Brown Eye Spot (Cercospora coffeicola)'.",
     )
 
     # --- Assessment ---
-    confidence_score: float = Field(
+    confidenceScore: float = Field(
         ...,
         description="Confidence in this diagnosis and plan (0.0 = uncertain, 1.0 = certain).",
     )
-    severity_level: str = Field(
+    severityLevel: str = Field(
         ...,
         description=(
             "Severity of the infection: "
@@ -249,22 +281,40 @@ class TreatmentPlan(BaseModel):
             "'NORMAL' — can wait until within the week."
         ),
     )
+    source: Optional[TreatmentPlanSourceEnum] = Field(
+        default=None,
+        description=(
+            "Primary evidence source used when generating this plan. "
+            "`documents` means internal vector-store retrieval and "
+            "`websearch` means external web-search-assisted retrieval."
+        ),
+    )
+
+    # --- Farm scope (optional — populated by caller, not the LLM) ---
+    farmPlotId: Optional[str] = Field(
+        default=None,
+        description="Farm plot this plan is scoped to. Set by caller from plant context.",
+    )
+    farmZoneId: Optional[str] = Field(
+        default=None,
+        description="Farm zone this plan is scoped to. Set by caller from plant context.",
+    )
 
     # --- Action Plan ---
     schedule: List[PlantEvent] = Field(
         ...,
-        description="Chronological list of PlantEvent items ordered by days_from_now (ascending).",
+        description="Chronological list of PlantEvent items ordered by daysFromNow (ascending).",
     )
 
     # --- Resources & Safety ---
-    required_inputs: List[str] = Field(
+    requiredInputs: List[str] = Field(
         default=[],
         description=(
             "All tools, materials, and chemicals needed to execute the full plan. "
             "e.g. ['Captan 50 WP fungicide', 'Knapsack sprayer', 'Pruning shears', 'PPE kit']"
         ),
     )
-    safety_warnings: List[str] = Field(
+    safetyWarnings: List[str] = Field(
         default=[],
         description=(
             "Critical safety notes applicable to the whole plan. "
@@ -275,7 +325,7 @@ class TreatmentPlan(BaseModel):
     )
 
     # --- Outcome Tracking ---
-    success_indicators: str = Field(
+    successIndicators: str = Field(
         ...,
         description=(
             "Visual or measurable signs that the treatment is working. "
@@ -283,11 +333,12 @@ class TreatmentPlan(BaseModel):
             "No new lesions visible after second spray. Leaf colour returns to healthy green.'"
         ),
     )
-    estimated_cost: Optional[str] = Field(
+    estimatedCost: Optional[str] = Field(
         default=None,
         description=(
             "Estimated cost range or specific amount for the entire treatment plan, "
             "including materials, chemicals, and labor (e.g., '$50-$100', '1.5M VND')."
         ),
     )
+
 

@@ -108,11 +108,10 @@ async def chat(request: ChatRequest):
 
     **Pipeline stages (executed in order):**
     1. **Router** — decides whether a fast or deep retrieval path is needed.
-    2. **HyDE** — generates a hypothetical answer to improve embedding alignment.
-    3. **Hybrid Search** — combines dense vector search with BM25 sparse retrieval.
-    4. **Reranker** — cross-encoder reranking to surface the most relevant chunks.
-    5. **Generation** — the LLM (Gemini / GPT) synthesises the final answer.
-    6. **Self-correction** — if the answer is not grounded, the query is transformed
+    2. **Hybrid Search** — combines dense vector search with BM25 sparse retrieval.
+    3. **Reranker** — cross-encoder reranking to surface the most relevant chunks.
+    4. **Generation** — the LLM (Gemini / GPT) synthesises the final answer.
+    5. **Self-correction** — if the answer is not grounded, the query is transformed
        and the graph retries (up to `max_retries` times).
 
     Set `user_id` to restrict retrieval to documents uploaded by that user.

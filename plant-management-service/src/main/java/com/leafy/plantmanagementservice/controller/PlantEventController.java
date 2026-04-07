@@ -13,10 +13,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -120,6 +122,48 @@ public class PlantEventController {
         Pageable pageable = buildPageable(page, size, sortBy, sortDir);
         return ResponseEntity.ok(ApiResponse.success(
                 plantEventService.getEventsBySourcePlanId(sourcePlanId, pageable)));
+    }
+
+    @GetMapping("/farm-plot/{farmPlotId}")
+    public ResponseEntity<ApiResponse<Page<PlantEventResponse>>> getEventsByFarmPlotId(
+            @PathVariable String farmPlotId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "calculatedStartDate") String sortBy,
+            @RequestParam(defaultValue = "ASC") String sortDir) {
+        log.info("GET /plant-events/farm-plot/{} - Getting events by farm plot", farmPlotId);
+        Pageable pageable = buildPageable(page, size, sortBy, sortDir);
+        return ResponseEntity.ok(ApiResponse.success(
+                plantEventService.getEventsByFarmPlotId(farmPlotId, pageable)));
+    }
+
+    @GetMapping("/farm-zone/{farmZoneId}")
+    public ResponseEntity<ApiResponse<Page<PlantEventResponse>>> getEventsByFarmZoneId(
+            @PathVariable String farmZoneId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "calculatedStartDate") String sortBy,
+            @RequestParam(defaultValue = "ASC") String sortDir) {
+        log.info("GET /plant-events/farm-zone/{} - Getting events by farm zone", farmZoneId);
+        Pageable pageable = buildPageable(page, size, sortBy, sortDir);
+        return ResponseEntity.ok(ApiResponse.success(
+                plantEventService.getEventsByFarmZoneId(farmZoneId, pageable)));
+    }
+
+    // ── Calendar ───────────────────────────────────────────────────────────
+
+    @GetMapping("/calendar")
+    public ResponseEntity<ApiResponse<List<PlantEventResponse>>> getEventsForCalendar(
+            @RequestParam(required = false) String farmPlotId,
+            @RequestParam(required = false) String farmZoneId,
+            @RequestParam(required = false) String plantId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        log.info("GET /plant-events/calendar - farmPlotId={}, farmZoneId={}, plantId={}, range=[{}, {}]",
+                farmPlotId, farmZoneId, plantId, startDate, endDate);
+        List<PlantEventResponse> events = plantEventService.getEventsForCalendar(
+                farmPlotId, farmZoneId, plantId, startDate, endDate);
+        return ResponseEntity.ok(ApiResponse.success(events));
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
