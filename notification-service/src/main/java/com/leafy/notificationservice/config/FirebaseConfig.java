@@ -20,6 +20,7 @@ public class FirebaseConfig {
     @Bean
     @ConditionalOnProperty(prefix = "firebase", name = "enabled", havingValue = "true")
     public FirebaseApp firebaseApp(FirebaseProperties properties) throws IOException {
+        System.out.println("file: "+properties.getConfigPath());
         try (FileInputStream serviceAccount = new FileInputStream(properties.getConfigPath())) {
             FirebaseOptions options = FirebaseOptions.builder()
                     .setCredentials(GoogleCredentials.fromStream(serviceAccount))

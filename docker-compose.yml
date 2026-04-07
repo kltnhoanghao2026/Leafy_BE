@@ -32,6 +32,21 @@ services:
     networks:
       - leafy-network
 
+  postgresql-farm:
+    image: postgres:16-alpine
+    container_name: leafy-postgresql-farm
+    restart: unless-stopped
+    ports:
+      - "5433:5432"   # ⚠️ KHÁC 5432 để tránh conflict
+    environment:
+      POSTGRES_DB: leafy_farm_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - postgresql_farm_data:/var/lib/postgresql/data
+    networks:
+      - leafy-network
+
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: leafy-kafka
@@ -64,7 +79,7 @@ services:
       FIREBASE_CONFIG_PATH: /run/secrets/firebase-service-account.json
     volumes:
       - kafka_data:/var/lib/kafka/data
-      - ./secrets/stoked-elixir-470505-v4-firebase-adminsdk-fbsvc-8ad2706086.json:/run/secrets/firebase-service-account.json:ro
+      - ./secrets/your-file.json:/run/secrets/firebase-service-account.json:ro
     networks:
       - leafy-network
 
@@ -95,13 +110,13 @@ services:
     networks:
       - leafy-network
 
-  notification-service:
-    build:
-      context: .
-      dockerfile: notification-service/Dockerfile
-    container_name: notification-service
-    ports:
-      - "${SERVER_PORT_NOTIFICATION}:${SERVER_PORT_NOTIFICATION}"
+#  notification-service:
+#    build:
+#      context: .
+#      dockerfile: notification-service/Dockerfile
+#    container_name: notification-service
+#    ports:
+#      - "${SERVER_PORT_NOTIFICATION}:${SERVER_PORT_NOTIFICATION}"
 
 networks:
   leafy-network:
@@ -113,3 +128,4 @@ volumes:
   kafka_data:
   redis_data:
   postgresql_data:
+  postgresql_farm_data:

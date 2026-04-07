@@ -1,12 +1,35 @@
 server:
-  port: ${SERVER_PORT_FARM}
+  port: ${SERVER_PORT:8093}
 
 spring:
-  data:
-    mongodb:
-      host: ${MONGODB_HOST}
-      port: ${MONGODB_PORT}
-      database: ${MONGODB_DATABASE_FARM}
-      username: ${MONGODB_USERNAME}
-      password: ${MONGODB_PASSWORD}
-      authentication-database: admin
+  application:
+    name: farm-service
+
+  datasource:
+    url: jdbc:postgresql://${DB_FARM_HOST:localhost}:${DB_PORT:5433}/${DB_FARM_NAME:leafy_farm_iot}
+    username: ${DB_FARM_USERNAME:postgres}
+    password: ${DB_FARM_PASSWORD:postgres123}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
