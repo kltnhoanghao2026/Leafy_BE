@@ -55,8 +55,16 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      NOTIFICATION_EMAIL_ENABLED: ${NOTIFICATION_EMAIL_ENABLED}
+      NOTIFICATION_EMAIL_FROM: ${NOTIFICATION_EMAIL_FROM}
+      NOTIFICATION_SMS_ENABLED: ${NOTIFICATION_SMS_ENABLED}
+      NOTIFICATION_PUSH_ENABLED: ${NOTIFICATION_PUSH_ENABLED}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      FIREBASE_ENABLED: "true"
+      FIREBASE_CONFIG_PATH: /run/secrets/firebase-service-account.json
     volumes:
       - kafka_data:/var/lib/kafka/data
+      - ./secrets/your-file.json:/run/secrets/firebase-service-account.json:ro
     networks:
       - leafy-network
 
@@ -87,6 +95,14 @@ services:
     networks:
       - leafy-network
 
+#  notification-service:
+#    build:
+#      context: .
+#      dockerfile: notification-service/Dockerfile
+#    container_name: notification-service
+#    ports:
+#      - "${SERVER_PORT_NOTIFICATION}:${SERVER_PORT_NOTIFICATION}"
+
 networks:
   leafy-network:
     driver: bridge
@@ -97,3 +113,4 @@ volumes:
   kafka_data:
   redis_data:
   postgresql_data:
+  postgresql_farm_data:
