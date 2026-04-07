@@ -21,6 +21,10 @@ public class ProfileSyncDocumentRequest {
 
     String fullName;
 
+    String profilePicture;
+
+    String avatar;
+
     String phoneNumber;
 
     String email;

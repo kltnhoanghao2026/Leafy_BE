@@ -1,6 +1,8 @@
 package com.leafy.profileservice.service.sync;
 
 import com.leafy.profileservice.client.SearchSyncClient;
+import com.leafy.profileservice.client.AuthClient;
+import com.leafy.profileservice.client.dto.UserResponse;
 import com.leafy.profileservice.dto.request.sync.ProfileSyncBulkRequest;
 import com.leafy.profileservice.dto.request.sync.ProfileSyncDocumentRequest;
 import com.leafy.profileservice.model.Profile;
@@ -8,6 +10,7 @@ import com.leafy.profileservice.model.SyncTask;
 import com.leafy.profileservice.model.enums.SyncTaskStatus;
 import com.leafy.profileservice.repository.ProfileRepository;
 import com.leafy.profileservice.repository.SyncTaskRepository;
+import com.leafy.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +34,7 @@ public class ProfileSyncWorker {
     private final ProfileRepository profileRepository;
     private final SyncTaskRepository syncTaskRepository;
     private final SearchSyncClient searchSyncClient;
+    private final AuthClient authClient;
 
     @Value("${profile.sync.backpressure-ms:100}")
     private long backpressureDelayMs;
@@ -122,15 +126,31 @@ public class ProfileSyncWorker {
     }
 
     private ProfileSyncDocumentRequest toSyncDocument(Profile profile) {
+        UserResponse user = getUser(profile.getUserId());
+
         return ProfileSyncDocumentRequest.builder()
                 .id(profile.getId())
                 .userId(profile.getUserId())
                 .fullName(profile.getFullName())
+                .profilePicture(profile.getProfilePicture())
+                .avatar(profile.getAvatar())
+                .phoneNumber(user != null ? user.getPhoneNumber() : null)
+                .email(user != null ? user.getEmail() : null)
                 .role(profile.getRole())
                 .specialty(profile.getSpecialty())
                 .isVerified(profile.getIsVerified())
                 .bio(profile.getBio())
                 .active(profile.getActive())
                 .build();
+    }
+
+    private UserResponse getUser(String userId) {
+        try {
+            ApiResponse<UserResponse> apiResponse = authClient.getUserById(userId);
+            return apiResponse != null ? apiResponse.data() : null;
+        } catch (Exception exception) {
+            log.warn("Failed to fetch auth user for sync: userId={}, error={}", userId, exception.getMessage());
+            return null;
+        }
     }
 }

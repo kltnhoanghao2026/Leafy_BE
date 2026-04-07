@@ -21,6 +21,10 @@ public class ProfileServiceProfileResponse {
 
     String fullName;
 
+    String profilePicture;
+
+    String avatar;
+
     ProfileRole role;
 
     String specialty;

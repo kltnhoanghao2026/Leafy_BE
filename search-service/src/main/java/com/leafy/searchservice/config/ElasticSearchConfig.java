@@ -1,11 +1,13 @@
 package com.leafy.searchservice.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
 
 import java.time.Duration;
 
+@Configuration
 public class ElasticSearchConfig extends ElasticsearchConfiguration {
 
     @Value("${elasticsearch.url}")

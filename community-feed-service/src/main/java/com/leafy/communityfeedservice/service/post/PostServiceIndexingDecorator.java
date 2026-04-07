@@ -1,0 +1,90 @@
+package com.leafy.communityfeedservice.service.post;
+
+import com.leafy.common.event.post.PostDeletedEvent;
+import com.leafy.common.event.post.PostUpsertEvent;
+import com.leafy.common.model.kafka.EventType;
+import com.leafy.common.publisher.OutboxEventPublisher;
+import com.leafy.communityfeedservice.dto.request.PostCreateRequest;
+import com.leafy.communityfeedservice.dto.request.PostUpdateRequest;
+import com.leafy.communityfeedservice.dto.response.PostResponse;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Primary;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import java.util.Optional;
+
+@Service
+@Primary
+@Slf4j
+@RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+public class PostServiceIndexingDecorator implements PostService {
+
+    PostServiceImpl delegate;
+    Optional<OutboxEventPublisher> outboxEventPublisher;
+
+    @Override
+    public PostResponse createPost(PostCreateRequest request) {
+        PostResponse response = delegate.createPost(request);
+        publishUpsert(response.getId());
+        return response;
+    }
+
+    @Override
+    public PostResponse getPostById(String id) {
+        return delegate.getPostById(id);
+    }
+
+    @Override
+    public Page<PostResponse> getAllFeedAndSharedPosts(Pageable pageable) {
+        return delegate.getAllFeedAndSharedPosts(pageable);
+    }
+
+    @Override
+    public PostResponse updatePost(String id, PostUpdateRequest request) {
+        PostResponse response = delegate.updatePost(id, request);
+        publishUpsert(response.getId());
+        return response;
+    }
+
+    @Override
+    public void deletePost(String id) {
+        delegate.deletePost(id);
+        publishDelete(id);
+    }
+
+    private void publishUpsert(String postId) {
+        if (postId == null) {
+            return;
+        }
+
+        PostUpsertEvent event = PostUpsertEvent.builder()
+                .postId(postId)
+                .build();
+
+        outboxEventPublisher.ifPresentOrElse(
+                publisher -> publisher.saveAndPublish(postId, "Post", EventType.POST_UPSERTED, event),
+                () -> log.warn("OutboxEventPublisher is unavailable. Skip post upsert event for postId={}", postId)
+        );
+    }
+
+    private void publishDelete(String postId) {
+        if (postId == null) {
+            return;
+        }
+
+        PostDeletedEvent event = PostDeletedEvent.builder()
+                .postId(postId)
+                .build();
+
+        outboxEventPublisher.ifPresentOrElse(
+                publisher -> publisher.saveAndPublish(postId, "Post", EventType.POST_DELETED, event),
+                () -> log.warn("OutboxEventPublisher is unavailable. Skip post delete event for postId={}", postId)
+        );
+    }
+}

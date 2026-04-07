@@ -65,6 +65,8 @@ public class InternalProfileController {
                 .id(profile.getId())
                 .userId(profile.getUserId())
                 .fullName(profile.getFullName())
+            .profilePicture(profile.getProfilePicture())
+            .avatar(profile.getAvatar())
                 .role(profile.getRole())
                 .specialty(profile.getSpecialty())
                 .isVerified(profile.getIsVerified())

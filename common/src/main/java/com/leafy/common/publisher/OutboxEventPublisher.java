@@ -2,6 +2,8 @@ package com.leafy.common.publisher;
 
 import com.leafy.common.config.kafka.KafkaTopicProperties;
 import com.leafy.common.dto.client.userservice.user.request.UserCreateRequest;
+import com.leafy.common.event.post.PostDeletedEvent;
+import com.leafy.common.event.post.PostUpsertEvent;
 import com.leafy.common.event.profile.ProfileUpsertEvent;
 import com.leafy.common.model.kafka.EventType;
 import com.leafy.common.model.kafka.OutboxEvent;
@@ -125,6 +127,8 @@ public class OutboxEventPublisher {
             case USER_ENABLED -> kafkaTopicProperties.getUserEvents().getEnabled();
             case USER_DISABLED -> kafkaTopicProperties.getUserEvents().getDisabled();
             case PROFILE_CREATED -> kafkaTopicProperties.getProfileEvents().getCreated();
+            case POST_UPSERTED -> kafkaTopicProperties.getPostEvents().getUpserted();
+            case POST_DELETED -> kafkaTopicProperties.getPostEvents().getDeleted();
         };
     }
 
@@ -133,6 +137,8 @@ public class OutboxEventPublisher {
             case USER_REGISTERED, USER_UPDATED, USER_DELETED, 
                  USER_VERIFIED, USER_ENABLED, USER_DISABLED -> UserCreateRequest.class;
             case PROFILE_CREATED -> ProfileUpsertEvent.class;
+            case POST_UPSERTED -> PostUpsertEvent.class;
+            case POST_DELETED -> PostDeletedEvent.class;
         };
     }
 }

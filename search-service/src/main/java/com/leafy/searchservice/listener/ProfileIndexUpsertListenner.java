@@ -120,6 +120,8 @@ public class ProfileIndexUpsertListenner {
                 .id(profile.getId())
                 .userId(profile.getUserId())
                 .fullName(profile.getFullName())
+            .profilePicture(profile.getProfilePicture())
+            .avatar(profile.getAvatar())
                 .phoneNumber(user.getPhoneNumber())
                 .email(user.getEmail())
                 .role(profile.getRole())

@@ -56,6 +56,8 @@ public class ProfileIndexSyncImpl {
 				.id(request.getId())
 				.userId(request.getUserId())
 				.fullName(request.getFullName())
+				.profilePicture(request.getProfilePicture())
+				.avatar(request.getAvatar())
 				.phoneNumber(request.getPhoneNumber())
 				.email(request.getEmail())
 				.role(request.getRole())

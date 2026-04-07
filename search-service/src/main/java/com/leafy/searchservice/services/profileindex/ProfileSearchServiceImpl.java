@@ -117,6 +117,8 @@ public class ProfileSearchServiceImpl implements ProfileSearchService {
                 .id(profileIndex.getId())
                 .userId(profileIndex.getUserId())
                 .fullName(profileIndex.getFullName())
+                .profilePicture(profileIndex.getProfilePicture())
+                .avatar(profileIndex.getAvatar())
                 .role(profileIndex.getRole())
                 .specialty(profileIndex.getSpecialty())
                 .isVerified(profileIndex.getIsVerified())

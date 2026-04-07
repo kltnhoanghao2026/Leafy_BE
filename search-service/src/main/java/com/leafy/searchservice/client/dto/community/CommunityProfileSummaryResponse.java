@@ -1,6 +1,5 @@
-package com.leafy.profileservice.dto.request.sync;
+package com.leafy.searchservice.client.dto.community;
 
-import com.leafy.common.enums.ProfileRole;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,29 +12,10 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ProfileSyncDocumentRequest {
-
+public class CommunityProfileSummaryResponse {
     String id;
-
-    String userId;
-
     String fullName;
-
-    String profilePicture;
-
     String avatar;
-
-    String phoneNumber;
-
-    String email;
-
-    ProfileRole role;
-
-    String specialty;
-
+    String role;
     Boolean isVerified;
-
-    Boolean active;
-
-    String bio;
 }

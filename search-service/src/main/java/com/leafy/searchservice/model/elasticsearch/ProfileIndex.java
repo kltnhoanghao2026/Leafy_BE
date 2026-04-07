@@ -43,6 +43,12 @@ public class ProfileIndex {
     )
     String fullName;
 
+        @Field(type = FieldType.Keyword)
+        String profilePicture;
+
+        @Field(type = FieldType.Keyword)
+        String avatar;
+
     @Field(type = FieldType.Keyword)
     String phoneNumber;
 

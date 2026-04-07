@@ -21,6 +21,10 @@ public class InternalProfileResponse {
 
     String fullName;
 
+    String profilePicture;
+
+    String avatar;
+
     ProfileRole role;
 
     String specialty;

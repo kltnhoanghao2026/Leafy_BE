@@ -11,4 +11,8 @@ public enum EventType {
 
     // Profile Events (matching KafkaTopicProperties.UserEvents)
     PROFILE_CREATED,
+
+    // Post Events (matching KafkaTopicProperties.PostEvents)
+    POST_UPSERTED,
+    POST_DELETED,
 }
