@@ -9,10 +9,13 @@ import com.leafy.communityfeedservice.dto.response.PostResponse;
 import com.leafy.communityfeedservice.mapper.PostMapper;
 import com.leafy.communityfeedservice.model.Post;
 import com.leafy.communityfeedservice.model.ProfileSummary;
+import com.leafy.communityfeedservice.model.Vote;
 import com.leafy.communityfeedservice.model.embedded.PostStats;
 import com.leafy.communityfeedservice.model.enums.PostType;
+import com.leafy.communityfeedservice.model.enums.VoteTargetType;
 import com.leafy.communityfeedservice.repository.PostRepository;
 import com.leafy.communityfeedservice.repository.ProfileSummaryRepository;
+import com.leafy.communityfeedservice.repository.VoteRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -38,6 +41,7 @@ public class PostServiceImpl implements PostService {
     PostRepository postRepository;
     PostMapper postMapper;
     ProfileSummaryRepository profileSummaryRepository;
+    VoteRepository voteRepository;
 
     @Override
     @Transactional
@@ -135,6 +139,15 @@ public class PostServiceImpl implements PostService {
                 response.setSharedPostInfo(sharedResponse);
             });
         }
+
+        String currentProfileId = ServiceSecurityUtils.getCurrentProfileId();
+        if (currentProfileId != null) {
+            voteRepository.findByAuthorIdAndTargetIdAndTargetType(
+                    currentProfileId, response.getId(), VoteTargetType.POST)
+                    .filter(Vote::isActive)
+                    .ifPresent(vote -> response.setCurrentUserVoteType(vote.getType()));
+        }
+
         return response;
     }
 
@@ -171,6 +184,18 @@ public class PostServiceImpl implements PostService {
                     .forEach(p -> profileMap.put(p.getId(), p));
         }
 
+        // Batch fetch current user's votes for all posts
+        String currentProfileId = ServiceSecurityUtils.getCurrentProfileId();
+        Map<String, Vote> voteMap = Collections.emptyMap();
+        if (currentProfileId != null) {
+            List<String> postIds = responses.stream()
+                    .map(PostResponse::getId)
+                    .collect(Collectors.toList());
+            voteMap = voteRepository.findByAuthorIdAndTargetIdInAndTargetTypeAndActiveTrue(
+                    currentProfileId, postIds, VoteTargetType.POST).stream()
+                    .collect(Collectors.toMap(Vote::getTargetId, Function.identity()));
+        }
+
         // Enrich each response
         for (PostResponse r : responses) {
             r.setAuthorInfo(profileMap.get(r.getAuthorId()));
@@ -182,6 +207,11 @@ public class PostServiceImpl implements PostService {
                     sharedResponse.setAuthorInfo(profileMap.get(sharedPost.getAuthorId()));
                     r.setSharedPostInfo(sharedResponse);
                 }
+            }
+
+            Vote vote = voteMap.get(r.getId());
+            if (vote != null) {
+                r.setCurrentUserVoteType(vote.getType());
             }
         }
     }

@@ -4,6 +4,7 @@ import com.leafy.communityfeedservice.model.ProfileSummary;
 import com.leafy.communityfeedservice.model.embedded.*;
 import com.leafy.communityfeedservice.model.enums.PostType;
 import com.leafy.communityfeedservice.model.enums.Visibility;
+import com.leafy.communityfeedservice.model.enums.VoteType;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,6 +40,7 @@ public class PostResponse {
     List<StoryElement> elements;
     Visibility visibility;
     PostStats stats;
+    VoteType currentUserVoteType;
     LocalDateTime uploadedAt;
     LocalDateTime updatedAt;
     int version;
