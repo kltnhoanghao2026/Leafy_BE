@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT_NOTIFICATION}
+  port: ${SERVER_PORT_NOTIFICATION:}
 
 spring:
   data:
@@ -10,6 +10,15 @@ spring:
       username: ${MONGODB_USERNAME}
       password: ${MONGODB_PASSWORD}
       authentication-database: admin
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    consumer:
+      group-id: notification-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
 
 bondhub:
   security:
@@ -17,16 +26,23 @@ bondhub:
       enabled: true
 
 brevo:
-  api-key: ${BREVO_API_KEY}
-  default-sender-email: ${BREVO_SENDER_EMAIL}
-  default-sender-name: ${BREVO_SENDER_NAME}
-  enabled: ${BREVO_ENABLED}
+  api-key: ${BREVO_API_KEY:}
+  default-sender-email: ${BREVO_SENDER_EMAIL:}
+  default-sender-name: ${BREVO_SENDER_NAME:}
+  enabled: ${BREVO_ENABLED:false}
 
 notification:
   email:
-    enabled: ${NOTIFICATION_EMAIL_ENABLED}
-    from: ${NOTIFICATION_EMAIL_FROM}
+    enabled: ${NOTIFICATION_EMAIL_ENABLED:false}
+    from: ${NOTIFICATION_EMAIL_FROM:}
   sms:
-    enabled: ${NOTIFICATION_SMS_ENABLED}
+    enabled: ${NOTIFICATION_SMS_ENABLED:from}
   push:
-    enabled: ${NOTIFICATION_PUSH_ENABLED}
+    enabled: ${NOTIFICATION_PUSH_ENABLED:true}
+  kafka:
+    topics:
+      alertTriggered: iot.alert.triggered
+
+firebase:
+  enabled: true
+  configPath: D:/KLTN/Leafy_BE/notification-service/secret/firebase-service-account.json
