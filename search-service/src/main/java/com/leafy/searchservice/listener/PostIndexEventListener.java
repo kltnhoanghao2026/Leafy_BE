@@ -38,7 +38,7 @@ public class PostIndexEventListener {
             include = {Exception.class}
     )
     @KafkaListener(
-            topics = "#{kafkaTopicProperties.postEvents.upserted}",
+            topics = "#{kafkaTopicProperties.communityEvents.postUpserted}",
             groupId = "search-service-post-indexer-group",
             concurrency = "3"
     )
@@ -61,7 +61,7 @@ public class PostIndexEventListener {
             include = {Exception.class}
     )
     @KafkaListener(
-            topics = "#{kafkaTopicProperties.postEvents.deleted}",
+            topics = "#{kafkaTopicProperties.communityEvents.postDeleted}",
             groupId = "search-service-post-indexer-group",
             concurrency = "3"
     )

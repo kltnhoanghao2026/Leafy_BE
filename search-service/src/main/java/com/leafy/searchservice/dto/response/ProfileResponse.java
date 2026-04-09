@@ -22,4 +22,10 @@ public class ProfileResponse {
     String specialty;
     Boolean isVerified;
     String bio;
+    String addressLine;
+    String provinceCode;
+    String districtCode;
+    String wardCode;
+    Double latitude;
+    Double longitude;
 }

@@ -19,11 +19,19 @@ public class ElasticSearchConfig extends ElasticsearchConfiguration {
     @Value("${elasticsearch.password}")
     private String password;
 
+    @Value("${elasticsearch.ssl:false}")
+    private boolean ssl;
+
     @Override
     public ClientConfiguration clientConfiguration() {
-        return ClientConfiguration.builder()
-                .connectedTo(url.split(","))
-                .usingSsl()
+        var builder = ClientConfiguration.builder()
+                .connectedTo(url.split(","));
+
+        if (ssl) {
+            builder.usingSsl();
+        }
+
+        return builder
                 .withBasicAuth(username, password)
                 .withConnectTimeout(Duration.ofSeconds(5))
                 .withSocketTimeout(Duration.ofSeconds(30))

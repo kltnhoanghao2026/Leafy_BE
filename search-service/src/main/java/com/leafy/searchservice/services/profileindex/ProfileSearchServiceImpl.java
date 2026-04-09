@@ -123,6 +123,12 @@ public class ProfileSearchServiceImpl implements ProfileSearchService {
                 .specialty(profileIndex.getSpecialty())
                 .isVerified(profileIndex.getIsVerified())
                 .bio(profileIndex.getBio())
+                .addressLine(profileIndex.getAddressLine())
+                .provinceCode(profileIndex.getProvinceCode())
+                .districtCode(profileIndex.getDistrictCode())
+                .wardCode(profileIndex.getWardCode())
+                .latitude(profileIndex.getLatitude())
+                .longitude(profileIndex.getLongitude())
                 .build();
     }
 

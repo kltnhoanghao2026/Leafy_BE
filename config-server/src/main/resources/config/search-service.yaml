@@ -15,6 +15,11 @@ spring:
       authentication-database: admin
 
 elasticsearch:
+  url: ${ELASTICSEARCH_URL:localhost:9200}
+  username: ${ELASTICSEARCH_USERNAME:}
+  password: ${ELASTICSEARCH_PASSWORD:}
+  ssl: ${ELASTICSEARCH_SSL:false}
+
   sync:
     batch-size: ${ELASTICSEARCH_SYNC_BATCH_SIZE:500}
     max-retry: ${ELASTICSEARCH_SYNC_MAX_RETRY:3}

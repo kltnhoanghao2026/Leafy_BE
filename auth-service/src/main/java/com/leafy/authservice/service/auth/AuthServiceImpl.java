@@ -48,7 +48,7 @@ import java.util.Arrays;
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthServiceImpl implements AuthService {
-    
+
     UserRepository userRepository;
     PasswordEncoder passwordEncoder;
     JwtService jwtService;
@@ -76,16 +76,16 @@ public class AuthServiceImpl implements AuthService {
     @NonFinal
     @Value("${security.rate-limit.refresh.window:60}")
     long refreshWindowSeconds;
-    
+
     @NonFinal
     @Value("${registration.data.ttl:300}")
     long registrationDataTtl; // 5 minutes default
-    
+
     // Cookie configuration
     static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
     static final String COOKIE_PATH = "/api/v1/auth";
     static final int COOKIE_MAX_AGE = 2592000; // 30 days
-    
+
     @Override
     public RegistrationInitResponse initiateRegistration(InitialRegisterRequest request) {
         log.info("Initiating registration for email: {}", request.getEmail());
@@ -96,32 +96,31 @@ public class AuthServiceImpl implements AuthService {
         RegistrationData registrationData = RegistrationData.builder()
                 .email(request.getEmail())
                 .phoneNumber(request.getPhoneNumber())
-                .fullName(request.getFullName())
                 .hashedPassword(passwordEncoder.encode(request.getPassword()))
                 .appVersion(request.getAppVersion())
                 .ttl(registrationDataTtl)
                 .build();
 
         registrationDataRepository.save(registrationData);
-        
+
         boolean otpSent = otpService.generateAndSendOtp(request.getEmail());
         if (!otpSent) {
             log.error("Failed to send OTP for email: {}", request.getEmail());
             throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
         }
-        
+
         log.info("Registration initiated successfully for email: {}", request.getEmail());
-        
+
         return RegistrationInitResponse.builder()
                 .message("OTP has been sent to your email")
                 .email(request.getEmail())
                 .expiresInSeconds(registrationDataTtl)
                 .build();
     }
-    
+
     @Override
     public AuthResponse verifyOtpAndRegister(VerifyOtpRequest verifyRequest, String userAgent, String deviceId,
-                                            HttpServletRequest httpRequest, HttpServletResponse response) {
+                                             HttpServletRequest httpRequest, HttpServletResponse response) {
         log.info("Verifying OTP for email: {}", verifyRequest.getEmail());
 
         boolean isOtpValid = otpService.verifyOtp(verifyRequest.getEmail(), verifyRequest.getOtp());
@@ -159,7 +158,7 @@ public class AuthServiceImpl implements AuthService {
         try {
             ProfileCreateRequest profileRequest = ProfileCreateRequest.builder()
                     .userId(savedUser.getId())
-                    .fullName(registrationData.getFullName() != null ? registrationData.getFullName() : savedUser.getEmail().split("@")[0])
+                    .fullName(savedUser.getEmail().split("@")[0])
                     .role("FARMER") // match UserRole.FARMER in profile-service
                     .build();
 
@@ -173,49 +172,49 @@ public class AuthServiceImpl implements AuthService {
         }
 
         return authenticateAndBuildResponse(
-            savedUser,
-            deviceId,
-            userAgent,
-            registrationData.getAppVersion(),
-            response,
-            "Registration complete with tokens",
-            profileId
+                savedUser,
+                deviceId,
+                userAgent,
+                registrationData.getAppVersion(),
+                response,
+                "Registration complete with tokens",
+                profileId
         );
     }
-    
+
     @Override
     public boolean resendOtp(String email) {
         log.info("Resending OTP for email: {}", email);
-        
+
         // Check if registration data exists
         if (!registrationDataRepository.existsByEmail(email)) {
             log.warn("Registration data not found for email: {}", email);
             throw new AppException(ErrorCode.REGISTRATION_DATA_EXPIRED);
         }
-        
+
         // Check OTP rate limit
         if (otpService.isOtpRateLimitExceeded(email)) {
             log.warn("OTP rate limit exceeded for email: {}", email);
             throw new AppException(ErrorCode.RATE_LIMIT_EXCEEDED);
         }
-        
+
         // Delete old OTP
         otpService.deleteOtp(email);
-        
+
         // Generate and send new OTP
         boolean otpSent = otpService.generateAndSendOtp(email);
         if (!otpSent) {
             log.error("Failed to resend OTP for email: {}", email);
             return false;
         }
-        
+
         log.info("OTP resent successfully for email: {}", email);
         return true;
     }
 
     @Override
     public AuthResponse login(LoginRequest request, String userAgent, String deviceId,
-                             HttpServletRequest httpRequest, HttpServletResponse response) {
+                              HttpServletRequest httpRequest, HttpServletResponse response) {
         log.info("Login attempt - Email: {}", request.getEmail());
 
         String rateLimitKey = "login:" + request.getEmail();
@@ -243,10 +242,10 @@ public class AuthServiceImpl implements AuthService {
                 null
         );
     }
-    
+
     @Override
     public AuthResponse refreshToken(HttpServletRequest request, RefreshTokenRequest refreshTokenRequest,
-                                      HttpServletResponse response, DeviceType deviceType) {
+                                     HttpServletResponse response, DeviceType deviceType) {
         log.debug("Token refresh attempt - DeviceType: {}", deviceType);
 
         String refreshToken = resolveRefreshToken(request, refreshTokenRequest, deviceType);
@@ -306,12 +305,12 @@ public class AuthServiceImpl implements AuthService {
 
         return buildAuthResponse(deviceType, response, newAccessToken, newRefreshToken);
     }
-    
+
     @Override
     public void logout(HttpServletRequest request, RefreshTokenRequest refreshTokenRequest,
                        HttpServletResponse response, DeviceType deviceType) {
         log.debug("Logout attempt - DeviceType: {}", deviceType);
-        
+
         try {
             // Extract and blacklist access token
             String accessToken = extractAccessToken(request);
@@ -321,7 +320,7 @@ public class AuthServiceImpl implements AuthService {
                 blacklistService.blacklistAccessToken(accessPayload.getJti(), accessPayload.getSubject(), remainingLifetime);
                 log.info("Blacklisted access token - User: {}, JTI: {}", accessPayload.getSubject(), accessPayload.getJti());
             }
-            
+
             String refreshToken = null;
             if (deviceType == DeviceType.WEB) {
                 refreshToken = extractRefreshTokenFromCookie(request);
@@ -331,12 +330,12 @@ public class AuthServiceImpl implements AuthService {
                     refreshToken = refreshTokenRequest.getRefreshToken();
                 }
             }
-            
+
             if (refreshToken != null && jwtService.validateToken(refreshToken)) {
                 JwtPayload refreshPayload = jwtService.parseToken(refreshToken);
-                
+
                 blacklistService.blacklistRefreshToken(refreshPayload.getJti());
-                
+
                 log.info("Logout successful - User: {}", refreshPayload.getSubject());
             }
         } catch (Exception e) {
@@ -401,7 +400,7 @@ public class AuthServiceImpl implements AuthService {
             log.error("Error during logout-other", e);
         }
     }
-    
+
     /**
      * Set refresh token as HttpOnly cookie for web clients
      */
@@ -414,7 +413,7 @@ public class AuthServiceImpl implements AuthService {
 
         response.addCookie(cookie);
     }
-    
+
     /**
      * Clear refresh token cookie for web clients
      */
@@ -426,7 +425,7 @@ public class AuthServiceImpl implements AuthService {
         cookie.setMaxAge(0);
         response.addCookie(cookie);
     }
-    
+
     /**
      * Extract refresh token from cookie
      */
@@ -434,14 +433,14 @@ public class AuthServiceImpl implements AuthService {
         if (request.getCookies() == null) {
             return null;
         }
-        
+
         return Arrays.stream(request.getCookies())
                 .filter(cookie -> REFRESH_TOKEN_COOKIE_NAME.equals(cookie.getName()))
                 .map(Cookie::getValue)
                 .findFirst()
                 .orElse(null);
     }
-    
+
     /**
      * Extract access token from Authorization header
      */

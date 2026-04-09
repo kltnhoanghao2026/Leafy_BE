@@ -19,6 +19,8 @@ public enum EventType {
     // Add system events here when defined
     
     // Community Events
+    POST_UPSERTED,
+    POST_DELETED,
     COMMENT_CREATED,
     COMMENT_DELETED,
     VOTE_CREATED,

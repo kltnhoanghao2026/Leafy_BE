@@ -67,6 +67,36 @@ public class Profile extends BaseModel {
     String bio;
 
     /**
+     * User's address line
+     */
+    String addressLine;
+
+    /**
+     * Province code
+     */
+    String provinceCode;
+
+    /**
+     * District code
+     */
+    String districtCode;
+
+    /**
+     * Ward code
+     */
+    String wardCode;
+
+    /**
+     * Geographic latitude
+     */
+    Double latitude;
+
+    /**
+     * Geographic longitude
+     */
+    Double longitude;
+
+    /**
      * User preferences (embedded document)
      */
     UserPreference userPreference;

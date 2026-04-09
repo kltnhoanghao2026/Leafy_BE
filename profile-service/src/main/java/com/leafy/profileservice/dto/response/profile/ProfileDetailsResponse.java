@@ -37,6 +37,18 @@ public class ProfileDetailsResponse {
 
     String bio;
 
+    String addressLine;
+
+    String provinceCode;
+
+    String districtCode;
+
+    String wardCode;
+
+    Double latitude;
+
+    Double longitude;
+
     UserPreferenceResponse userPreference;
 
     boolean active;

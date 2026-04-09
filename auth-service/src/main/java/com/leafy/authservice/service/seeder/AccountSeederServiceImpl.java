@@ -43,6 +43,30 @@ public class AccountSeederServiceImpl implements AccountSeederService {
             "Nguyen Van An", "Truong Minh Khoa", "Cao Quang Hai", "Duong Van Tung"
     };
 
+    static final String[] PROVINCE_CODES = {
+            "01", "79", "31", "92", "48", "56", "74", "60", "52", "38"
+    };
+    static final String[] DISTRICT_CODES = {
+            "001", "002", "003", "004", "005", "006", "007", "008", "009", "010"
+    };
+    static final String[] WARD_CODES = {
+            "00001", "00003", "00005", "00007", "00009", "00025", "00028", "00031", "00034", "00037"
+    };
+    static final String[] ADDRESS_LINES = {
+            "123 Nong Nghiep Street", "456 Dong Ruong Street", "789 Canh Tac Street",
+            "101 Vuon Rau Street", "202 Khu Nha Kinh Street", "303 Cao Nguyen Street",
+            "404 Dong Bang Street", "505 Ven Song Street", "606 Chan Nui Street", "707 Dat Bai Street"
+    };
+    static final double[][] GEO_COORDS = {
+            {21.0278, 105.8342}, {10.7769, 106.7009}, {16.0478, 108.2208},
+            {10.0452, 105.7469}, {15.1214, 108.8011}, {11.9464, 108.4419},
+            {10.9574, 108.3025}, {20.8135, 106.6878}
+    };
+    static final String[] SPECIALTIES = {
+            "Rice Cultivation", "Vegetable Farming", "Fruit Orchards", "Coffee Plantation",
+            "Herb Growing", "Flower Cultivation", "Organic Farming", "Aquaculture"
+    };
+
     @Override
     public Map<String, Object> seedAccounts(int count) {
         log.info("Starting account seeding for {} records", count);
@@ -78,7 +102,7 @@ public class AccountSeederServiceImpl implements AccountSeederService {
 
                 User savedUser = userRepository.save(user);
 
-                if (createProfile(savedUser, fullName)) {
+                if (createProfile(savedUser, fullName, currentIndex)) {
                     profileCreated++;
                 } else {
                     profileFailed++;
@@ -109,13 +133,23 @@ public class AccountSeederServiceImpl implements AccountSeederService {
         return result;
     }
 
-    private boolean createProfile(User user, String fullName) {
+    private boolean createProfile(User user, String fullName, int index) {
         try {
+            int mod = index % 10;
+            int geoIdx = index % GEO_COORDS.length;
             profileClient.createProfile(CreateProfileRequest.builder()
                     .userId(user.getId())
                     .fullName(fullName)
                     .email(user.getEmail())
                     .phoneNumber(user.getPhoneNumber())
+                    .role(index % 3 == 0 ? "EXPERT" : "FARMER")
+                    .specialty(SPECIALTIES[index % SPECIALTIES.length])
+                    .addressLine(ADDRESS_LINES[mod])
+                    .provinceCode(PROVINCE_CODES[mod])
+                    .districtCode(DISTRICT_CODES[mod])
+                    .wardCode(WARD_CODES[mod])
+                    .latitude(GEO_COORDS[geoIdx][0])
+                    .longitude(GEO_COORDS[geoIdx][1])
                     .build());
             return true;
         } catch (Exception ex) {

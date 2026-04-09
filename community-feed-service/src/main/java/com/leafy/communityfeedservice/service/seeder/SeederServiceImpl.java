@@ -1,10 +1,14 @@
 package com.leafy.communityfeedservice.service.seeder;
 
+import com.leafy.common.event.post.PostUpsertEvent;
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
+import com.leafy.common.model.kafka.EventType;
+import com.leafy.common.publisher.OutboxEventPublisher;
 import com.leafy.common.security.UserPrincipal;
 import com.leafy.common.utils.ServiceSecurityUtils;
 import com.leafy.communityfeedservice.client.ProfileServiceClient;
+import com.leafy.communityfeedservice.client.SearchServiceClient;
 import com.leafy.communityfeedservice.client.dto.ExternalApiResponse;
 import com.leafy.communityfeedservice.client.dto.PagedResponse;
 import com.leafy.communityfeedservice.client.dto.ProfileSummaryResponse;
@@ -37,6 +41,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -54,6 +59,8 @@ public class SeederServiceImpl implements SeederService {
     PostRepository postRepository;
     CommentRepository commentRepository;
     VoteRepository voteRepository;
+    Optional<OutboxEventPublisher> outboxEventPublisher;
+    Optional<SearchServiceClient> searchServiceClient;
 
     @Override
     @Transactional
@@ -73,12 +80,16 @@ public class SeederServiceImpl implements SeederService {
         commentRepository.deleteAll();
         postRepository.deleteAll();
 
+        resetSearchIndex();
+
         Random random = new Random(seederProperties.getRandomSeed());
         LocalDateTime now = LocalDateTime.now();
 
         List<Post> posts = seedPosts(profileIds, random, now);
         List<Comment> comments = seedComments(posts, profileIds, random);
         List<Vote> votes = seedVotes(posts, comments, profileIds, random);
+
+        publishSeededPostEvents(posts);
 
         log.info(
                 "Community feed reseeded: posts={}, comments={}, votes={}, profiles={}",
@@ -298,6 +309,34 @@ public class SeederServiceImpl implements SeederService {
         commentRepository.saveAll(comments);
 
         return votes;
+    }
+
+    private void resetSearchIndex() {
+        searchServiceClient.ifPresentOrElse(
+                client -> {
+                    client.resetPostIndex();
+                    log.info("Post index in search-service reset before seeding");
+                },
+                () -> log.warn("SearchServiceClient unavailable. Skipping post index reset")
+        );
+    }
+
+    private void publishSeededPostEvents(List<Post> posts) {
+        if (posts == null || posts.isEmpty()) {
+            return;
+        }
+        outboxEventPublisher.ifPresentOrElse(
+                publisher -> {
+                    for (Post post : posts) {
+                        PostUpsertEvent event = PostUpsertEvent.builder()
+                                .postId(post.getId())
+                                .build();
+                        publisher.saveAndPublish(post.getId(), "Post", EventType.POST_UPSERTED, event);
+                    }
+                    log.info("Published {} post upsert events to Kafka for search-service indexing", posts.size());
+                },
+                () -> log.warn("OutboxEventPublisher unavailable. Skipping Kafka events for {} seeded posts", posts.size())
+        );
     }
 
     private String pickRandomProfileId(List<String> profileIds, Random random) {

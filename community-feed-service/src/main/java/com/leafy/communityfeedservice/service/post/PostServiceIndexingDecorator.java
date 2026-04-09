@@ -7,6 +7,7 @@ import com.leafy.common.publisher.OutboxEventPublisher;
 import com.leafy.communityfeedservice.dto.request.PostCreateRequest;
 import com.leafy.communityfeedservice.dto.request.PostUpdateRequest;
 import com.leafy.communityfeedservice.dto.response.PostResponse;
+import com.leafy.communityfeedservice.model.enums.PostType;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -31,7 +32,9 @@ public class PostServiceIndexingDecorator implements PostService {
     @Override
     public PostResponse createPost(PostCreateRequest request) {
         PostResponse response = delegate.createPost(request);
-        publishUpsert(response.getId());
+        if (isSearchIndexable(response.getPostType())) {
+            publishUpsert(response.getId());
+        }
         return response;
     }
 
@@ -46,9 +49,16 @@ public class PostServiceIndexingDecorator implements PostService {
     }
 
     @Override
+    public Page<PostResponse> getPostsByUserId(String userId, Pageable pageable) {
+        return delegate.getPostsByUserId(userId, pageable);
+    }
+
+    @Override
     public PostResponse updatePost(String id, PostUpdateRequest request) {
         PostResponse response = delegate.updatePost(id, request);
-        publishUpsert(response.getId());
+        if (isSearchIndexable(response.getPostType())) {
+            publishUpsert(response.getId());
+        }
         return response;
     }
 
@@ -56,6 +66,10 @@ public class PostServiceIndexingDecorator implements PostService {
     public void deletePost(String id) {
         delegate.deletePost(id);
         publishDelete(id);
+    }
+
+    private boolean isSearchIndexable(PostType postType) {
+        return postType == PostType.FEED || postType == PostType.SHARE;
     }
 
     private void publishUpsert(String postId) {

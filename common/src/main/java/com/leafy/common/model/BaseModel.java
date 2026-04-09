@@ -29,4 +29,8 @@ public class BaseModel {
     String lastModifiedBy;
 
     Boolean active = true;
+
+    public boolean isActive() {
+        return Boolean.TRUE.equals(active);
+    }
 }

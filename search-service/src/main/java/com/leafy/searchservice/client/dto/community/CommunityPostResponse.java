@@ -28,15 +28,10 @@ public class CommunityPostResponse {
     CommunityPostContentResponse sharedCaption;
     CommunityPostResponse sharedPostInfo;
     String rootPostId;
-    LocalDateTime expiresAt;
-    String musicId;
-    List<String> viewerIds;
     CommunityLocationInfoResponse location;
     String visibility;
     CommunityPostStatsResponse stats;
     LocalDateTime uploadedAt;
     LocalDateTime updatedAt;
-    int version;
-    boolean current;
     boolean edited;
 }

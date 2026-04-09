@@ -25,5 +25,17 @@ public class ProfileUpdateRequest {
 
     String fullName;
 
+    String addressLine;
+
+    String provinceCode;
+
+    String districtCode;
+
+    String wardCode;
+
+    Double latitude;
+
+    Double longitude;
+
     UserPreferenceRequest userPreference;
 }

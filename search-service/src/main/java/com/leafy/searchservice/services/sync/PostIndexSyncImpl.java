@@ -32,7 +32,7 @@ public class PostIndexSyncImpl {
     private final ElasticsearchOperations elasticsearchOperations;
     private final ElasticSearchProperties elasticSearchProperties;
 
-    public int reindexAll(int pageSize) {
+    public void resetIndex() {
         String postIndexAlias = elasticSearchProperties.getPostAlias();
         IndexOperations indexOperations = elasticsearchOperations.indexOps(IndexCoordinates.of(postIndexAlias));
 
@@ -43,7 +43,13 @@ public class PostIndexSyncImpl {
 
         indexOperations.create();
         indexOperations.putMapping(indexOperations.createMapping(PostIndex.class));
-        log.info("Created fresh Elasticsearch post index and mapping for alias={}", postIndexAlias);
+        log.info("Created fresh empty Elasticsearch post index and mapping for alias={}", postIndexAlias);
+    }
+
+    public int reindexAll(int pageSize) {
+        resetIndex();
+
+        String postIndexAlias = elasticSearchProperties.getPostAlias();
 
         int indexedCount = 0;
         int page = 0;
@@ -127,12 +133,11 @@ public class PostIndexSyncImpl {
                 .upvoteCount(stats != null ? stats.getUpvoteCount() : null)
                 .commentCount(stats != null ? stats.getCommentCount() : null)
             .uploadedAt(truncateToSecond(post.getUploadedAt() != null ? post.getUploadedAt() : post.getUpdatedAt()))
-                .current(post.isCurrent())
                 .build();
     }
 
     private boolean shouldIndex(CommunityPostResponse post) {
-        if (post == null || !post.isCurrent()) {
+        if (post == null) {
             return false;
         }
 

@@ -7,19 +7,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/sync/posts")
 @RequiredArgsConstructor
 @Slf4j
 public class PostSyncController {
 
     private final PostIndexSyncImpl postIndexSync;
 
-    @PostMapping({"/reindex", "/internal/search/posts/reindex"})
+    @PostMapping({"/sync/posts/reindex", "/internal/search/posts/reindex"})
     public ResponseEntity<ApiResponse<PostSyncResponse>> reindexPosts(
             @RequestParam(defaultValue = "200") int size) {
         int indexedCount = postIndexSync.reindexAll(size);
@@ -27,6 +25,16 @@ public class PostSyncController {
 
         return ResponseEntity.ok(ApiResponse.success(PostSyncResponse.builder()
                 .indexedCount(indexedCount)
+                .build()));
+    }
+
+    @PostMapping({"/sync/posts/reset", "/internal/posts/reset"})
+    public ResponseEntity<ApiResponse<PostSyncResponse>> resetPostIndex() {
+        postIndexSync.resetIndex();
+        log.info("Post index reset completed");
+
+        return ResponseEntity.ok(ApiResponse.success(PostSyncResponse.builder()
+                .indexedCount(0)
                 .build()));
     }
 }

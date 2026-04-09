@@ -32,16 +32,10 @@ public class PostResponse {
     PostContent sharedCaption;
     PostResponse sharedPostInfo;
     String rootPostId;
-    LocalDateTime expiresAt;
-    String musicId;
-    List<String> viewerIds;
     LocationInfo location;
-    List<StoryElement> elements;
     Visibility visibility;
     PostStats stats;
     LocalDateTime uploadedAt;
     LocalDateTime updatedAt;
-    int version;
-    boolean isCurrent;
     boolean isEdited;
 }

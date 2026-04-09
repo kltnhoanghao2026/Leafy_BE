@@ -20,13 +20,13 @@ public class ProfileEventConsumer {
 
     ProfileSummaryRepository profileSummaryRepository;
 
-    @KafkaListener(topics = "${kafka.topics.profile-events.created:profile.created}", groupId = "${spring.application.name}")
+    @KafkaListener(topics = "#{kafkaTopicProperties.profileEvents.created}", groupId = "${spring.application.name}")
     public void handleProfileCreated(ProfileEvent event) {
         log.info("Received ProfileCreatedEvent: profileId={}", event.getProfileId());
         upsertProfileSummary(event);
     }
 
-    @KafkaListener(topics = "${kafka.topics.profile-events.updated:profile.updated}", groupId = "${spring.application.name}")
+    @KafkaListener(topics = "#{kafkaTopicProperties.profileEvents.updated}", groupId = "${spring.application.name}")
     public void handleProfileUpdated(ProfileEvent event) {
         log.info("Received ProfileUpdatedEvent: profileId={}", event.getProfileId());
         upsertProfileSummary(event);

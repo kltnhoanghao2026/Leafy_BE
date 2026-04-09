@@ -49,6 +49,8 @@ public class KafkaTopicProperties {
     @Getter
     @Setter
     public static class CommunityEvents {
+        private String postUpserted = "community.post.upserted";
+        private String postDeleted = "community.post.deleted";
         private String commentCreated = "community.comment.created";
         private String commentDeleted = "community.comment.deleted";
         private String voteCreated = "community.vote.created";

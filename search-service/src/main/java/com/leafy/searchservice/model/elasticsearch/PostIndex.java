@@ -67,7 +67,4 @@ public class PostIndex {
 
     @Field(type = FieldType.Date, format = DateFormat.date_hour_minute_second)
     LocalDateTime uploadedAt;
-
-    @Field(type = FieldType.Boolean)
-    Boolean current;
 }

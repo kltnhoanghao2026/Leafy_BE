@@ -3,8 +3,11 @@ package com.leafy.searchservice.services.postindex;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 import com.leafy.searchservice.config.ElasticSearchProperties;
+import com.leafy.searchservice.dto.response.AuthorInfoResponse;
 import com.leafy.searchservice.dto.response.PostSearchResponse;
 import com.leafy.searchservice.model.elasticsearch.PostIndex;
+import com.leafy.searchservice.model.elasticsearch.ProfileIndex;
+import com.leafy.searchservice.repository.ProfileIndexSearchRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -19,6 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +34,7 @@ public class PostSearchServiceImpl implements PostSearchService {
 
     ElasticsearchOperations elasOps;
     ElasticSearchProperties elasProps;
+    ProfileIndexSearchRepository profileIndexSearchRepository;
 
     @Override
     public Page<PostSearchResponse> searchPosts(
@@ -69,7 +77,6 @@ public class PostSearchServiceImpl implements PostSearchService {
             }
 
             b.minimumShouldMatch("1");
-            b.filter(f -> f.term(t -> t.field("current").value(true)));
 
             if (StringUtils.hasText(normalizedPostType)) {
                 b.filter(f -> f.term(t -> t.field("postType").value(normalizedPostType)));
@@ -93,21 +100,48 @@ public class PostSearchServiceImpl implements PostSearchService {
                 IndexCoordinates.of(elasProps.getPostAlias())
         );
 
-        List<PostSearchResponse> results = searchHits.stream()
-                .map(hit -> toPostSearchResponse(hit.getContent()))
+        List<PostIndex> posts = searchHits.stream()
+                .map(hit -> hit.getContent())
+                .toList();
+
+        Map<String, AuthorInfoResponse> authorInfoMap = fetchAuthorInfoMap(posts);
+
+        List<PostSearchResponse> results = posts.stream()
+                .map(post -> toPostSearchResponse(post, authorInfoMap))
                 .toList();
 
         return new PageImpl<>(results, pageable, searchHits.getTotalHits());
     }
 
-    private PostSearchResponse toPostSearchResponse(PostIndex postIndex) {
+    private Map<String, AuthorInfoResponse> fetchAuthorInfoMap(List<PostIndex> posts) {
+        Set<String> authorIds = posts.stream()
+                .map(PostIndex::getAuthorId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+
+        if (authorIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return StreamSupport.stream(profileIndexSearchRepository.findAllById(authorIds).spliterator(), false)
+                .collect(Collectors.toMap(
+                        ProfileIndex::getId,
+                        profile -> AuthorInfoResponse.builder()
+                                .id(profile.getId())
+                                .fullName(profile.getFullName())
+                                .avatar(profile.getAvatar() != null ? profile.getAvatar() : profile.getProfilePicture())
+                                .role(profile.getRole() != null ? profile.getRole().name() : null)
+                                .isVerified(profile.getIsVerified())
+                                .build()
+                ));
+    }
+
+    private PostSearchResponse toPostSearchResponse(PostIndex postIndex, Map<String, AuthorInfoResponse> authorInfoMap) {
+        AuthorInfoResponse authorInfo = authorInfoMap.get(postIndex.getAuthorId());
         return PostSearchResponse.builder()
                 .id(postIndex.getId())
                 .authorId(postIndex.getAuthorId())
-                .authorName(postIndex.getAuthorName())
-                .authorAvatar(postIndex.getAuthorAvatar())
-                .authorRole(postIndex.getAuthorRole())
-                .authorVerified(postIndex.getAuthorVerified())
+                .authorInfo(authorInfo)
                 .title(postIndex.getTitle())
                 .caption(postIndex.getCaption())
                 .hashtags(postIndex.getHashtags())
@@ -115,7 +149,6 @@ public class PostSearchServiceImpl implements PostSearchService {
                 .upvoteCount(postIndex.getUpvoteCount())
                 .commentCount(postIndex.getCommentCount())
                 .uploadedAt(postIndex.getUploadedAt())
-            .current(postIndex.getCurrent())
                 .build();
     }
 }

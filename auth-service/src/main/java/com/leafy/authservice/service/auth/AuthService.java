@@ -1,6 +1,5 @@
 package com.leafy.authservice.service.auth;
 
-import com.leafy.authservice.dto.request.ChangePasswordRequest;
 import com.leafy.authservice.dto.request.InitialRegisterRequest;
 import com.leafy.authservice.dto.request.LoginRequest;
 import com.leafy.authservice.dto.request.LogoutDeviceRequest;
@@ -18,14 +17,7 @@ import jakarta.servlet.http.HttpServletResponse;
  * Handles authentication flows: registration, login, token refresh, and logout
  */
 public interface AuthService {
-    
-    /**
-     * Change user password
-     *
-     * @param request the change password request
-     */
-    void changePassword(ChangePasswordRequest request);
-    
+
     /**
      * Initiate registration process (Step 1)
      * Sends OTP to email and stores registration data temporarily
@@ -34,7 +26,7 @@ public interface AuthService {
      * @return registration initiation response
      */
     RegistrationInitResponse initiateRegistration(InitialRegisterRequest request);
-    
+
     /**
      * Verify OTP and complete registration (Step 2)
      * Creates user account and issues tokens
@@ -47,7 +39,7 @@ public interface AuthService {
      * @return authentication response with tokens
      */
     AuthResponse verifyOtpAndRegister(VerifyOtpRequest verifyRequest, String userAgent, String deviceId,
-                                     HttpServletRequest httpRequest, HttpServletResponse response);
+                                      HttpServletRequest httpRequest, HttpServletResponse response);
 
     /**
      * Resend OTP for registration
@@ -67,9 +59,9 @@ public interface AuthService {
      * @param response the HTTP response (for setting cookies on web clients)
      * @return authentication response with tokens
      */
-    AuthResponse login(LoginRequest loginRequest, String userAgent, String deviceId, 
-                      HttpServletRequest httpRequest, HttpServletResponse response);
-    
+    AuthResponse login(LoginRequest loginRequest, String userAgent, String deviceId,
+                       HttpServletRequest httpRequest, HttpServletResponse response);
+
     /**
      * Refresh access token using refresh token
      *
@@ -79,9 +71,9 @@ public interface AuthService {
      * @param deviceType the device type
      * @return authentication response with new access token
      */
-    AuthResponse refreshToken(HttpServletRequest request, RefreshTokenRequest refreshTokenRequest, 
-                               HttpServletResponse response, DeviceType deviceType);
-    
+    AuthResponse refreshToken(HttpServletRequest request, RefreshTokenRequest refreshTokenRequest,
+                              HttpServletResponse response, DeviceType deviceType);
+
     /**
      * Logout user and revoke tokens
      *
@@ -90,7 +82,7 @@ public interface AuthService {
      * @param response the HTTP response (for clearing cookie on web clients)
      * @param deviceType the device type
      */
-    void logout(HttpServletRequest request, RefreshTokenRequest refreshTokenRequest, 
+    void logout(HttpServletRequest request, RefreshTokenRequest refreshTokenRequest,
                 HttpServletResponse response, DeviceType deviceType);
 
     /**

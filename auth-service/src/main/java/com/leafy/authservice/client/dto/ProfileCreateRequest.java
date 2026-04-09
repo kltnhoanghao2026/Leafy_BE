@@ -18,4 +18,10 @@ public class ProfileCreateRequest {
     private String role;
     private String specialty;
     private String bio;
+    private String addressLine;
+    private String provinceCode;
+    private String districtCode;
+    private String wardCode;
+    private Double latitude;
+    private Double longitude;
 }

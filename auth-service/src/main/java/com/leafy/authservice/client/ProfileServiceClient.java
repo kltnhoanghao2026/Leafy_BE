@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
-@FeignClient(name = "profile-service", configuration = FeignConfig.class)
+@FeignClient(name = "profile-service", contextId = "profileServiceClient", configuration = FeignConfig.class)
 public interface ProfileServiceClient {
     
         @GetMapping("/profiles/user/{userId}")

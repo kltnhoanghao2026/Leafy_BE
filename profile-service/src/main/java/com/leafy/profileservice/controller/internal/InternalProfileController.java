@@ -1,4 +1,4 @@
-package com.leafy.profileservice.controller;
+package com.leafy.profileservice.controller.internal;
 
 import com.leafy.common.dto.ApiResponse;
 import com.leafy.profileservice.dto.request.profile.InternalCreateProfileRequest;

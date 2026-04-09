@@ -297,6 +297,18 @@ spring:
                     name: communityFeedServiceCircuitBreaker
                     fallbackUri: forward:/fallback/community-feed-service
 
+            # Search Service Routes
+            - id: search-service
+              uri: lb://search-service
+              predicates:
+                - Path=/api/search/posts/**, /api/search/profiles/**
+              filters:
+                - StripPrefix=2
+                - name: CircuitBreaker
+                  args:
+                    name: searchServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/search-service
+
             # OpenAPI Documentation Routes for Community Feed Service
             - id: community-feed-service-openapi
               uri: lb://community-feed-service

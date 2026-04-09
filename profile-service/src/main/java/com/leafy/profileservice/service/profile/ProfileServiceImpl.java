@@ -1,35 +1,35 @@
 package com.leafy.profileservice.service.profile;
 
+import com.leafy.common.dto.ApiResponse;
+import com.leafy.common.event.profile.ProfileEvent;
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
-import com.leafy.common.event.profile.ProfileEvent;
 import com.leafy.common.model.kafka.EventType;
 import com.leafy.common.publisher.OutboxEventPublisher;
+import com.leafy.profileservice.client.AuthClient;
+import com.leafy.profileservice.client.dto.UserResponse;
+import com.leafy.profileservice.dto.request.profile.InternalCreateProfileRequest;
 import com.leafy.profileservice.dto.request.profile.ProfileCreateRequest;
 import com.leafy.profileservice.dto.request.profile.ProfileUpdateRequest;
 import com.leafy.profileservice.dto.response.profile.ProfileDetailsResponse;
 import com.leafy.profileservice.dto.response.profile.ProfileResponse;
+import com.leafy.profileservice.dto.response.profile.UserSyncResponse;
 import com.leafy.profileservice.mapper.CertificateMapper;
 import com.leafy.profileservice.mapper.ProfileMapper;
-import com.leafy.profileservice.model.ApprovalRequest;
 import com.leafy.profileservice.model.Certificate;
 import com.leafy.profileservice.model.Profile;
 import com.leafy.profileservice.model.enums.CertificateStatus;
-import com.leafy.profileservice.model.enums.UserRole;
 import com.leafy.profileservice.repository.ApprovalRequestRepository;
 import com.leafy.profileservice.repository.ProfileRepository;
-import com.leafy.profileservice.client.AuthClient;
-import com.leafy.profileservice.client.dto.UserResponse;
-import com.leafy.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Implementation of ProfileService
@@ -66,6 +66,42 @@ public class ProfileServiceImpl implements ProfileService {
         publishProfileEvent(savedProfile, EventType.PROFILE_CREATED);
 
         return profileMapper.toResponse(savedProfile);
+    }
+
+    @Override
+    public ProfileResponse createProfileInternal(InternalCreateProfileRequest request) {
+        log.info("Creating internal profile for user ID: {}", request.getUserId());
+
+        if (profileRepository.existsByUserId(request.getUserId())) {
+            log.warn("Profile already exists for user ID: {}, skipping creation", request.getUserId());
+            return profileMapper.toResponse(profileRepository.findByUserId(request.getUserId()).orElseThrow());
+        }
+
+        Profile profile = Profile.builder()
+                .userId(request.getUserId())
+                .fullName(request.getFullName())
+                .role(request.getRole() != null ? com.leafy.common.enums.ProfileRole.valueOf(request.getRole()) : null)
+                .specialty(request.getSpecialty())
+                .bio(request.getBio())
+                .addressLine(request.getAddressLine())
+                .provinceCode(request.getProvinceCode())
+                .districtCode(request.getDistrictCode())
+                .wardCode(request.getWardCode())
+                .latitude(request.getLatitude())
+                .longitude(request.getLongitude())
+                .isVerified(false)
+                .build();
+        profile.setActive(true);
+
+        Profile savedProfile = profileRepository.save(profile);
+        log.info("Internal profile created successfully with ID: {}", savedProfile.getId());
+
+        publishProfileEvent(savedProfile, EventType.PROFILE_CREATED);
+
+        ProfileResponse response = profileMapper.toResponse(savedProfile);
+        response.setEmail(request.getEmail());
+        response.setPhoneNumber(request.getPhoneNumber());
+        return response;
     }
 
     @Override
@@ -207,6 +243,38 @@ public class ProfileServiceImpl implements ProfileService {
     @Transactional(readOnly = true)
     public boolean existsByUserId(String userId) {
         return profileRepository.existsByUserId(userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserSyncResponse> getUsersBatch(String lastId, int size) {
+        log.info("Fetching profile batch: lastId={}, size={}", lastId, size);
+        PageRequest pageRequest = PageRequest.of(0, size);
+        List<Profile> profiles = (lastId == null || lastId.isBlank())
+                ? profileRepository.findAllByOrderByIdAsc(pageRequest)
+                : profileRepository.findByIdGreaterThanOrderByIdAsc(lastId, pageRequest);
+        return profiles.stream()
+                .map(p -> UserSyncResponse.builder()
+                        .id(p.getId())
+                        .userId(p.getUserId())
+                        .fullName(p.getFullName())
+                        .profilePicture(p.getProfilePicture())
+                        .avatar(p.getAvatar())
+                        .role(p.getRole())
+                        .specialty(p.getSpecialty())
+                        .isVerified(p.getIsVerified())
+                        .bio(p.getBio())
+                        .addressLine(p.getAddressLine())
+                        .provinceCode(p.getProvinceCode())
+                        .districtCode(p.getDistrictCode())
+                        .wardCode(p.getWardCode())
+                        .latitude(p.getLatitude())
+                        .longitude(p.getLongitude())
+                        .active(p.isActive())
+                        .createdAt(p.getCreatedAt())
+                        .lastModifiedAt(p.getLastModifiedAt())
+                        .build())
+                .toList();
     }
 
     private ProfileResponse buildFullProfileResponse(Profile profile) {

@@ -11,7 +11,6 @@ public record PostUpdateRequest(
         PostContent content,
         List<PostMedia> media,
         PostContent sharedCaption,
-        String musicId,
         LocationInfo location,
         Visibility visibility
 ) {}

@@ -1,7 +1,7 @@
 package com.leafy.searchservice.listener;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.leafy.common.event.profile.ProfileUpsertEvent;
+import com.leafy.common.event.profile.ProfileEvent;
 import com.leafy.common.model.kafka.EventType;
 import com.leafy.searchservice.client.AuthUserClient;
 import com.leafy.searchservice.client.ProfileClient;
@@ -47,12 +47,15 @@ public class ProfileIndexUpsertListenner {
             include = {Exception.class}
     )
     @KafkaListener(
-            topics = "#{kafkaTopicProperties.profileEvents.created}",
+            topics = {
+                    "#{kafkaTopicProperties.profileEvents.created}",
+                    "#{kafkaTopicProperties.profileEvents.updated}"
+            },
             groupId = "search-service-indexer-group",
             concurrency = "3"
     )
     public void handleProfileUpsert(
-            @Payload ProfileUpsertEvent profileUpsertEvent,
+            @Payload ProfileEvent profileUpsertEvent,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset) {
         String profileId = profileUpsertEvent.getProfileId();
@@ -74,7 +77,7 @@ public class ProfileIndexUpsertListenner {
 
     @DltHandler
     public void handleProfileIndexUpsertDlq(
-            @Payload ProfileUpsertEvent profileUpsertEvent,
+            @Payload ProfileEvent profileUpsertEvent,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String dlqTopic,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int dlqPartition,
             @Header(KafkaHeaders.OFFSET) long dlqOffset,
@@ -106,7 +109,8 @@ public class ProfileIndexUpsertListenner {
 
         try {
             String payloadJson = objectMapper.writeValueAsString(profileUpsertEvent);
-            failedEventService.logFailure(profileUpsertEvent.getProfileId(), EventType.PROFILE_CREATED, finalTopic, finalPartition, finalOffset, payloadJson, errorMessage, stackTrace, retryCount);
+            EventType eventType = dlqTopic.contains("profile.updated") ? EventType.PROFILE_UPDATED : EventType.PROFILE_CREATED;
+            failedEventService.logFailure(profileUpsertEvent.getProfileId(), eventType, finalTopic, finalPartition, finalOffset, payloadJson, errorMessage, stackTrace, retryCount);
         } catch (Exception ex) {
             log.error("Critical error while logging failure to MongoDB", ex);
         }
@@ -129,6 +133,12 @@ public class ProfileIndexUpsertListenner {
                 .isVerified(profile.getIsVerified())
                 .active(profile.getActive())
                 .bio(profile.getBio())
+                .addressLine(profile.getAddressLine())
+                .provinceCode(profile.getProvinceCode())
+                .districtCode(profile.getDistrictCode())
+                .wardCode(profile.getWardCode())
+                .latitude(profile.getLatitude())
+                .longitude(profile.getLongitude())
                 .build();
     }
 

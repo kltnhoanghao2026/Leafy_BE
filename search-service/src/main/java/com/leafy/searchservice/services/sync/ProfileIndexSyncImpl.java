@@ -65,6 +65,12 @@ public class ProfileIndexSyncImpl {
 				.isVerified(request.getIsVerified())
 				.active(request.getActive())
 				.bio(request.getBio())
+				.addressLine(request.getAddressLine())
+				.provinceCode(request.getProvinceCode())
+				.districtCode(request.getDistrictCode())
+				.wardCode(request.getWardCode())
+				.latitude(request.getLatitude())
+				.longitude(request.getLongitude())
 				.build();
 	}
 }

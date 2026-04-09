@@ -69,4 +69,22 @@ public class ProfileIndex {
 
     @Field(type = FieldType.Text)
     String bio;
+
+    @Field(type = FieldType.Text)
+    String addressLine;
+
+    @Field(type = FieldType.Keyword)
+    String provinceCode;
+
+    @Field(type = FieldType.Keyword)
+    String districtCode;
+
+    @Field(type = FieldType.Keyword)
+    String wardCode;
+
+    @Field(type = FieldType.Double)
+    Double latitude;
+
+    @Field(type = FieldType.Double)
+    Double longitude;
 }

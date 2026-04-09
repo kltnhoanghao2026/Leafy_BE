@@ -18,10 +18,7 @@ import java.util.List;
 public class PostSearchResponse {
     String id;
     String authorId;
-    String authorName;
-    String authorAvatar;
-    String authorRole;
-    Boolean authorVerified;
+    AuthorInfoResponse authorInfo;
     String title;
     String caption;
     List<String> hashtags;

@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
  * Feign client for profile-service
  * Handles internal profile operations during user registration
  */
-@FeignClient(name = "profile-service", path = "/internal")
+@FeignClient(name = "profile-service", contextId = "profileClient", path = "/internal")
 public interface ProfileClient {
 
     /**

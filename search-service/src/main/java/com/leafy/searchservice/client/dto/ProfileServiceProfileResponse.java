@@ -34,4 +34,16 @@ public class ProfileServiceProfileResponse {
     Boolean active;
 
     String bio;
+
+    String addressLine;
+
+    String provinceCode;
+
+    String districtCode;
+
+    String wardCode;
+
+    Double latitude;
+
+    Double longitude;
 }

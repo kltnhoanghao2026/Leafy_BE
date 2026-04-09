@@ -38,6 +38,18 @@ public class UserSyncResponse {
 
     String bio;
 
+    String addressLine;
+
+    String provinceCode;
+
+    String districtCode;
+
+    String wardCode;
+
+    Double latitude;
+
+    Double longitude;
+
     boolean active;
 
     LocalDateTime createdAt;

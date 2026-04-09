@@ -25,6 +25,7 @@
         <module>auth-service</module>
         <module>farm-service</module>
         <module>file-service</module>
+        <module>search-service</module>
         <module>notification-service</module>
         <module>plant-management-service</module>
         <module>iot-metrics-collector-service</module>

@@ -56,16 +56,7 @@ public class Post extends BaseModel {
     @Indexed
     String rootPostId;
 
-    @Indexed(expireAfter = "0s")
-    LocalDateTime expiresAt;
-
-    String musicId;
-
-    List<String> viewerIds;
-
     LocationInfo location;
-
-    List<StoryElement> elements;
 
     Visibility visibility;
 
@@ -74,12 +65,6 @@ public class Post extends BaseModel {
     LocalDateTime uploadedAt;
 
     LocalDateTime updatedAt;
-
-    @Builder.Default
-    int version = 1;
-
-    @Builder.Default
-    boolean isCurrent = true;
 
     @Builder.Default
     boolean isEdited = false;
