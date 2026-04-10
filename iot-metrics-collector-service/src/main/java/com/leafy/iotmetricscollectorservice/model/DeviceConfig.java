@@ -1,6 +1,7 @@
 package com.leafy.iotmetricscollectorservice.model;
 
 import com.leafy.iotmetricscollectorservice.model.base.BaseAuditEntity;
+import com.leafy.iotmetricscollectorservice.model.enums.DeviceConfigPushStatus;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -38,4 +39,14 @@ public class DeviceConfig extends BaseAuditEntity {
 
     @Column(name = "applied_at")
     private Instant appliedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "last_push_status", length = 30)
+    private DeviceConfigPushStatus lastPushStatus;
+
+    @Column(name = "last_push_error", columnDefinition = "TEXT")
+    private String lastPushError;
+
+    @Column(name = "last_ack_at")
+    private Instant lastAckAt;
 }
