@@ -45,4 +45,4 @@ notification:
 
 firebase:
   enabled: true
-  configPath: D:/KLTN/Leafy_BE/notification-service/secret/firebase-service-account.json
+  configPath: D:/KLTN/Leafy/Leafy_BE/notification-service/secret/firebase-service-account.json

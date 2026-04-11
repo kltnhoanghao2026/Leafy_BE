@@ -1,10 +1,12 @@
 package com.leafy.iotmetricscollectorservice.integration.mqtt;
 
+import com.leafy.iotmetricscollectorservice.dto.ingest.ConfigAckPayload;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leafy.iotmetricscollectorservice.dto.ingest.StatusPayload;
 import com.leafy.iotmetricscollectorservice.dto.ingest.TelemetryPayload;
 import com.leafy.iotmetricscollectorservice.integration.mqtt.util.MqttTopicParser;
+import com.leafy.iotmetricscollectorservice.service.DeviceConfigAckService;
 import com.leafy.iotmetricscollectorservice.service.DeviceStatusIngestService;
 import com.leafy.iotmetricscollectorservice.service.TelemetryIngestService;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +26,7 @@ public class MqttInboundMessageHandler implements MessageHandler {
     private final ObjectMapper objectMapper;
     private final TelemetryIngestService telemetryIngestService;
     private final DeviceStatusIngestService deviceStatusIngestService;
+    private final DeviceConfigAckService deviceConfigAckService;
 
     @Override
     public void handleMessage(Message<?> message) {
@@ -56,10 +59,7 @@ public class MqttInboundMessageHandler implements MessageHandler {
                         "Received image metadata event. topic={}, deviceUid={}, payload={}",
                         topic, deviceUid, payloadText
                 );
-                case "ack" -> log.info(
-                        "Received device ack event. topic={}, deviceUid={}, payload={}",
-                        topic, deviceUid, payloadText
-                );
+                case "ack" -> handleAck(deviceUid, payloadText, topic);
                 default -> log.warn(
                         "Unhandled MQTT message type. topic={}, deviceUid={}, messageType={}, payload={}",
                         topic, deviceUid, messageType, payloadText
@@ -84,6 +84,12 @@ public class MqttInboundMessageHandler implements MessageHandler {
         StatusPayload payload = objectMapper.readValue(payloadText, StatusPayload.class);
         deviceStatusIngestService.ingest(deviceUid, payload);
         log.info("Status ingested successfully. topic={}, deviceUid={}", topic, deviceUid);
+    }
+
+    private void handleAck(String deviceUid, String payloadText, String topic) throws JsonProcessingException {
+        ConfigAckPayload payload = objectMapper.readValue(payloadText, ConfigAckPayload.class);
+        deviceConfigAckService.handleConfigAck(deviceUid, payload);
+        log.info("Ack processed successfully. topic={}, deviceUid={}", topic, deviceUid);
     }
 
     private String getHeaderAsString(Message<?> message, String headerName) {

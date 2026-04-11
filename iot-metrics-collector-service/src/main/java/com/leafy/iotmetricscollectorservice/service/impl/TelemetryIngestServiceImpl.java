@@ -8,6 +8,7 @@ import com.leafy.iotmetricscollectorservice.model.enums.ReadingQualityStatus;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
 import com.leafy.iotmetricscollectorservice.repository.SensorReadingSeriesRepository;
 import com.leafy.iotmetricscollectorservice.repository.SensorTypeRepository;
+import com.leafy.iotmetricscollectorservice.service.AggregateLatestReadingService;
 import com.leafy.iotmetricscollectorservice.service.AlertEvaluationService;
 import com.leafy.iotmetricscollectorservice.service.TelemetryIngestService;
 import jakarta.persistence.EntityNotFoundException;
@@ -26,6 +27,7 @@ public class TelemetryIngestServiceImpl implements TelemetryIngestService {
     private final IoTDeviceRepository ioTDeviceRepository;
     private final SensorTypeRepository sensorTypeRepository;
     private final SensorReadingSeriesRepository sensorReadingSeriesRepository;
+    private final AggregateLatestReadingService aggregateLatestReadingService;
     private final AlertEvaluationService alertEvaluationService;
 
     @Override
@@ -67,7 +69,8 @@ public class TelemetryIngestServiceImpl implements TelemetryIngestService {
             readings.add(reading);
         }
 
-        sensorReadingSeriesRepository.saveAll(readings);
+        List<SensorReadingSeries> savedReadings = sensorReadingSeriesRepository.saveAll(readings);
+        aggregateLatestReadingService.updateLatestReadings(savedReadings);
 
         device.setLastSeenAt(readingTime);
         if (payload.getFirmwareVersion() != null && !payload.getFirmwareVersion().isBlank()) {
@@ -75,9 +78,7 @@ public class TelemetryIngestServiceImpl implements TelemetryIngestService {
         }
         ioTDeviceRepository.save(device);
 
-        for (SensorReadingSeries reading : readings) {
-            alertEvaluationService.evaluate(reading);
-        }
+        alertEvaluationService.evaluateReadings(savedReadings);
     }
 
     private void validateDevice(IoTDevice device) {
