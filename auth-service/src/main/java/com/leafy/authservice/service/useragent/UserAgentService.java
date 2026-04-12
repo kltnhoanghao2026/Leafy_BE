@@ -76,10 +76,7 @@ public class UserAgentService {
         }
         
         return switch (deviceClass.toUpperCase()) {
-            case "PHONE" -> DeviceType.MOBILE;
-            case "TABLET" -> DeviceType.TABLET;
-            case "DESKTOP" -> DeviceType.DESKTOP;
-            case "MOBILE", "SMARTPHONE" -> DeviceType.MOBILE;
+            case "PHONE", "MOBILE", "SMARTPHONE" -> DeviceType.MOBILE;
             default -> DeviceType.WEB;
         };
     }

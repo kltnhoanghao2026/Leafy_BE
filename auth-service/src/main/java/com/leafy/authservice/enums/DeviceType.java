@@ -13,15 +13,5 @@ public enum DeviceType {
     /**
      * Mobile phone application
      */
-    MOBILE,
-    
-    /**
-     * Tablet application
-     */
-    TABLET,
-    
-    /**
-     * Desktop application
-     */
-    DESKTOP
+    MOBILE
 }

@@ -83,8 +83,12 @@ public class AuthServiceImpl implements AuthService {
 
     // Cookie configuration
     static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
-    static final String COOKIE_PATH = "/api/v1/auth";
+    static final String COOKIE_PATH = "/api/auth";
     static final int COOKIE_MAX_AGE = 2592000; // 30 days
+
+    @NonFinal
+    @Value("${cookie.refresh-token.secure:false}")
+    boolean cookieSecure;
 
     @Override
     public RegistrationInitResponse initiateRegistration(InitialRegisterRequest request) {
@@ -407,7 +411,7 @@ public class AuthServiceImpl implements AuthService {
     private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
         Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken);
         cookie.setHttpOnly(true);
-        cookie.setSecure(true);
+        cookie.setSecure(cookieSecure);
         cookie.setPath(COOKIE_PATH);
         cookie.setMaxAge(COOKIE_MAX_AGE);
 
@@ -420,7 +424,7 @@ public class AuthServiceImpl implements AuthService {
     private void clearRefreshTokenCookie(HttpServletResponse response) {
         Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, "");
         cookie.setHttpOnly(true);
-        cookie.setSecure(true);
+        cookie.setSecure(cookieSecure);
         cookie.setPath(COOKIE_PATH);
         cookie.setMaxAge(0);
         response.addCookie(cookie);
