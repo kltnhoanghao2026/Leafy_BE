@@ -6,6 +6,7 @@ import com.leafy.authservice.dto.response.UserDetailsResponse;
 import com.leafy.authservice.dto.response.UserResponse;
 import com.leafy.authservice.service.user.UserService;
 import com.leafy.common.dto.ApiResponse;
+import com.leafy.common.utils.ServiceSecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +61,19 @@ public class UserController {
             @Valid @RequestBody UserUpdateRequest request) {
         log.info("PUT /users/{} - Updating user", userId);
         UserResponse response = userService.updateUser(userId, request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * Get the currently authenticated user's own account data
+     *
+     * @return the user response for the calling user
+     */
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser() {
+        String userId = ServiceSecurityUtils.getCurrentAccountId();
+        log.info("GET /users/me - Getting user by ID");
+        UserResponse response = userService.getUserById(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
