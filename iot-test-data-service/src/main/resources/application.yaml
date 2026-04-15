@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: iot-test-data-service
+  profiles:
+    default: local
+  datasource:
+    url: ${SEED_DATASOURCE_URL:jdbc:postgresql://localhost:5432/leafy_iot_db}
+    username: ${SEED_DATASOURCE_USERNAME:postgres}
+    password: ${SEED_DATASOURCE_PASSWORD:postgres123}
+    driver-class-name: org.postgresql.Driver
+
+server:
+  port: ${SERVER_PORT:8099}
+
+seed:
+  collector:
+    base-url: ${SEED_COLLECTOR_BASE_URL:http://localhost:8091}
+  mqtt:
+    url: ${SEED_MQTT_URL:tcp://localhost:1883}
+    username: ${SEED_MQTT_USERNAME:}
+    password: ${SEED_MQTT_PASSWORD:}
+    product: ${SEED_MQTT_PRODUCT:coffee}
+    namespace-env: ${SEED_MQTT_ENV:prod}
