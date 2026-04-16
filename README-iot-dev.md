@@ -26,6 +26,15 @@ Notes:
 
 - [docker-compose.iot-dev.yml](/D:/KLTN/Leafy/Leafy_BE/docker-compose.iot-dev.yml)
 - [.env.iot-dev.example](/D:/KLTN/Leafy/Leafy_BE/.env.iot-dev.example)
+- [scripts/iot-dev](/D:/KLTN/Leafy/Leafy_BE/scripts/iot-dev)
+
+## Frontend/API Handoff Docs
+
+- [IoT API inventory](/D:/KLTN/Leafy/Leafy_BE/docs/iot/iot-api-inventory.md)
+- [IoT request and response examples](/D:/KLTN/Leafy/Leafy_BE/docs/iot/iot-request-response-examples.md)
+- [IoT enums and state models](/D:/KLTN/Leafy/Leafy_BE/docs/iot/iot-enums-and-state-models.md)
+- [IoT frontend screen mapping](/D:/KLTN/Leafy/Leafy_BE/docs/iot/iot-frontend-screen-mapping.md)
+- [IoT demo and refresh strategy](/D:/KLTN/Leafy/Leafy_BE/docs/iot/iot-demo-and-refresh-strategy.md)
 
 ## Prerequisites
 
@@ -55,9 +64,74 @@ Derived from compose service names:
 - MQTT broker host: `mqtt-broker`
 - Collector base URL for the test-data service: `http://iot-metrics-collector-service:8091`
 
+## Quickstart
+
+PowerShell:
+
+```powershell
+Copy-Item .env.iot-dev.example .env.iot-dev
+.\scripts\iot-dev\start-iot-dev.ps1
+.\scripts\iot-dev\demo-minimal.ps1 -WithAnomaly
+```
+
+Shell:
+
+```bash
+cp .env.iot-dev.example .env.iot-dev
+bash scripts/iot-dev/start-iot-dev.sh
+bash scripts/iot-dev/demo-minimal.sh --with-anomaly
+```
+
+Run the richer demo:
+
+```powershell
+.\scripts\iot-dev\demo-full.ps1 -WithConfigAck
+```
+
+```bash
+bash scripts/iot-dev/demo-full.sh --with-config-ack
+```
+
+Stop the stack safely:
+
+```powershell
+.\scripts\iot-dev\stop-iot-dev.ps1
+```
+
+```bash
+bash scripts/iot-dev/stop-iot-dev.sh
+```
+
+Remove the local IoT PostgreSQL volume only when you intentionally want a clean database:
+
+```powershell
+.\scripts\iot-dev\stop-iot-dev.ps1 -Volumes
+```
+
+```bash
+bash scripts/iot-dev/stop-iot-dev.sh --volumes
+```
+
 ## Start Options
 
-Full IoT stack:
+Preferred full stack startup:
+
+```powershell
+.\scripts\iot-dev\start-iot-dev.ps1
+```
+
+```bash
+bash scripts/iot-dev/start-iot-dev.sh
+```
+
+The start scripts:
+
+- Create `.env.iot-dev` from [.env.iot-dev.example](/D:/KLTN/Leafy/Leafy_BE/.env.iot-dev.example) if it is missing.
+- Run Compose with [docker-compose.iot-dev.yml](/D:/KLTN/Leafy/Leafy_BE/docker-compose.iot-dev.yml).
+- Wait for Config Server, Eureka, the collector service, and the test-data service to become reachable.
+- Print the key local URLs and suggested demo commands.
+
+Manual Compose command:
 
 ```powershell
 docker compose --env-file .env.iot-dev -f docker-compose.iot-dev.yml up -d --build
@@ -72,13 +146,13 @@ docker compose --env-file .env.iot-dev -f docker-compose.iot-dev.yml up -d postg
 Stop the IoT stack:
 
 ```powershell
-docker compose --env-file .env.iot-dev -f docker-compose.iot-dev.yml down
+.\scripts\iot-dev\stop-iot-dev.ps1
 ```
 
 Stop and remove the PostgreSQL volume:
 
 ```powershell
-docker compose --env-file .env.iot-dev -f docker-compose.iot-dev.yml down -v
+.\scripts\iot-dev\stop-iot-dev.ps1 -Volumes
 ```
 
 ## Suggested Startup Sequence
@@ -128,7 +202,13 @@ Test-data service:
 Container health summary:
 
 ```powershell
-docker compose --env-file .env.iot-dev -f docker-compose.iot-dev.yml ps
+.\scripts\iot-dev\check-iot-dev.ps1
+```
+
+Shell:
+
+```bash
+bash scripts/iot-dev/check-iot-dev.sh
 ```
 
 ## Running The Spring Services Locally Against Docker Infra
@@ -168,47 +248,93 @@ $env:SEED_MQTT_ENV="prod"
 mvn -pl iot-test-data-service spring-boot:run
 ```
 
-## Minimal Demo Workflow
+## Demo Workflow Scripts
 
-Bootstrap a minimal dataset:
+Minimal demo:
 
 ```powershell
-curl -Method POST http://localhost:8099/seed/bootstrap/minimal
+.\scripts\iot-dev\demo-minimal.ps1 -WithAnomaly
 ```
 
-Seed 7 days of history:
-
-```powershell
-curl -Method POST http://localhost:8099/seed/history/last-7d
+```bash
+bash scripts/iot-dev/demo-minimal.sh --with-anomaly
 ```
 
-Start live simulation:
+The minimal demo starts/checks the stack, calls `POST /seed/bootstrap/minimal`, seeds `POST /seed/history/last-7d`, starts `POST /seed/simulation/start`, and optionally triggers `POST /seed/scenarios/high-temperature`.
+
+Full demo:
 
 ```powershell
-curl -Method POST http://localhost:8099/seed/simulation/start
+.\scripts\iot-dev\demo-full.ps1 -WithConfigAck
 ```
 
-Trigger a high-temperature anomaly:
+```bash
+bash scripts/iot-dev/demo-full.sh --with-config-ack
+```
+
+The full demo starts/checks the stack, calls `POST /seed/bootstrap/full`, seeds `POST /seed/history/last-30d`, starts `POST /seed/simulation/start`, triggers high-temperature and low-soil-moisture anomalies, and optionally publishes a config ack success scenario.
+
+If the stack is already running and you only want to run the HTTP workflow:
 
 ```powershell
-curl -Method POST http://localhost:8099/seed/scenarios/high-temperature `
+.\scripts\iot-dev\demo-minimal.ps1 -SkipStart -WithAnomaly
+.\scripts\iot-dev\demo-full.ps1 -SkipStart -WithConfigAck
+```
+
+```bash
+bash scripts/iot-dev/demo-minimal.sh --skip-start --with-anomaly
+bash scripts/iot-dev/demo-full.sh --skip-start --with-config-ack
+```
+
+Stop live simulation without stopping the stack:
+
+```powershell
+Invoke-RestMethod -Method Post http://localhost:8099/seed/simulation/stop
+```
+
+```bash
+curl -X POST http://localhost:8099/seed/simulation/stop
+```
+
+## Manual Demo Calls
+
+These are useful when you want to run one step at a time.
+
+PowerShell:
+
+```powershell
+Invoke-RestMethod -Method Post http://localhost:8099/seed/bootstrap/minimal
+Invoke-RestMethod -Method Post http://localhost:8099/seed/history/last-7d
+Invoke-RestMethod -Method Post http://localhost:8099/seed/simulation/start
+Invoke-RestMethod -Method Post http://localhost:8099/seed/scenarios/high-temperature `
   -ContentType "application/json" `
-  -Body '{"deviceUid":"prod-minimal-device-1","count":5}'
-```
-
-Trigger a failed config acknowledgement:
-
-```powershell
-curl -Method POST http://localhost:8099/seed/scenarios/config-ack-failure `
+  -Body '{"deviceUid":"prod-minimal-device-1","count":5,"targetValue":44.0}'
+Invoke-RestMethod -Method Post http://localhost:8099/seed/scenarios/config-ack-failure `
   -ContentType "application/json" `
   -Body '{"deviceUid":"prod-minimal-device-1","errorMessage":"Simulated apply failure"}'
 ```
 
-Stop live simulation:
+Shell:
 
-```powershell
-curl -Method POST http://localhost:8099/seed/simulation/stop
+```bash
+curl -X POST http://localhost:8099/seed/bootstrap/minimal
+curl -X POST http://localhost:8099/seed/history/last-7d
+curl -X POST http://localhost:8099/seed/simulation/start
+curl -X POST http://localhost:8099/seed/scenarios/high-temperature \
+  -H "Content-Type: application/json" \
+  -d '{"deviceUid":"prod-minimal-device-1","count":5,"targetValue":44.0}'
+curl -X POST http://localhost:8099/seed/scenarios/config-ack-failure \
+  -H "Content-Type: application/json" \
+  -d '{"deviceUid":"prod-minimal-device-1","errorMessage":"Simulated apply failure"}'
 ```
+
+## Expected Demo Outcomes
+
+- Bootstrap creates idempotent demo reference data, provisions and claims devices through the collector APIs, and creates alert rules through the collector APIs.
+- History seeding publishes MQTT telemetry/status samples through the real collector ingest paths.
+- Simulation keeps publishing runtime telemetry/status until stopped.
+- Anomaly scripts publish threshold-crossing telemetry that should produce alert events after the collector evaluates the configured rules.
+- Config ack scripts publish MQTT ack payloads to the collector ack topic for the selected device.
 
 ## Access Notes
 
@@ -229,6 +355,7 @@ Config Server not ready yet:
 
 - Wait for `config-server` to become healthy before starting the collector manually.
 - Recheck with [http://localhost:8888/actuator/health](http://localhost:8888/actuator/health).
+- The helper scripts retry readiness checks, but the first image build can still take several minutes.
 
 Eureka not ready yet:
 
@@ -254,6 +381,15 @@ Wrong profile or prod-profile block:
 
 - `iot-test-data-service` will fail startup if `spring.profiles.active` contains `prod`.
 - Keep it on `local`, `dev`, or `staging`.
+
+PowerShell script blocked:
+
+- If local execution policy blocks scripts, run the commands from a PowerShell session that allows local scripts or use the `bash scripts/iot-dev/*.sh` equivalents.
+
+Demo endpoint returns validation or duplicate-data errors:
+
+- The bootstrap flow is intended to be idempotent where practical, but a partial previous run can leave mixed local data.
+- Stop the stack with `.\scripts\iot-dev\stop-iot-dev.ps1 -Volumes` or `bash scripts/iot-dev/stop-iot-dev.sh --volumes` only when you intentionally want to reset local IoT data.
 
 Services running on wrong hosts:
 
