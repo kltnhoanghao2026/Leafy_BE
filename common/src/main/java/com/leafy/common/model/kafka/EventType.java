@@ -28,5 +28,6 @@ public enum EventType {
 
     // Profile Events
     PROFILE_CREATED,
-    PROFILE_UPDATED
+    PROFILE_UPDATED,
+    PROFILE_CONNECTION_UPDATED
 }

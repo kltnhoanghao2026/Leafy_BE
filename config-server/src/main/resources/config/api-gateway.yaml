@@ -104,6 +104,17 @@ spring:
                     name: seedServiceCircuitBreaker
                     fallbackUri: forward:/fallback/profile-service
 
+            - id: admin-seed-experts
+              uri: lb://profile-service
+              predicates:
+                - Path=/api/admin/seed/experts
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/profile-service
+
             # Farm Service Routes
             - id: farm-service
               uri: lb://farm-service

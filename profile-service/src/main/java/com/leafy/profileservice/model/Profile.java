@@ -19,6 +19,8 @@ import org.springframework.data.mongodb.core.mapping.MongoId;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @EqualsAndHashCode(callSuper = false)
 @Document("profile")
+@NoArgsConstructor
+@AllArgsConstructor
 public class Profile extends BaseModel {
 
     @MongoId(FieldType.OBJECT_ID)

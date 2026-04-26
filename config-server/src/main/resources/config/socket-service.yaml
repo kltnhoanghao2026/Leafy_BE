@@ -1,0 +1,80 @@
+server:
+  port: ${SERVER_PORT_SOCKET:8093}
+
+spring:
+  application:
+    name: socket-service
+
+  # MongoDB – dedicated database for presence/chat users
+  data:
+    mongodb:
+      host: ${MONGODB_HOST}
+      port: ${MONGODB_PORT}
+      database: ${MONGODB_DATABASE_SOCKET:leafy_socket}
+      username: ${MONGODB_USERNAME}
+      password: ${MONGODB_PASSWORD}
+      authentication-database: admin
+      auto-index-creation: true
+
+  # Kafka Consumer – FANOUT pattern requires a unique group-id per instance
+  # so that ALL instances receive every socket event and check locally
+  kafka:
+    consumer:
+      group-id: ${spring.application.name}-${random.uuid}
+      client-id: socket-service-consumer
+      auto-offset-reset: latest
+      max-poll-records: 100
+      properties:
+        spring.json.use.type.headers: true
+        spring.json.trusted.packages: "com.leafy.common"
+        spring.json.type.mapping: "SocketEvent:com.leafy.common.dto.client.socketservice.SocketEvent"
+    listener:
+      concurrency: 3
+      ack-mode: batch
+
+# Kafka topic names
+kafka:
+  topics:
+    socket-events:
+      socket-events: socket.events
+
+# JWT – needed by WebSocketConfig ChannelInterceptor to validate tokens on CONNECT
+jwt:
+  secret: ${JWT_SECRET}
+  access:
+    expiration: ${JWT_ACCESS_EXPIRATION}
+  refresh:
+    expiration-web: ${JWT_REFRESH_WEB_EXPIRATION}
+    expiration-mobile: ${JWT_REFRESH_MOBILE_EXPIRATION}
+
+# Security – WebSocket /ws/** is permitted in SecurityConfig, no extra public endpoints needed
+security:
+  public-endpoints: []
+
+# Feign client configuration
+feign:
+  circuitbreaker:
+    enabled: true
+  client:
+    config:
+      default:
+        loggerLevel: BASIC
+        connectTimeout: 3000
+        readTimeout: 5000
+
+# Service-specific logging
+logging:
+  level:
+    com.leafy.socketservice: DEBUG
+  file:
+    name: logs/socket-service.log
+
+# SpringDoc / Swagger
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+  show-actuator: false

@@ -41,7 +41,8 @@ public class PostIndexSyncImpl {
             log.info("Deleted existing Elasticsearch post index for alias={}", postIndexAlias);
         }
 
-        indexOperations.create();
+        var settings = indexOperations.createSettings(PostIndex.class);
+        indexOperations.create(settings);
         indexOperations.putMapping(indexOperations.createMapping(PostIndex.class));
         log.info("Created fresh empty Elasticsearch post index and mapping for alias={}", postIndexAlias);
     }

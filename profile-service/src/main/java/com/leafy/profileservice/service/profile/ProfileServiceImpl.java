@@ -20,9 +20,18 @@ import com.leafy.profileservice.mapper.ProfileMapper;
 import com.leafy.profileservice.model.Certificate;
 import com.leafy.profileservice.model.Profile;
 import com.leafy.profileservice.model.enums.CertificateStatus;
+import com.leafy.profileservice.client.SearchClient;
+import com.leafy.profileservice.client.dto.SpringPageDto;
+import com.leafy.profileservice.repository.UserConnectionRepository;
+import com.leafy.profileservice.model.UserConnection;
+import com.leafy.profileservice.model.enums.ConsultationStatus;
 import com.leafy.profileservice.repository.ApprovalRequestRepository;
 import com.leafy.profileservice.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageImpl;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +57,8 @@ public class ProfileServiceImpl implements ProfileService {
     private final CertificateMapper certificateMapper;
     private final AuthClient authClient;
     private final OutboxEventPublisher outboxEventPublisher;
+    private final SearchClient searchClient;
+    private final UserConnectionRepository userConnectionRepository;
 
     @Override
     public ProfileResponse createProfile(ProfileCreateRequest request) {
@@ -209,6 +220,74 @@ public class ProfileServiceImpl implements ProfileService {
                 searchTerm, role, active, isVerified);
         Page<Profile> profiles = profileRepository.findProfilesFiltered(searchTerm, role, active, isVerified, pageable);
         return profiles.map(this::buildFullProfileResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProfileResponse> searchExpertsEnriched(
+            String searchTerm, String specialty, int page, int size,
+            String sortBy, String sortDir, String currentUserId) {
+        log.info("Searching experts enriched: searchTerm={}, specialty={}, currentUserId={}", searchTerm, specialty, currentUserId);
+        
+        ApiResponse<SpringPageDto<ProfileResponse>> apiResponse = searchClient.searchProfiles(
+                searchTerm, ProfileRole.EXPERT.name(), true, specialty, page, size, sortBy, sortDir);
+                
+        if (apiResponse == null || apiResponse.data() == null) {
+            return Page.empty();
+        }
+        
+        SpringPageDto<ProfileResponse> pageDto = apiResponse.data();
+        List<ProfileResponse> content = pageDto.getContent();
+        
+        if (currentUserId != null && !content.isEmpty()) {
+            enrichWithConnectionStatus(content, currentUserId);
+        }
+        
+        PageRequest pageRequest = PageRequest.of(pageDto.getNumber(), pageDto.getSize() > 0 ? pageDto.getSize() : size);
+        return new PageImpl<>(content, pageRequest, pageDto.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProfileResponse> getExpertsEnriched(
+            String searchTerm, int page, int size,
+            String sortBy, String sortDir, String currentUserId) {
+        log.info("Getting experts enriched: searchTerm={}, currentUserId={}", searchTerm, currentUserId);
+        
+        org.springframework.data.domain.Sort sort = sortDir.equalsIgnoreCase("ASC")
+                ? org.springframework.data.domain.Sort.by(sortBy).ascending()
+                : org.springframework.data.domain.Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<Profile> profiles = profileRepository.findProfilesFiltered(searchTerm, ProfileRole.EXPERT, true, true, pageable);
+        List<ProfileResponse> content = profiles.stream().map(this::buildFullProfileResponse).collect(Collectors.toList());
+        
+        if (currentUserId != null && !content.isEmpty()) {
+            enrichWithConnectionStatus(content, currentUserId);
+        }
+        
+        return new PageImpl<>(content, pageable, profiles.getTotalElements());
+    }
+
+    private void enrichWithConnectionStatus(List<ProfileResponse> profiles, String currentUserId) {
+        List<String> followingUserIds = profiles.stream()
+                .map(ProfileResponse::getUserId)
+                .collect(Collectors.toList());
+                
+        List<UserConnection> connections = userConnectionRepository.findAllByFollowerIdAndFollowingIdIn(currentUserId, followingUserIds);
+        Map<String, UserConnection> connectionMap = connections.stream()
+                .collect(Collectors.toMap(UserConnection::getFollowingId, c -> c));
+                
+        for (ProfileResponse profile : profiles) {
+            UserConnection conn = connectionMap.get(profile.getUserId());
+            if (conn != null) {
+                profile.setIsFollowing(conn.getIsFollowing() != null && conn.getIsFollowing());
+                profile.setHasPendingConsultRequest(conn.getConsultationStatus() == ConsultationStatus.PENDING);
+            } else {
+                profile.setIsFollowing(false);
+                profile.setHasPendingConsultRequest(false);
+            }
+        }
     }
 
     @Override

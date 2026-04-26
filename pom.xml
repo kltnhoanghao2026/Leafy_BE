@@ -30,6 +30,7 @@
         <module>plant-management-service</module>
         <module>iot-metrics-collector-service</module>
         <module>community-feed-service</module>
+        <module>socket-service</module>
     </modules>
 
 

@@ -40,4 +40,27 @@ public class ProfileSyncController {
                 .indexedCount(indexedCount)
                 .build()));
     }
+
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @PostMapping({"/profiles/reset", "/internal/search/profiles/reset"})
+    public ResponseEntity<ApiResponse<ProfileSyncBulkResponse>> resetProfileIndex() {
+        profileIndexSync.resetIndex();
+        log.info("Profile index reset completed");
+
+        return ResponseEntity.ok(ApiResponse.success(ProfileSyncBulkResponse.builder()
+                .indexedCount(0)
+                .build()));
+    }
+
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @PostMapping({"/profiles/reindex-all", "/internal/search/profiles/reindex-all"})
+    public ResponseEntity<ApiResponse<ProfileSyncBulkResponse>> reindexAllProfiles(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "500") int size) {
+        int indexedCount = profileIndexSync.reindexAll(size);
+        log.info("Full profile reindex completed: indexedCount={}", indexedCount);
+
+        return ResponseEntity.ok(ApiResponse.success(ProfileSyncBulkResponse.builder()
+                .indexedCount(indexedCount)
+                .build()));
+    }
 }

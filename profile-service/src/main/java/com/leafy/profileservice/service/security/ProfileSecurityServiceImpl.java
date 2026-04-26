@@ -53,4 +53,19 @@ public class ProfileSecurityServiceImpl implements ProfileSecurityService {
             return false;
         }
     }
+
+    @Override
+    public boolean isExpert() {
+        try {
+            String currentUserId = ServiceSecurityUtils.getCurrentAccountId();
+            Optional<Profile> profileOpt = profileRepository.findByUserId(currentUserId);
+            if (profileOpt.isEmpty()) {
+                return false;
+            }
+            return com.leafy.common.enums.ProfileRole.EXPERT.equals(profileOpt.get().getRole());
+        } catch (Exception e) {
+            log.error("Error checking if current user is expert: {}", e.getMessage());
+            return false;
+        }
+    }
 }

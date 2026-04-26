@@ -127,6 +127,29 @@ public interface ProfileService {
             Pageable pageable);
 
     /**
+     * Search experts using search-service and enrich with connection status.
+     */
+    Page<ProfileResponse> searchExpertsEnriched(
+            String searchTerm,
+            String specialty,
+            int page,
+            int size,
+            String sortBy,
+            String sortDir,
+            String currentUserId);
+
+    /**
+     * Get experts using database and enrich with connection status.
+     */
+    Page<ProfileResponse> getExpertsEnriched(
+            String searchTerm,
+            int page,
+            int size,
+            String sortBy,
+            String sortDir,
+            String currentUserId);
+
+    /**
      * Delete profile by ID
      *
      * @param profileId the profile ID

@@ -313,4 +313,48 @@ public class ProfileController {
         boolean exists = profileService.existsByUserId(userId);
         return ResponseEntity.ok(ApiResponse.success(exists));
     }
+
+    /**
+     * Get active and verified experts with pagination
+     *
+     * @param page       page number (default: 0)
+     * @param size       page size (default: 20)
+     * @param sortBy     field to sort by (default: createdAt)
+     * @param sortDir    sort direction (default: DESC)
+     * @param searchTerm optional partial match against fullName and specialty
+     * @return page of expert profile responses
+     */
+    @GetMapping("/experts")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Page<ProfileResponse>>> getExperts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir,
+            @RequestParam(required = false) String searchTerm,
+            @RequestHeader(value = "X-User-Id", required = false) String currentUserId) {
+        log.info("GET /profiles/experts - searchTerm={}, currentUserId={}", searchTerm, currentUserId);
+
+        Page<ProfileResponse> response = profileService.getExpertsEnriched(searchTerm, page, size, sortBy, sortDir, currentUserId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * Search active and verified experts using ElasticSearch with pagination
+     */
+    @GetMapping("/search/experts")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Page<ProfileResponse>>> searchExperts(
+            @RequestParam(required = false) String searchTerm,
+            @RequestParam(required = false) String specialty,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir,
+            @RequestHeader(value = "X-User-Id", required = false) String currentUserId) {
+        log.info("GET /profiles/search/experts - searchTerm={}, specialty={}, currentUserId={}", searchTerm, specialty, currentUserId);
+
+        Page<ProfileResponse> response = profileService.searchExpertsEnriched(searchTerm, specialty, page, size, sortBy, sortDir, currentUserId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

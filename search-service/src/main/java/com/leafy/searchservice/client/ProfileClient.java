@@ -11,4 +11,10 @@ public interface ProfileClient {
 
     @GetMapping("/{profileId}")
     ApiResponse<ProfileServiceProfileResponse> getProfileById(@PathVariable("profileId") String profileId);
+
+    @GetMapping("/batch")
+    ApiResponse<java.util.List<com.leafy.searchservice.client.dto.profile.UserSyncResponse>> getUsersBatch(
+            @org.springframework.web.bind.annotation.RequestParam(value = "lastId", required = false) String lastId,
+            @org.springframework.web.bind.annotation.RequestParam(value = "size", defaultValue = "500") int size
+    );
 }
