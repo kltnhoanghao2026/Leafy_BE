@@ -35,7 +35,11 @@ public class PushTokenService {
     }
 
     public void deactivateToken(DeactivatePushTokenRequest request) {
-        pushTokenRepository.findByFcmToken(request.getFcmToken())
+        deactivateToken(request.getFcmToken());
+    }
+
+    public void deactivateToken(String fcmToken) {
+        pushTokenRepository.findByFcmToken(fcmToken)
                 .ifPresent(token -> {
                     token.setActive(false);
                     token.setUpdatedAt(LocalDateTime.now());

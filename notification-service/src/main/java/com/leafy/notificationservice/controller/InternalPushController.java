@@ -1,8 +1,8 @@
 package com.leafy.notificationservice.controller;
 
-import com.google.firebase.messaging.FirebaseMessagingException;
 import com.leafy.notificationservice.dto.TestPushRequest;
-import com.leafy.notificationservice.service.FirebasePushService;
+import com.leafy.notificationservice.service.PushDeliveryException;
+import com.leafy.notificationservice.service.PushDeliveryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,13 +18,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class InternalPushController {
 
-    private final FirebasePushService firebasePushService;
+    private final PushDeliveryService pushDeliveryService;
 
     @PostMapping("/test")
     public ResponseEntity<String> test(@Valid @RequestBody TestPushRequest request)
-            throws FirebaseMessagingException {
+            throws PushDeliveryException {
 
-        String messageId = firebasePushService.sendToToken(
+        String messageId = pushDeliveryService.sendToToken(
                 request.getToken(),
                 request.getTitle(),
                 request.getBody(),

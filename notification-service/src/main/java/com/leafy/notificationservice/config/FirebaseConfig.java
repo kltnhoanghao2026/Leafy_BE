@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
 import java.io.FileInputStream;
@@ -19,8 +20,8 @@ public class FirebaseConfig {
 
     @Bean
     @ConditionalOnProperty(prefix = "firebase", name = "enabled", havingValue = "true")
+    @Conditional(FirebaseCredentialsConfiguredCondition.class)
     public FirebaseApp firebaseApp(FirebaseProperties properties) throws IOException {
-        System.out.println("file: "+properties.getConfigPath());
         try (FileInputStream serviceAccount = new FileInputStream(properties.getConfigPath())) {
             FirebaseOptions options = FirebaseOptions.builder()
                     .setCredentials(GoogleCredentials.fromStream(serviceAccount))
