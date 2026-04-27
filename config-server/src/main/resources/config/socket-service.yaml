@@ -26,17 +26,13 @@ spring:
       max-poll-records: 100
       properties:
         spring.json.use.type.headers: true
-        spring.json.trusted.packages: "com.leafy.common"
+        spring.json.trusted.packages: "*"
         spring.json.type.mapping: "SocketEvent:com.leafy.common.dto.client.socketservice.SocketEvent"
     listener:
       concurrency: 3
       ack-mode: batch
 
-# Kafka topic names
-kafka:
-  topics:
-    socket-events:
-      socket-events: socket.events
+
 
 # JWT – needed by WebSocketConfig ChannelInterceptor to validate tokens on CONNECT
 jwt:

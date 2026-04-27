@@ -1,5 +1,6 @@
 package com.leafy.socketservice.consumer;
 
+import com.leafy.common.config.kafka.KafkaTopicProperties;
 import com.leafy.common.dto.client.socketservice.SocketEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,9 +23,10 @@ public class SocketEventConsumer {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final SimpUserRegistry userRegistry;
+    private final KafkaTopicProperties kafkaTopicProperties;
 
     @KafkaListener(
-            topics = "${kafka.topics.socket-events.socket-events}",
+            topics = "#{kafkaTopicProperties.socketEvents.socketEvents}",
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void consume(SocketEvent event) {

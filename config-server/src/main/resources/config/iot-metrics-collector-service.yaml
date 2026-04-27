@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT:8091}
+  port: ${SERVER_IOT_PORT:8091}
 
 spring:
   application:

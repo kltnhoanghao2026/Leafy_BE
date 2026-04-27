@@ -342,7 +342,7 @@ public class ConversationServiceImpl implements ConversationService {
         if (otherMembers.isEmpty()) return;
 
         otherMembers.forEach(m -> {
-            helper.getKafkaTemplate().send(helper.getSocketEventsTopic(),
+            helper.getKafkaTemplate().send(helper.getKafkaTopicProperties().getSocketEvents().getSocketEvents(),
                     new SocketEvent(SocketEventType.MESSAGE, m.getUserId(),
                             "/queue/read-receipts",
                             ReadReceiptNotification.builder()

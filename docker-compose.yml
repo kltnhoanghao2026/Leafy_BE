@@ -32,6 +32,21 @@ services:
     networks:
       - leafy-network
 
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: leafy-iot-mqtt
+    restart: unless-stopped
+    ports:
+      - "${IOT_MQTT_PORT:-1883}:1883"
+    healthcheck:
+      test: [ "CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -t '$$SYS/broker/version' -C 1 -W 3 >/dev/null 2>&1 || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - leafy-network
+
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: leafy-kafka

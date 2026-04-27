@@ -4,6 +4,7 @@ import com.leafy.messageservice.model.enums.MessageType;
 import com.leafy.messageservice.model.enums.SystemActionType;
 import com.leafy.common.utils.S3UtilV2;
 import com.leafy.common.utils.S3UtilV2;
+import com.leafy.common.config.kafka.KafkaTopicProperties;
 import com.leafy.common.dto.client.socketservice.SocketEvent;
 import com.leafy.common.enums.SocketEventType;
 import com.leafy.messageservice.dto.response.ChatNotification;
@@ -14,7 +15,7 @@ import com.leafy.messageservice.model.Message;
 import com.leafy.messageservice.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -36,11 +37,7 @@ public class SystemMessageServiceImpl implements SystemMessageService {
     private final MessageMapper messageMapper;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final S3UtilV2 s3UtilV2;
-
-
-
-    @Value("${kafka.topics.socket-events.socket-events:socket.events}")
-    private String socketEventsTopic;
+    private final KafkaTopicProperties kafkaTopicProperties;
 
     @Override
     public void sendSystemMessage(String conversationId, String actorId, String actorName, String actorAvatar,
@@ -151,7 +148,7 @@ public class SystemMessageServiceImpl implements SystemMessageService {
                 ChatNotification notification = messageMapper.mapToChatNotification(savedMessage, baseUrl, currentUnread);
                 notification = notification.toBuilder().isFromMe(isFromMe).build();
 
-                kafkaTemplate.send(socketEventsTopic,
+                kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
                         new SocketEvent(SocketEventType.MESSAGE, member.getUserId(),
                                 "/queue/messages", notification));
             });

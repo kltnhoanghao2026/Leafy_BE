@@ -26,6 +26,9 @@ public class PublicEndpointsConfig {
             // Actuator endpoints
             "/actuator/**",
 
+            // WebSocket / SockJS endpoints (JWT validated inside socket-service on STOMP CONNECT)
+            "/ws/**",
+
             // Swagger/OpenAPI endpoints
             "/swagger-ui/**",
             "/v3/api-docs",

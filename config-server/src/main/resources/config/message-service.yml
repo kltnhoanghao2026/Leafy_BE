@@ -16,7 +16,4 @@ bondhub:
     gateway-auth:
       enabled: true
 
-kafka:
-  topics:
-    socket-events:
-      socket-events: socket-events-topic
+

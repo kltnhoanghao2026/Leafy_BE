@@ -7,6 +7,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import org.springframework.web.socket.messaging.SessionConnectedEvent;
 
 /**
  * Listens for STOMP disconnect events to automatically mark users as OFFLINE
@@ -20,13 +21,25 @@ public class WebSocketEventListener {
     private final UserPresenceService userPresenceService;
 
     @EventListener
+    public void handleWebSocketConnectListener(SessionConnectedEvent event) {
+        log.info("[WS] Client connected successfully. Session ID: {}", event.getMessage().getHeaders().get("simpSessionId"));
+        if (event.getUser() != null) {
+            log.info("[WS] User registered in SimpUserRegistry: {}", event.getUser().getName());
+        }
+    }
+
+    @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         if (headerAccessor.getSessionAttributes() == null) return;
 
         String userId = (String) headerAccessor.getSessionAttributes().get("userId");
+        if (userId == null && event.getUser() != null) {
+            userId = event.getUser().getName();
+        }
+        
         if (userId != null) {
-            log.info("[WS] User disconnected: {}", userId);
+            log.info("[WS] User disconnected from registry: {}", userId);
             userPresenceService.disconnect(userId);
         }
     }

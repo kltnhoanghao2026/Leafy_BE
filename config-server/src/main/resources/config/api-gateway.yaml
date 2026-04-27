@@ -372,11 +372,16 @@ spring:
                     name: messagesServiceCircuitBreaker
                     fallbackUri: forward:/fallback/messages-service
 
-            # Messages Service WebSocket Route
-            - id: messages-service-ws
-              uri: lb:ws://message-service
+            # Socket Service Routes (WebSocket)
+            - id: socket-service-ws
+              uri: lb://socket-service
               predicates:
-                - Path=/ws/messages/**
+                - Path=/ws/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: socketServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/socket-service
 
             # OpenAPI Documentation Routes for Messages Service
             - id: messages-service-openapi
@@ -471,6 +476,8 @@ resilience4j:
         baseConfig: default
       messagesServiceCircuitBreaker:
         baseConfig: default
+      socketServiceCircuitBreaker:
+        baseConfig: default
 
   timelimiter:
     configs:
@@ -501,6 +508,8 @@ resilience4j:
         baseConfig: default
       seedServiceCircuitBreaker:
         timeoutDuration: 120s
+      socketServiceCircuitBreaker:
+        baseConfig: default
 
 # JWT Configuration
 jwt:

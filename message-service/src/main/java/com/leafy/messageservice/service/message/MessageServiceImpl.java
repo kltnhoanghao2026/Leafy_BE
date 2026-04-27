@@ -25,11 +25,11 @@ import com.leafy.messageservice.service.conversation.ConversationService;
 import com.leafy.messageservice.dto.request.AttachmentRequest;
 import com.leafy.messageservice.dto.request.MessageSendRequest;
 
+import com.leafy.common.config.kafka.KafkaTopicProperties;
 import com.leafy.common.dto.client.socketservice.SocketEvent;
 import com.leafy.common.enums.SocketEventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -73,11 +73,7 @@ public class MessageServiceImpl implements MessageService {
     private final ConversationService conversationService;
     private final ConversationHelper conversationHelper;
     private final S3UtilV2 s3UtilV2;
-
-
-
-    @Value("${kafka.topics.socket-events.socket-events:socket.events}")
-    private String socketEventsTopic;
+    private final KafkaTopicProperties kafkaTopicProperties;
 
     // ─────────────────────────── Lấy tin nhắn ───────────────────────────
 
@@ -406,7 +402,7 @@ public class MessageServiceImpl implements MessageService {
                     .unreadCount(unreadCount)
                     .build();
 
-            kafkaTemplate.send(socketEventsTopic,
+            kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
                     new SocketEvent(SocketEventType.MESSAGE, member.getUserId(),
                             "/queue/messages", personalNotif));
                 });
@@ -780,7 +776,7 @@ public class MessageServiceImpl implements MessageService {
                 payload.put("deletedByAdminId", deletedByAdminId);
             }
 
-            kafkaTemplate.send(socketEventsTopic,
+            kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
                     new SocketEvent(SocketEventType.MESSAGE, member.getUserId(),
                             "/queue/status-updates", payload));
         }
@@ -795,7 +791,7 @@ public class MessageServiceImpl implements MessageService {
             payload.put("messageId", messageId);
             payload.put("reactions", reactions);
 
-            kafkaTemplate.send(socketEventsTopic,
+            kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
                     new SocketEvent(SocketEventType.MESSAGE, member.getUserId(),
                             "/queue/reactions", payload));
         }

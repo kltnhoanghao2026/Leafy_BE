@@ -7,6 +7,7 @@ import com.leafy.common.utils.S3UtilV2;
 import com.leafy.common.utils.SecurityUtil;
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
+import com.leafy.common.config.kafka.KafkaTopicProperties;
 import com.leafy.common.enums.SocketEventType;
 import com.leafy.common.dto.client.socketservice.SocketEvent;
 import com.leafy.messageservice.dto.response.*;
@@ -23,7 +24,7 @@ import com.leafy.messageservice.repository.ConversationRepository;
 import com.leafy.messageservice.repository.JoinRequestRepository;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -51,11 +52,7 @@ public class ConversationHelper {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final MongoTemplate mongoTemplate;
     private final S3UtilV2 s3UtilV2;
-
-
-
-    @Value("${kafka.topics.socket-events.socket-events:socket.events}")
-    private String socketEventsTopic;
+    private final KafkaTopicProperties kafkaTopicProperties;
 
     public record ActorInfo(String name, String avatar) {
         public static ActorInfo of(ChatUser user, String fallbackName) {
@@ -298,7 +295,7 @@ public class ConversationHelper {
                     room, partner, viewerId, userCache, baseUrl, viewerCanSee, null, pendingJoinRequestCount
             );
 
-            kafkaTemplate.send(socketEventsTopic,
+            kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
                     new SocketEvent(SocketEventType.CONVERSATION, viewerId, "/queue/conversations", payload));
         }
     }
