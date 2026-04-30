@@ -42,7 +42,7 @@ public class DashboardQueryServiceImpl implements DashboardQueryService {
     private final DashboardQueryMapper dashboardQueryMapper;
 
     @Override
-    public DashboardOverviewResponse getFarmOverview(UUID farmPlotId) {
+    public DashboardOverviewResponse getFarmOverview(String farmPlotId) {
         DashboardOverviewResponse response = new DashboardOverviewResponse();
         response.setFarmPlotId(farmPlotId);
         response.setTotalDevices(ioTDeviceRepository.countByFarmPlotId(farmPlotId));
@@ -55,7 +55,7 @@ public class DashboardQueryServiceImpl implements DashboardQueryService {
     }
 
     @Override
-    public ZoneOverviewResponse getZoneOverview(UUID zoneId) {
+    public ZoneOverviewResponse getZoneOverview(String zoneId) {
         List<LatestReadingItemResponse> latestReadings = sensorLatestReadingRepository.findAllByZoneId(zoneId).stream()
             .map(dashboardQueryMapper::toLatestReadingItemResponse)
             .sorted(LATEST_READING_SORT)
@@ -107,7 +107,7 @@ public class DashboardQueryServiceImpl implements DashboardQueryService {
         return response;
     }
 
-    private AlertSummaryResponse buildZoneAlertSummary(UUID zoneId) {
+    private AlertSummaryResponse buildZoneAlertSummary(String zoneId) {
         AlertSummaryResponse response = new AlertSummaryResponse();
         response.setOpenAlerts(Math.toIntExact(alertEventRepository.countByZoneIdAndStatus(zoneId, AlertStatus.OPEN)));
         response.setHighSeverityAlerts(

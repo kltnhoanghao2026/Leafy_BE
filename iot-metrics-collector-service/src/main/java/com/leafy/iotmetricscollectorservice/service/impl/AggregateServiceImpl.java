@@ -231,7 +231,7 @@ public class AggregateServiceImpl implements AggregateService {
     }
 
     private AggregateBucketKey toBucketKey(SensorReadingSeries reading) {
-        UUID zoneId = reading.getZone() != null ? reading.getZone().getId() : null;
+        String zoneId = reading.getZone() != null ? reading.getZone().getId() : null;
         Instant bucketStart = alignTo5MinuteBucketStart(reading.getReadingTime());
         Instant bucketEnd = compute5MinuteBucketEnd(bucketStart);
 
@@ -294,7 +294,7 @@ public class AggregateServiceImpl implements AggregateService {
     }
 
     private AggregateBucketKey toHourlyBucketKey(SensorReadingAgg5m aggregateReading) {
-        UUID zoneId = aggregateReading.getZone() != null ? aggregateReading.getZone().getId() : null;
+        String zoneId = aggregateReading.getZone() != null ? aggregateReading.getZone().getId() : null;
         Instant bucketStart = alignTo1HourBucketStart(aggregateReading.getBucketStart());
         Instant bucketEnd = compute1HourBucketEnd(bucketStart);
 
@@ -327,7 +327,7 @@ public class AggregateServiceImpl implements AggregateService {
     }
 
     private AggregateBucketKey toDailyBucketKey(SensorReadingAgg1h aggregateReading) {
-        UUID zoneId = aggregateReading.getZone() != null ? aggregateReading.getZone().getId() : null;
+        String zoneId = aggregateReading.getZone() != null ? aggregateReading.getZone().getId() : null;
         Instant bucketStart = alignTo1DayBucketStart(aggregateReading.getBucketStart());
         Instant bucketEnd = compute1DayBucketEnd(bucketStart);
 
@@ -362,7 +362,7 @@ public class AggregateServiceImpl implements AggregateService {
     private record AggregateBucketKey(
         UUID deviceId,
         UUID sensorTypeId,
-        UUID zoneId,
+        String zoneId,
         Instant bucketStart,
         Instant bucketEnd
     ) {

@@ -7,10 +7,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface IoTDeviceRepository extends JpaRepository<IoTDevice, UUID> {
+public interface IoTDeviceRepository extends JpaRepository<IoTDevice, UUID>, JpaSpecificationExecutor<IoTDevice> {
     Optional<IoTDevice> findByDeviceUid(String deviceUid);
 
     Optional<IoTDevice> findByDeviceCode(String deviceCode);
@@ -19,11 +20,11 @@ public interface IoTDeviceRepository extends JpaRepository<IoTDevice, UUID> {
 
     boolean existsByDeviceCode(String deviceCode);
 
-    List<IoTDevice> findAllByOwnerUserId(UUID ownerUserId);
+    List<IoTDevice> findAllByOwnerUserId(String ownerUserId);
 
-    long countByFarmPlotId(UUID farmPlotId);
+    long countByFarmPlotId(String farmPlotId);
 
-    long countByFarmPlotIdAndStatus(UUID farmPlotId, DeviceStatus status);
+    long countByFarmPlotIdAndStatus(String farmPlotId, DeviceStatus status);
 
     @Query("""
         select count(distinct device.zone.id)
@@ -31,12 +32,12 @@ public interface IoTDeviceRepository extends JpaRepository<IoTDevice, UUID> {
         where device.farmPlot.id = :farmPlotId
           and device.zone is not null
         """)
-    long countDistinctZoneIdsByFarmPlotId(@Param("farmPlotId") UUID farmPlotId);
+    long countDistinctZoneIdsByFarmPlotId(@Param("farmPlotId") String farmPlotId);
 
     @Query("""
         select max(device.lastSeenAt)
         from IoTDevice device
         where device.farmPlot.id = :farmPlotId
         """)
-    Instant findMaxLastSeenAtByFarmPlotId(@Param("farmPlotId") UUID farmPlotId);
+    Instant findMaxLastSeenAtByFarmPlotId(@Param("farmPlotId") String farmPlotId);
 }

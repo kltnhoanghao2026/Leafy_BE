@@ -2,12 +2,18 @@ package com.leafy.notificationservice.document;
 
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 import java.util.Map;
 
 @Document(collection = "notification_logs")
+@CompoundIndex(
+        name = "idx_notification_logs_event_user_token",
+        def = "{'eventId': 1, 'userId': 1, 'pushTokenId': 1}",
+        unique = true
+)
 @Getter
 @Setter
 @NoArgsConstructor

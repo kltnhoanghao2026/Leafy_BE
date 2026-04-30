@@ -155,7 +155,7 @@ class AlertLifecycleServiceImplTest {
         alertEvent.setDevice(device);
 
         FarmZoneRef zone = new FarmZoneRef();
-        zone.setId(UUID.randomUUID());
+        zone.setId(UUID.randomUUID().toString());
         alertEvent.setZone(zone);
 
         SensorType sensorType = new SensorType();

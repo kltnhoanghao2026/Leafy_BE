@@ -175,14 +175,14 @@ class TelemetryQueryServiceImplTest {
 
     @Test
     void getZoneSensorChart_uses1dAggregatesForD90Range() {
-        UUID zoneId = UUID.randomUUID();
+        String zoneId = UUID.randomUUID().toString();
         SensorType sensorType = createSensorType("soilTemp", "Soil Temperature", "C");
         SensorReadingAgg1d aggregate = create1dAggregate(zoneId, sensorType, "2026-04-09T00:00:00Z", 24.0d, 20d, 29d, 24);
 
         when(sensorTypeRepository.findByCode("soilTemp")).thenReturn(Optional.of(sensorType));
         when(sensorReadingAgg1dRepository
             .findAllByZoneIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
-                any(UUID.class),
+                anyString(),
                 any(UUID.class),
                 any(Instant.class),
                 any(Instant.class)
@@ -193,14 +193,14 @@ class TelemetryQueryServiceImplTest {
 
         verify(sensorReadingAgg1dRepository)
             .findAllByZoneIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
-                any(UUID.class),
+                anyString(),
                 any(UUID.class),
                 any(Instant.class),
                 any(Instant.class)
             );
         verify(sensorReadingAgg5mRepository, never())
             .findAllByZoneIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
-                any(UUID.class),
+                anyString(),
                 any(UUID.class),
                 any(Instant.class),
                 any(Instant.class)
@@ -318,7 +318,7 @@ class TelemetryQueryServiceImplTest {
     }
 
     private SensorReadingAgg1d create1dAggregate(
-        UUID zoneId,
+        String zoneId,
         SensorType sensorType,
         String bucketStart,
         double avgValue,

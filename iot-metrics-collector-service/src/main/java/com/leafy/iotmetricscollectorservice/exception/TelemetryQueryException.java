@@ -151,4 +151,124 @@ public class TelemetryQueryException extends RuntimeException {
             "Failed to push config for device: " + deviceId
         );
     }
+
+    public static TelemetryQueryException alertRuleNotFound(UUID ruleId) {
+        return new TelemetryQueryException(
+            HttpStatus.NOT_FOUND,
+            4618,
+            "Alert rule not found: " + ruleId
+        );
+    }
+
+    public static TelemetryQueryException invalidAlertRuleScope() {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4619,
+            "Alert rule must target at least one scope: device, zone, or farm plot"
+        );
+    }
+
+    public static TelemetryQueryException invalidAlertRuleThresholds() {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4620,
+            "Alert rule thresholds are invalid"
+        );
+    }
+
+    public static TelemetryQueryException invalidAlertRuleSeverity(String severity) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4621,
+            "Unsupported alert rule severity: " + severity
+        );
+    }
+
+    public static TelemetryQueryException missingAlertRuleSensorType(UUID sensorTypeId) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4622,
+            "Sensor type is required and must exist: " + sensorTypeId
+        );
+    }
+
+    public static TelemetryQueryException invalidAlertRuleCooldown(Integer cooldownMinutes) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4623,
+            "Alert rule cooldown must be null or greater than or equal to 0: " + cooldownMinutes
+        );
+    }
+
+    public static TelemetryQueryException invalidAlertRuleEnabledValue() {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4624,
+            "Alert rule enabled value must not be null"
+        );
+    }
+
+    public static TelemetryQueryException invalidAlertEventSortField(String sortBy) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4625,
+            "Unsupported alert event sort field: " + sortBy
+        );
+    }
+
+    public static TelemetryQueryException invalidAlertRuleSortField(String sortBy) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4626,
+            "Unsupported alert rule sort field: " + sortBy
+        );
+    }
+
+    public static TelemetryQueryException invalidSortDirection(String sortDir) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4627,
+            "Unsupported sort direction: " + sortDir
+        );
+    }
+
+    public static TelemetryQueryException invalidDeviceSortField(String sortBy) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4628,
+            "Unsupported device sort field: " + sortBy
+        );
+    }
+
+    public static TelemetryQueryException inactiveDevice(UUID deviceId) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4629,
+            "IoT device is inactive: " + deviceId
+        );
+    }
+
+    public static TelemetryQueryException unclaimedDevice(UUID deviceId) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4630,
+            "IoT device must be claimed before camera capture: " + deviceId
+        );
+    }
+
+    public static TelemetryQueryException cameraCaptureCommandFailed(UUID deviceId) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_GATEWAY,
+            4631,
+            "Failed to send camera capture command for device: " + deviceId
+        );
+    }
+
+    public static TelemetryQueryException mediaEventNotFound(UUID mediaEventId) {
+        return new TelemetryQueryException(
+            HttpStatus.NOT_FOUND,
+            4632,
+            "Device media event not found: " + mediaEventId
+        );
+    }
 }

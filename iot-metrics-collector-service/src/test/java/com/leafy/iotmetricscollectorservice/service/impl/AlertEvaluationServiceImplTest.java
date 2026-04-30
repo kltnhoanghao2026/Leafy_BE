@@ -23,6 +23,7 @@ import com.leafy.iotmetricscollectorservice.model.ref.FarmZoneRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.AlertEventRepository;
 import com.leafy.iotmetricscollectorservice.repository.AlertRuleRepository;
+import com.leafy.iotmetricscollectorservice.service.AlertNotificationPublisher;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -42,6 +43,9 @@ class AlertEvaluationServiceImplTest {
     @Mock
     private AlertEventRepository alertEventRepository;
 
+    @Mock
+    private AlertNotificationPublisher alertNotificationPublisher;
+
     @InjectMocks
     private AlertEvaluationServiceImpl alertEvaluationService;
 
@@ -59,6 +63,7 @@ class AlertEvaluationServiceImplTest {
 
         ArgumentCaptor<AlertEvent> alertCaptor = ArgumentCaptor.forClass(AlertEvent.class);
         verify(alertEventRepository).save(alertCaptor.capture());
+        verify(alertNotificationPublisher).publishAlertTriggered(any(AlertEvent.class));
         AlertEvent savedAlert = alertCaptor.getValue();
         assertEquals(AlertStatus.OPEN, savedAlert.getStatus());
         assertEquals(AlertSeverity.CRITICAL, savedAlert.getSeverity());
@@ -89,6 +94,7 @@ class AlertEvaluationServiceImplTest {
 
         ArgumentCaptor<AlertEvent> alertCaptor = ArgumentCaptor.forClass(AlertEvent.class);
         verify(alertEventRepository).save(alertCaptor.capture());
+        verify(alertNotificationPublisher).publishAlertTriggered(any(AlertEvent.class));
         AlertEvent savedAlert = alertCaptor.getValue();
         assertEquals("THRESHOLD_LOW", savedAlert.getAlertType());
         assertEquals("SOIL_MOISTURE dropped below min threshold: 18.0 < 25.0", savedAlert.getMessage());
@@ -109,6 +115,7 @@ class AlertEvaluationServiceImplTest {
         alertEvaluationService.evaluateReading(reading);
 
         verify(alertEventRepository, never()).save(any(AlertEvent.class));
+        verify(alertNotificationPublisher, never()).publishAlertTriggered(any(AlertEvent.class));
     }
 
     @Test
@@ -124,6 +131,7 @@ class AlertEvaluationServiceImplTest {
         alertEvaluationService.evaluateReading(reading);
 
         verify(alertEventRepository, never()).save(any(AlertEvent.class));
+        verify(alertNotificationPublisher, never()).publishAlertTriggered(any(AlertEvent.class));
     }
 
     @Test
@@ -138,6 +146,7 @@ class AlertEvaluationServiceImplTest {
         alertEvaluationService.evaluateReading(reading);
 
         verify(alertEventRepository, never()).save(any(AlertEvent.class));
+        verify(alertNotificationPublisher, never()).publishAlertTriggered(any(AlertEvent.class));
     }
 
     @Test
@@ -146,7 +155,7 @@ class AlertEvaluationServiceImplTest {
         AlertRule rule = createRule(reading.getSensorType());
         rule.setMaxThreshold(35.0d);
         FarmZoneRef otherZone = new FarmZoneRef();
-        otherZone.setId(UUID.randomUUID());
+        otherZone.setId(UUID.randomUUID().toString());
         rule.setZone(otherZone);
 
         when(alertRuleRepository.findAllByEnabledTrueAndSensorTypeId(reading.getSensorType().getId()))
@@ -155,6 +164,7 @@ class AlertEvaluationServiceImplTest {
         alertEvaluationService.evaluateReading(reading);
 
         verify(alertEventRepository, never()).save(any(AlertEvent.class));
+        verify(alertNotificationPublisher, never()).publishAlertTriggered(any(AlertEvent.class));
     }
 
     @Test
@@ -177,6 +187,7 @@ class AlertEvaluationServiceImplTest {
         alertEvaluationService.evaluateReading(reading);
 
         verify(alertEventRepository, never()).save(any(AlertEvent.class));
+        verify(alertNotificationPublisher, never()).publishAlertTriggered(any(AlertEvent.class));
     }
 
     @Test
@@ -195,10 +206,29 @@ class AlertEvaluationServiceImplTest {
             anyList(),
             any(Instant.class)
         )).thenReturn(false);
+        when(alertEventRepository.save(any(AlertEvent.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         alertEvaluationService.evaluateReading(reading);
 
         verify(alertEventRepository).save(any(AlertEvent.class));
+        verify(alertNotificationPublisher).publishAlertTriggered(any(AlertEvent.class));
+    }
+
+    @Test
+    void evaluateReading_notifyMobileFalseCreatesAlertWithoutPublishingPushEvent() {
+        SensorReadingSeries reading = createReading("AIR_TEMP", 36.5d);
+        AlertRule rule = createRule(reading.getSensorType());
+        rule.setMaxThreshold(35.0d);
+        rule.setNotifyMobile(false);
+
+        when(alertRuleRepository.findAllByEnabledTrueAndSensorTypeId(reading.getSensorType().getId()))
+            .thenReturn(List.of(rule));
+        when(alertEventRepository.save(any(AlertEvent.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        alertEvaluationService.evaluateReading(reading);
+
+        verify(alertEventRepository).save(any(AlertEvent.class));
+        verify(alertNotificationPublisher, never()).publishAlertTriggered(any(AlertEvent.class));
     }
 
     @Test
@@ -219,6 +249,7 @@ class AlertEvaluationServiceImplTest {
         alertEvaluationService.evaluateReadings(List.of(firstReading, secondReading));
 
         verify(alertEventRepository, times(2)).save(any(AlertEvent.class));
+        verify(alertNotificationPublisher, times(2)).publishAlertTriggered(any(AlertEvent.class));
     }
 
     private SensorReadingSeries createReading(String sensorCode, Double readingValue) {
@@ -228,13 +259,13 @@ class AlertEvaluationServiceImplTest {
         reading.setReadingTime(Instant.parse("2026-04-10T02:00:00Z"));
 
         UserRef ownerUser = new UserRef();
-        ownerUser.setId(UUID.randomUUID());
+        ownerUser.setId(UUID.randomUUID().toString());
 
         FarmPlotRef farmPlot = new FarmPlotRef();
-        farmPlot.setId(UUID.randomUUID());
+        farmPlot.setId(UUID.randomUUID().toString());
 
         FarmZoneRef zone = new FarmZoneRef();
-        zone.setId(UUID.randomUUID());
+        zone.setId(UUID.randomUUID().toString());
 
         IoTDevice device = new IoTDevice();
         device.setId(UUID.randomUUID());
@@ -265,7 +296,7 @@ class AlertEvaluationServiceImplTest {
         rule.setCooldownMinutes(0);
 
         UserRef ownerUser = new UserRef();
-        ownerUser.setId(UUID.randomUUID());
+        ownerUser.setId(UUID.randomUUID().toString());
         rule.setOwnerUser(ownerUser);
         return rule;
     }

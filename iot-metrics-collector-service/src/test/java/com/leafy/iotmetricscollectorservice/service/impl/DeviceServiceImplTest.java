@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.leafy.iotmetricscollectorservice.dto.device.ClaimDeviceRequest;
+import com.leafy.iotmetricscollectorservice.dto.common.PagedResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.GenerateClaimCodeResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.ProvisionDeviceRequest;
@@ -28,12 +29,18 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 @ExtendWith(MockitoExtension.class)
 class DeviceServiceImplTest {
@@ -107,9 +114,9 @@ class DeviceServiceImplTest {
 
     @Test
     void claimDevice_succeedsWithValidCode() {
-        UUID currentUserId = UUID.randomUUID();
-        UUID farmPlotId = UUID.randomUUID();
-        UUID zoneId = UUID.randomUUID();
+        String currentUserId = UUID.randomUUID().toString();
+        String farmPlotId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
         IoTDevice device = createDevice();
         DeviceClaim deviceClaim = createClaim(device, "CLAIM123", Instant.now().plusSeconds(300), ClaimStatus.PENDING);
 
@@ -147,7 +154,7 @@ class DeviceServiceImplTest {
         when(deviceClaimRepository.findTopByDeviceIdAndClaimCodeOrderByCreatedAtDesc(device.getId(), "WRONG123"))
             .thenReturn(Optional.empty());
 
-        assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice(UUID.randomUUID(), request));
+        assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice(UUID.randomUUID().toString(), request));
         verify(ioTDeviceRepository, never()).save(any(IoTDevice.class));
     }
 
@@ -163,7 +170,7 @@ class DeviceServiceImplTest {
         when(deviceClaimRepository.findTopByDeviceIdAndClaimCodeOrderByCreatedAtDesc(device.getId(), "CLAIM123"))
             .thenReturn(Optional.of(deviceClaim));
 
-        assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice(UUID.randomUUID(), request));
+        assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice(UUID.randomUUID().toString(), request));
         verify(ioTDeviceRepository, never()).save(any(IoTDevice.class));
     }
 
@@ -171,7 +178,7 @@ class DeviceServiceImplTest {
     void claimDevice_failsWhenDeviceAlreadyClaimed() {
         IoTDevice device = createDevice();
         UserRef ownerUser = new UserRef();
-        ownerUser.setId(UUID.randomUUID());
+        ownerUser.setId(UUID.randomUUID().toString());
         device.setOwnerUser(ownerUser);
         ClaimDeviceRequest request = new ClaimDeviceRequest();
         request.setDeviceUid(device.getDeviceUid());
@@ -179,13 +186,13 @@ class DeviceServiceImplTest {
 
         when(ioTDeviceRepository.findByDeviceUid(device.getDeviceUid())).thenReturn(Optional.of(device));
 
-        assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice(UUID.randomUUID(), request));
+        assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice(UUID.randomUUID().toString(), request));
         verify(deviceClaimRepository, never()).findTopByDeviceIdAndClaimCodeOrderByCreatedAtDesc(any(UUID.class), anyString());
     }
 
     @Test
-    void getDevicesByOwner_returnsOwnerBoundDevices() {
-        UUID ownerUserId = UUID.randomUUID();
+    void getDevicesByOwner_returnsPagedOwnerDevices() {
+        String ownerUserId = UUID.randomUUID().toString();
         IoTDevice second = createDevice();
         second.setDeviceName("Zulu");
         second.setDeviceCode("IOT-002");
@@ -196,14 +203,95 @@ class DeviceServiceImplTest {
         first.setDeviceCode("IOT-001");
         first.setOwnerUser(toUserRef(ownerUserId));
 
-        when(ioTDeviceRepository.findAllByOwnerUserId(ownerUserId)).thenReturn(List.of(second, first));
+        when(ioTDeviceRepository.findAll(any(Specification.class), any(Pageable.class)))
+            .thenReturn(new PageImpl<>(List.of(second, first)));
 
-        List<DeviceResponse> responses = deviceService.getDevicesByOwner(ownerUserId);
+        PagedResponse<DeviceResponse> responses = deviceService.getDevicesByOwner(
+            ownerUserId,
+            0,
+            20,
+            "createdAt",
+            "desc",
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
-        assertEquals(2, responses.size());
-        assertEquals("Alpha", responses.get(0).getDeviceName());
-        assertEquals("Zulu", responses.get(1).getDeviceName());
-        assertEquals(ownerUserId, responses.get(0).getOwnerUserId());
+        assertEquals(2, responses.items().size());
+        assertEquals("Zulu", responses.items().get(0).getDeviceName());
+        assertEquals("Alpha", responses.items().get(1).getDeviceName());
+        assertEquals(ownerUserId, responses.items().get(0).getOwnerUserId());
+    }
+
+    @Test
+    void getDevicesByOwner_usesRequestedPaginationSortingAndFilters() {
+        String ownerUserId = UUID.randomUUID().toString();
+        when(ioTDeviceRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
+
+        deviceService.getDevicesByOwner(
+            ownerUserId,
+            1,
+            10,
+            "lastSeenAt",
+            "asc",
+            DeviceStatus.ONLINE,
+            ProvisioningStatus.CLAIMED,
+            UUID.randomUUID().toString(),
+            UUID.randomUUID().toString(),
+            "node"
+        );
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(ioTDeviceRepository).findAll(any(Specification.class), pageableCaptor.capture());
+        Pageable pageable = pageableCaptor.getValue();
+        List<Sort.Order> orders = pageable.getSort().toList();
+        assertEquals(1, pageable.getPageNumber());
+        assertEquals(10, pageable.getPageSize());
+        assertEquals("lastSeenAt", orders.get(0).getProperty());
+        assertEquals(Sort.Direction.ASC, orders.get(0).getDirection());
+    }
+
+    @Test
+    void getDevicesByOwner_rejectsInvalidSortField() {
+        assertThrows(
+            TelemetryQueryException.class,
+            () -> deviceService.getDevicesByOwner(
+                UUID.randomUUID().toString(),
+                0,
+                20,
+                "serialNumber",
+                "desc",
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+    }
+
+    @Test
+    void getDevicesByOwner_clampsMaxPageSize() {
+        when(ioTDeviceRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
+
+        deviceService.getDevicesByOwner(
+            UUID.randomUUID().toString(),
+            0,
+            500,
+            "createdAt",
+            "desc",
+            null,
+            null,
+            null,
+            null,
+            "sensor"
+        );
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(ioTDeviceRepository).findAll(any(Specification.class), pageableCaptor.capture());
+        assertEquals(100, pageableCaptor.getValue().getPageSize());
     }
 
     private IoTDevice createDevice() {
@@ -229,7 +317,7 @@ class DeviceServiceImplTest {
         return deviceClaim;
     }
 
-    private UserRef toUserRef(UUID userId) {
+    private UserRef toUserRef(String userId) {
         UserRef userRef = new UserRef();
         userRef.setId(userId);
         return userRef;

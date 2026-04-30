@@ -39,7 +39,7 @@ class DashboardControllerTest {
 
     @Test
     void getZoneOverview_returnsZonePayload() throws Exception {
-        UUID zoneId = UUID.randomUUID();
+        String zoneId = UUID.randomUUID().toString();
         ZoneOverviewResponse response = new ZoneOverviewResponse();
         response.setZoneId(zoneId);
         response.setOpenAlerts(3);
@@ -62,7 +62,7 @@ class DashboardControllerTest {
 
     @Test
     void getFarmOverview_returnsDashboardPayload() throws Exception {
-        UUID farmPlotId = UUID.randomUUID();
+        String farmPlotId = UUID.randomUUID().toString();
         DashboardOverviewResponse response = new DashboardOverviewResponse();
         response.setFarmPlotId(farmPlotId);
         response.setTotalDevices(8L);

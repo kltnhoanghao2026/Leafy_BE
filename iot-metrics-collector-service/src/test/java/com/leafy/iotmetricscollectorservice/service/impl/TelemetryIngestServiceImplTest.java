@@ -57,9 +57,9 @@ class TelemetryIngestServiceImplTest {
         device.setDeviceUid("device-001");
         device.setIsActive(true);
         device.setOwnerUser(new UserRef());
-        device.getOwnerUser().setId(UUID.randomUUID());
+        device.getOwnerUser().setId(UUID.randomUUID().toString());
         device.setZone(new FarmZoneRef());
-        device.getZone().setId(UUID.randomUUID());
+        device.getZone().setId(UUID.randomUUID().toString());
 
         SensorType sensorType = new SensorType();
         sensorType.setId(UUID.randomUUID());

@@ -33,5 +33,5 @@ public interface SensorLatestReadingRepository extends JpaRepository<SensorLates
         from SensorLatestReading latestReading
         where latestReading.zone.id = :zoneId
         """)
-    List<SensorLatestReading> findAllByZoneId(@Param("zoneId") UUID zoneId);
+    List<SensorLatestReading> findAllByZoneId(@Param("zoneId") String zoneId);
 }

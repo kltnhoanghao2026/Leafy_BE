@@ -17,8 +17,8 @@ public class DeviceResponse {
     private Boolean isActive;
     private String status;
     private String provisioningStatus;
-    private UUID ownerUserId;
-    private UUID farmPlotId;
-    private UUID zoneId;
+    private String ownerUserId;
+    private String farmPlotId;
+    private String zoneId;
     private Instant lastSeenAt;
 }

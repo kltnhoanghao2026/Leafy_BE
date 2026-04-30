@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -21,9 +22,9 @@ public interface AlertEventRepository extends JpaRepository<AlertEvent, UUID>, J
         Instant openedAt
     );
 
-    long countByZoneIdAndStatus(UUID zoneId, AlertStatus status);
+    long countByZoneIdAndStatus(String zoneId, AlertStatus status);
 
-    long countByZoneIdAndStatusAndSeverity(UUID zoneId, AlertStatus status, AlertSeverity severity);
+    long countByZoneIdAndStatusAndSeverity(String zoneId, AlertStatus status, AlertSeverity severity);
 
     long countByDeviceIdAndStatus(UUID deviceId, AlertStatus status);
 
@@ -35,7 +36,7 @@ public interface AlertEventRepository extends JpaRepository<AlertEvent, UUID>, J
         where alertEvent.zone.id = :zoneId
           and alertEvent.status = :status
         """)
-    Instant findMaxOpenedAtByZoneIdAndStatus(@Param("zoneId") UUID zoneId, @Param("status") AlertStatus status);
+    Instant findMaxOpenedAtByZoneIdAndStatus(@Param("zoneId") String zoneId, @Param("status") AlertStatus status);
 
     @Query("""
         select max(alertEvent.openedAt)
@@ -51,5 +52,13 @@ public interface AlertEventRepository extends JpaRepository<AlertEvent, UUID>, J
         where alertEvent.status = :status
           and alertEvent.device.farmPlot.id = :farmPlotId
         """)
-    long countByFarmPlotIdAndStatus(@Param("farmPlotId") UUID farmPlotId, @Param("status") AlertStatus status);
+    long countByFarmPlotIdAndStatus(@Param("farmPlotId") String farmPlotId, @Param("status") AlertStatus status);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        update AlertEvent alertEvent
+        set alertEvent.alertRule = null
+        where alertEvent.alertRule.id = :ruleId
+        """)
+    int clearAlertRuleByAlertRuleId(@Param("ruleId") UUID ruleId);
 }

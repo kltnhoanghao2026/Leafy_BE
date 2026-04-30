@@ -1,6 +1,7 @@
 package com.leafy.notificationservice.service;
 
 import com.leafy.notificationservice.document.PushTokenDocument;
+import com.leafy.notificationservice.dto.DeactivatePushTokenRequest;
 import com.leafy.notificationservice.dto.RegisterPushTokenRequest;
 import com.leafy.notificationservice.repository.PushTokenRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,5 +32,18 @@ public class PushTokenService {
         token.setUpdatedAt(now);
 
         pushTokenRepository.save(token);
+    }
+
+    public void deactivateToken(DeactivatePushTokenRequest request) {
+        deactivateToken(request.getFcmToken());
+    }
+
+    public void deactivateToken(String fcmToken) {
+        pushTokenRepository.findByFcmToken(fcmToken)
+                .ifPresent(token -> {
+                    token.setActive(false);
+                    token.setUpdatedAt(LocalDateTime.now());
+                    pushTokenRepository.save(token);
+                });
     }
 }

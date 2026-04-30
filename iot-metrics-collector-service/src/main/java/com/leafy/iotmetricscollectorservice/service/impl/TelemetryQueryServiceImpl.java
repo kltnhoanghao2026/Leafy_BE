@@ -50,7 +50,7 @@ public class TelemetryQueryServiceImpl implements TelemetryQueryService {
     }
 
     @Override
-    public List<LatestReadingItemResponse> getLatestReadingsByZone(UUID zoneId) {
+    public List<LatestReadingItemResponse> getLatestReadingsByZone(String zoneId) {
         return sensorLatestReadingRepository.findAllByZoneId(zoneId).stream()
             .map(dashboardQueryMapper::toLatestReadingItemResponse)
             .sorted(LATEST_READING_SORT)
@@ -92,7 +92,7 @@ public class TelemetryQueryServiceImpl implements TelemetryQueryService {
     }
 
     @Override
-    public SensorChartResponse getZoneSensorChart(UUID zoneId, String sensorCode, ChartRangeType rangeType) {
+    public SensorChartResponse getZoneSensorChart(String zoneId, String sensorCode, ChartRangeType rangeType) {
         SensorType sensorType = requireSensorType(sensorCode);
         Instant to = Instant.now();
         Instant from = requireRangeType(rangeType).resolveFrom(to);
@@ -149,7 +149,7 @@ public class TelemetryQueryServiceImpl implements TelemetryQueryService {
 
     private SensorChartResponse buildChartResponse(
         UUID deviceId,
-        UUID zoneId,
+        String zoneId,
         SensorType sensorType,
         ChartRangeType rangeType,
         List<? extends BaseSensorReadingAgg> aggregateRows

@@ -6,9 +6,9 @@ import com.leafy.iotmetricscollectorservice.dto.dashboard.ZoneOverviewResponse;
 import java.util.UUID;
 
 public interface DashboardQueryService {
-    DashboardOverviewResponse getFarmOverview(UUID farmPlotId);
+    DashboardOverviewResponse getFarmOverview(String farmPlotId);
 
-    ZoneOverviewResponse getZoneOverview(UUID zoneId);
+    ZoneOverviewResponse getZoneOverview(String zoneId);
 
     DeviceDetailResponse getDeviceDetail(UUID deviceId);
 }

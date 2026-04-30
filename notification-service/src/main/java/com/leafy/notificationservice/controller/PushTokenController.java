@@ -1,5 +1,6 @@
 package com.leafy.notificationservice.controller;
 
+import com.leafy.notificationservice.dto.DeactivatePushTokenRequest;
 import com.leafy.notificationservice.dto.RegisterPushTokenRequest;
 import com.leafy.notificationservice.service.PushTokenService;
 import jakarta.validation.Valid;
@@ -21,5 +22,11 @@ public class PushTokenController {
     public ResponseEntity<String> register(@Valid @RequestBody RegisterPushTokenRequest request) {
         pushTokenService.registerToken(request);
         return ResponseEntity.ok("Push token registered successfully");
+    }
+
+    @PostMapping("/deactivate")
+    public ResponseEntity<String> deactivate(@Valid @RequestBody DeactivatePushTokenRequest request) {
+        pushTokenService.deactivateToken(request);
+        return ResponseEntity.ok("Push token deactivated successfully");
     }
 }

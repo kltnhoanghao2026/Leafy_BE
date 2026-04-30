@@ -3,7 +3,6 @@ package com.leafy.iotmetricscollectorservice.model.ref;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -14,5 +13,5 @@ import lombok.Setter;
 public class FarmPlotRef {
 
     @Id
-    private UUID id;
+    private String id;
 }

@@ -44,5 +44,5 @@ notification:
       alertTriggered: iot.alert.triggered
 
 firebase:
-  enabled: true
-  configPath: D:/KLTN/Leafy/Leafy_BE/notification-service/secret/firebase-service-account.json
+  enabled: ${FIREBASE_ENABLED:true}
+  configPath: ${FIREBASE_CONFIG_PATH:}

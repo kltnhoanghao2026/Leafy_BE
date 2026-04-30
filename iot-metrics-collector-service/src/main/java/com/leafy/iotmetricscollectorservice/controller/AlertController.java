@@ -2,12 +2,12 @@ package com.leafy.iotmetricscollectorservice.controller;
 
 import com.leafy.iotmetricscollectorservice.dto.dashboard.AlertEventDetailResponse;
 import com.leafy.iotmetricscollectorservice.dto.dashboard.AlertEventItemResponse;
+import com.leafy.iotmetricscollectorservice.dto.common.PagedResponse;
 import com.leafy.iotmetricscollectorservice.model.enums.AlertSeverity;
 import com.leafy.iotmetricscollectorservice.model.enums.AlertStatus;
 import com.leafy.iotmetricscollectorservice.service.AlertLifecycleService;
 import com.leafy.iotmetricscollectorservice.service.AlertQueryService;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -28,15 +28,21 @@ public class AlertController {
     private final AlertLifecycleService alertLifecycleService;
 
     @GetMapping
-    public ResponseEntity<List<AlertEventItemResponse>> searchAlerts(
-        @RequestParam(required = false) UUID zoneId,
+    public ResponseEntity<PagedResponse<AlertEventItemResponse>> searchAlerts(
+        @RequestParam(required = false) String zoneId,
         @RequestParam(required = false) UUID deviceId,
         @RequestParam(required = false) AlertStatus status,
         @RequestParam(required = false) AlertSeverity severity,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+        @RequestParam(defaultValue = "0") Integer page,
+        @RequestParam(defaultValue = "20") Integer size,
+        @RequestParam(defaultValue = "openedAt") String sortBy,
+        @RequestParam(defaultValue = "desc") String sortDir
     ) {
-        return ResponseEntity.ok(alertQueryService.searchAlerts(zoneId, deviceId, status, severity, from, to));
+        return ResponseEntity.ok(
+            alertQueryService.searchAlerts(zoneId, deviceId, status, severity, from, to, page, size, sortBy, sortDir)
+        );
     }
 
     @GetMapping("/{alertEventId}")

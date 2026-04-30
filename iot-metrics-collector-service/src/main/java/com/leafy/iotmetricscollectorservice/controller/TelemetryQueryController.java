@@ -40,7 +40,7 @@ public class TelemetryQueryController {
 
     @GetMapping("/farm-zones/{zoneId}/charts")
     public ResponseEntity<SensorChartResponse> getZoneSensorChart(
-        @PathVariable UUID zoneId,
+        @PathVariable String zoneId,
         @RequestParam String sensorCode,
         @RequestParam String range
     ) {
