@@ -10,7 +10,7 @@ import lombok.Setter;
 @Setter
 public class SensorChartResponse {
     private UUID deviceId;
-    private UUID zoneId;
+    private String zoneId;
     private String sensorCode;
     private String sensorName;
     private String unit;

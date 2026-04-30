@@ -139,7 +139,7 @@ class AggregateLatestReadingServiceImplTest {
         sensorType.setId(UUID.randomUUID());
 
         FarmZoneRef zone = new FarmZoneRef();
-        zone.setId(UUID.randomUUID());
+        zone.setId(UUID.randomUUID().toString());
 
         SensorReadingSeries reading = new SensorReadingSeries();
         reading.setDevice(device);
@@ -158,7 +158,7 @@ class AggregateLatestReadingServiceImplTest {
         latestReading.setSensorType(new SensorType());
         latestReading.getSensorType().setId(UUID.randomUUID());
         latestReading.setZone(new FarmZoneRef());
-        latestReading.getZone().setId(UUID.randomUUID());
+        latestReading.getZone().setId(UUID.randomUUID().toString());
         latestReading.setReadingTime(readingTime);
         latestReading.setReadingValue(readingValue);
         latestReading.setQualityStatus(ReadingQualityStatus.GOOD);

@@ -10,6 +10,7 @@ import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.AlertEventRepository;
 import com.leafy.iotmetricscollectorservice.repository.AlertRuleRepository;
 import com.leafy.iotmetricscollectorservice.service.AlertEvaluationService;
+import com.leafy.iotmetricscollectorservice.service.AlertNotificationPublisher;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -26,6 +27,7 @@ public class AlertEvaluationServiceImpl implements AlertEvaluationService {
 
     private final AlertRuleRepository alertRuleRepository;
     private final AlertEventRepository alertEventRepository;
+    private final AlertNotificationPublisher alertNotificationPublisher;
 
     @Override
     public void evaluateReading(SensorReadingSeries reading) {
@@ -76,7 +78,10 @@ public class AlertEvaluationServiceImpl implements AlertEvaluationService {
             return;
         }
 
-        alertEventRepository.save(buildAlertEvent(rule, reading, violation));
+        AlertEvent savedAlertEvent = alertEventRepository.save(buildAlertEvent(rule, reading, violation));
+        if (Boolean.TRUE.equals(rule.getNotifyMobile())) {
+            alertNotificationPublisher.publishAlertTriggered(savedAlertEvent);
+        }
     }
 
     private boolean isEvaluable(SensorReadingSeries reading) {

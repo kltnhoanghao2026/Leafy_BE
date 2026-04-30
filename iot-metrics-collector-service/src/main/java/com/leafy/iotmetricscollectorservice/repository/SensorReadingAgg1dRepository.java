@@ -37,7 +37,7 @@ public interface SensorReadingAgg1dRepository extends JpaRepository<SensorReadin
         order by aggregateReading.bucketStart asc
         """)
     List<SensorReadingAgg1d> findAllByZoneIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
-        @Param("zoneId") UUID zoneId,
+        @Param("zoneId") String zoneId,
         @Param("sensorTypeId") UUID sensorTypeId,
         @Param("from") Instant from,
         @Param("to") Instant to
@@ -71,7 +71,7 @@ public interface SensorReadingAgg1dRepository extends JpaRepository<SensorReadin
     Optional<SensorReadingAgg1d> findByDeviceIdAndSensorTypeIdAndZoneIdAndBucketStartAndBucketEnd(
         @Param("deviceId") UUID deviceId,
         @Param("sensorTypeId") UUID sensorTypeId,
-        @Param("zoneId") UUID zoneId,
+        @Param("zoneId") String zoneId,
         @Param("bucketStart") Instant bucketStart,
         @Param("bucketEnd") Instant bucketEnd
     );

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -215,7 +216,7 @@ class AggregateServiceImplTest {
         verify(sensorReadingAgg5mRepository, never()).findByDeviceIdAndSensorTypeIdAndZoneIdAndBucketStartAndBucketEnd(
             any(UUID.class),
             any(UUID.class),
-            any(UUID.class),
+            anyString(),
             any(Instant.class),
             any(Instant.class)
         );
@@ -407,7 +408,7 @@ class AggregateServiceImplTest {
         verify(sensorReadingAgg1hRepository, never()).findByDeviceIdAndSensorTypeIdAndZoneIdAndBucketStartAndBucketEnd(
             any(UUID.class),
             any(UUID.class),
-            any(UUID.class),
+            anyString(),
             any(Instant.class),
             any(Instant.class)
         );
@@ -613,7 +614,7 @@ class AggregateServiceImplTest {
         verify(sensorReadingAgg1dRepository, never()).findByDeviceIdAndSensorTypeIdAndZoneIdAndBucketStartAndBucketEnd(
             any(UUID.class),
             any(UUID.class),
-            any(UUID.class),
+            anyString(),
             any(Instant.class),
             any(Instant.class)
         );
@@ -670,7 +671,7 @@ class AggregateServiceImplTest {
 
         if (zoneKey != null) {
             FarmZoneRef zone = new FarmZoneRef();
-            zone.setId(UUID.nameUUIDFromBytes(zoneKey.getBytes()));
+            zone.setId(UUID.nameUUIDFromBytes(zoneKey.getBytes()).toString());
             reading.setZone(zone);
         }
 
@@ -705,7 +706,7 @@ class AggregateServiceImplTest {
 
         if (zoneKey != null) {
             FarmZoneRef zone = new FarmZoneRef();
-            zone.setId(UUID.nameUUIDFromBytes(zoneKey.getBytes()));
+            zone.setId(UUID.nameUUIDFromBytes(zoneKey.getBytes()).toString());
             aggregate.setZone(zone);
         }
 
@@ -740,7 +741,7 @@ class AggregateServiceImplTest {
 
         if (zoneKey != null) {
             FarmZoneRef zone = new FarmZoneRef();
-            zone.setId(UUID.nameUUIDFromBytes(zoneKey.getBytes()));
+            zone.setId(UUID.nameUUIDFromBytes(zoneKey.getBytes()).toString());
             aggregate.setZone(zone);
         }
 

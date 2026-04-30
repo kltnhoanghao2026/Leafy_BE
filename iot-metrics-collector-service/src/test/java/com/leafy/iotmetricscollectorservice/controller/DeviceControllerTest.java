@@ -10,13 +10,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceConfigResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.GenerateClaimCodeResponse;
+import com.leafy.iotmetricscollectorservice.dto.common.PagedResponse;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryExceptionHandler;
+import com.leafy.iotmetricscollectorservice.model.enums.DeviceStatus;
+import com.leafy.iotmetricscollectorservice.model.enums.ProvisioningStatus;
 import com.leafy.iotmetricscollectorservice.service.DeviceConfigService;
 import com.leafy.iotmetricscollectorservice.service.DeviceConfigPushService;
+import com.leafy.iotmetricscollectorservice.service.DeviceMediaService;
 import com.leafy.iotmetricscollectorservice.service.DeviceService;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,11 +42,14 @@ class DeviceControllerTest {
     @Mock
     private DeviceConfigPushService deviceConfigPushService;
 
+    @Mock
+    private DeviceMediaService deviceMediaService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new DeviceController(deviceService, deviceConfigService, deviceConfigPushService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new DeviceController(deviceService, deviceConfigService, deviceConfigPushService, deviceMediaService))
             .setControllerAdvice(new TelemetryQueryExceptionHandler())
             .build();
     }
@@ -94,7 +100,7 @@ class DeviceControllerTest {
 
     @Test
     void claimDevice_returnsClaimedPayload() throws Exception {
-        UUID userId = UUID.randomUUID();
+        String userId = UUID.randomUUID().toString();
         DeviceResponse response = new DeviceResponse();
         response.setId(UUID.randomUUID());
         response.setDeviceUid("device-001");
@@ -119,27 +125,122 @@ class DeviceControllerTest {
             )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deviceUid").value("device-001"))
-            .andExpect(jsonPath("$.ownerUserId").value(userId.toString()))
+            .andExpect(jsonPath("$.ownerUserId").value(userId))
             .andExpect(jsonPath("$.provisioningStatus").value("CLAIMED"));
     }
 
     @Test
     void getMyDevices_returnsOwnerDevices() throws Exception {
-        UUID userId = UUID.randomUUID();
+        String userId = UUID.randomUUID().toString();
         DeviceResponse response = new DeviceResponse();
         response.setId(UUID.randomUUID());
         response.setDeviceUid("device-001");
+        PagedResponse<DeviceResponse> pagedResponse = new PagedResponse<>(
+            java.util.List.of(response),
+            0,
+            20,
+            1,
+            1,
+            false,
+            false
+        );
 
-        when(deviceService.getDevicesByOwner(userId)).thenReturn(List.of(response));
+        when(deviceService.getDevicesByOwner(
+            userId,
+            0,
+            20,
+            "createdAt",
+            "desc",
+            null,
+            null,
+            null,
+            null,
+            null
+        )).thenReturn(pagedResponse);
 
         mockMvc.perform(get("/iot/devices/me").header(DeviceController.USER_ID_HEADER, userId))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].deviceUid").value("device-001"));
+            .andExpect(jsonPath("$.items[0].deviceUid").value("device-001"))
+            .andExpect(jsonPath("$.page").value(0))
+            .andExpect(jsonPath("$.size").value(20))
+            .andExpect(jsonPath("$.totalItems").value(1));
+    }
+
+    @Test
+    void getMyDevices_passesFiltersAndPagination() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+        String farmPlotId = UUID.randomUUID().toString();
+        PagedResponse<DeviceResponse> pagedResponse = new PagedResponse<>(
+            java.util.List.of(),
+            1,
+            10,
+            0,
+            0,
+            false,
+            true
+        );
+
+        when(deviceService.getDevicesByOwner(
+            userId,
+            1,
+            10,
+            "lastSeenAt",
+            "asc",
+            DeviceStatus.ONLINE,
+            ProvisioningStatus.CLAIMED,
+            zoneId,
+            farmPlotId,
+            "node"
+        )).thenReturn(pagedResponse);
+
+        mockMvc.perform(
+                get("/iot/devices/me")
+                    .header(DeviceController.USER_ID_HEADER, userId)
+                    .param("page", "1")
+                    .param("size", "10")
+                    .param("sortBy", "lastSeenAt")
+                    .param("sortDir", "asc")
+                    .param("status", "ONLINE")
+                    .param("provisioningStatus", "CLAIMED")
+                    .param("zoneId", zoneId)
+                    .param("farmPlotId", farmPlotId)
+                    .param("keyword", "node")
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.page").value(1))
+            .andExpect(jsonPath("$.size").value(10))
+            .andExpect(jsonPath("$.hasPrevious").value(true));
+    }
+
+    @Test
+    void getMyDevices_returnsBusinessErrorWhenSortFieldInvalid() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        when(deviceService.getDevicesByOwner(
+            userId,
+            0,
+            20,
+            "serialNumber",
+            "desc",
+            null,
+            null,
+            null,
+            null,
+            null
+        )).thenThrow(TelemetryQueryException.invalidDeviceSortField("serialNumber"));
+
+        mockMvc.perform(
+                get("/iot/devices/me")
+                    .header(DeviceController.USER_ID_HEADER, userId)
+                    .param("sortBy", "serialNumber")
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(4628));
     }
 
     @Test
     void claimDevice_returnsBusinessErrorWhenCodeInvalid() throws Exception {
-        UUID userId = UUID.randomUUID();
+        String userId = UUID.randomUUID().toString();
         when(deviceService.claimDevice(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
             .thenThrow(TelemetryQueryException.invalidClaimCode("device-001"));
 

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.leafy.iotmetricscollectorservice.dto.dashboard.AlertEventDetailResponse;
 import com.leafy.iotmetricscollectorservice.dto.dashboard.AlertEventItemResponse;
+import com.leafy.iotmetricscollectorservice.dto.common.PagedResponse;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryExceptionHandler;
 import com.leafy.iotmetricscollectorservice.model.enums.AlertSeverity;
@@ -16,7 +17,6 @@ import com.leafy.iotmetricscollectorservice.model.enums.AlertStatus;
 import com.leafy.iotmetricscollectorservice.service.AlertLifecycleService;
 import com.leafy.iotmetricscollectorservice.service.AlertQueryService;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,12 +46,13 @@ class AlertControllerTest {
 
     @Test
     void searchAlerts_returnsFilteredPayload() throws Exception {
-        UUID zoneId = UUID.randomUUID();
+        String zoneId = UUID.randomUUID().toString();
         UUID deviceId = UUID.randomUUID();
         AlertEventItemResponse item = new AlertEventItemResponse();
         item.setId(UUID.randomUUID());
         item.setStatus("OPEN");
         item.setSeverity("HIGH");
+        PagedResponse<AlertEventItemResponse> response = new PagedResponse<>(java.util.List.of(item), 0, 20, 1, 1, false, false);
 
         when(alertQueryService.searchAlerts(
             eq(zoneId),
@@ -59,12 +60,16 @@ class AlertControllerTest {
             eq(AlertStatus.OPEN),
             eq(AlertSeverity.HIGH),
             eq(Instant.parse("2026-04-10T00:00:00Z")),
-            eq(Instant.parse("2026-04-11T00:00:00Z"))
-        )).thenReturn(List.of(item));
+            eq(Instant.parse("2026-04-11T00:00:00Z")),
+            eq(0),
+            eq(20),
+            eq("openedAt"),
+            eq("desc")
+        )).thenReturn(response);
 
         mockMvc.perform(
             get("/iot/alert-events")
-                .param("zoneId", zoneId.toString())
+                .param("zoneId", zoneId)
                 .param("deviceId", deviceId.toString())
                 .param("status", "OPEN")
                 .param("severity", "HIGH")
@@ -72,8 +77,11 @@ class AlertControllerTest {
                 .param("to", "2026-04-11T00:00:00Z")
         )
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].status").value("OPEN"))
-            .andExpect(jsonPath("$[0].severity").value("HIGH"));
+            .andExpect(jsonPath("$.items[0].status").value("OPEN"))
+            .andExpect(jsonPath("$.items[0].severity").value("HIGH"))
+            .andExpect(jsonPath("$.page").value(0))
+            .andExpect(jsonPath("$.size").value(20))
+            .andExpect(jsonPath("$.totalItems").value(1));
     }
 
     @Test

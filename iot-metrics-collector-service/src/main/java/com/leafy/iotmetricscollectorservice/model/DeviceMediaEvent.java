@@ -31,6 +31,16 @@ public class DeviceMediaEvent extends BaseAuditEntity {
 
     private String mediaType;
     private String triggerType;
+    private String status;
+    private String requestId;
+    private String contentType;
+    private Long sizeBytes;
+    private Integer width;
+    private Integer height;
+    private String error;
 
+    private Instant requestedAt;
+    private Instant commandSentAt;
+    private Instant uploadedAt;
     private Instant capturedAt;
 }

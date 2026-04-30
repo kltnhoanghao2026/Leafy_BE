@@ -9,9 +9,9 @@ import java.util.UUID;
 public interface TelemetryQueryService {
     List<LatestReadingItemResponse> getLatestReadingsByDevice(UUID deviceId);
 
-    List<LatestReadingItemResponse> getLatestReadingsByZone(UUID zoneId);
+    List<LatestReadingItemResponse> getLatestReadingsByZone(String zoneId);
 
     SensorChartResponse getDeviceSensorChart(UUID deviceId, String sensorCode, ChartRangeType rangeType);
 
-    SensorChartResponse getZoneSensorChart(UUID zoneId, String sensorCode, ChartRangeType rangeType);
+    SensorChartResponse getZoneSensorChart(String zoneId, String sensorCode, ChartRangeType rangeType);
 }

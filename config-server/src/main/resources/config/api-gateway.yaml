@@ -132,7 +132,7 @@ spring:
             - id: notification-service
               uri: lb://notification-service
               predicates:
-                - Path=/api/notifications/**
+                - Path=/api/push-tokens/**,/api/mailing/**
               filters:
                 - StripPrefix=1
                 - name: CircuitBreaker

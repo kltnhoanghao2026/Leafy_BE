@@ -9,10 +9,10 @@ import lombok.Setter;
 @Setter
 public class DeviceMediaSummaryResponse {
     private UUID mediaEventId;
-    private UUID fileId;
+    private String fileId;
     private String mediaType;
     private String triggerType;
     private Instant capturedAt;
     private UUID deviceId;
-    private UUID zoneId;
+    private String zoneId;
 }

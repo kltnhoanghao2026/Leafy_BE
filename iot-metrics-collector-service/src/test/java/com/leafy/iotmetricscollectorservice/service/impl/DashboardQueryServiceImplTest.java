@@ -66,7 +66,7 @@ class DashboardQueryServiceImplTest {
 
     @Test
     void getZoneOverview_returnsSortedReadingsAlertCountAndLastUpdatedAt() {
-        UUID zoneId = UUID.randomUUID();
+        String zoneId = UUID.randomUUID().toString();
         SensorLatestReading temperature = createLatestReading("soilTemp", "Soil Temperature", "C", 27.5d, "2026-04-10T04:00:00Z");
         SensorLatestReading humidity = createLatestReading("humidity", "Humidity", "%", 65d, "2026-04-10T05:00:00Z");
         DeviceMediaEvent mediaEvent = createMediaEvent(zoneId, UUID.randomUUID());
@@ -99,7 +99,7 @@ class DashboardQueryServiceImplTest {
 
     @Test
     void getZoneOverview_returnsEmptyMonitoringDataWhenNoReadingsExist() {
-        UUID zoneId = UUID.randomUUID();
+        String zoneId = UUID.randomUUID().toString();
         when(sensorLatestReadingRepository.findAllByZoneId(zoneId)).thenReturn(List.of());
         when(alertEventRepository.countByZoneIdAndStatus(zoneId, AlertStatus.OPEN))
             .thenReturn(0L);
@@ -125,7 +125,7 @@ class DashboardQueryServiceImplTest {
 
     @Test
     void getFarmOverview_returnsDashboardCounts() {
-        UUID farmPlotId = UUID.randomUUID();
+        String farmPlotId = UUID.randomUUID().toString();
         Instant lastSeenAt = Instant.parse("2026-04-10T06:00:00Z");
 
         when(ioTDeviceRepository.countByFarmPlotId(farmPlotId)).thenReturn(8L);
@@ -260,20 +260,20 @@ class DashboardQueryServiceImplTest {
         device.setLastSeenAt(Instant.parse("2026-04-10T06:06:00Z"));
 
         UserRef owner = new UserRef();
-        owner.setId(UUID.randomUUID());
+        owner.setId(UUID.randomUUID().toString());
         device.setOwnerUser(owner);
 
         FarmPlotRef farmPlot = new FarmPlotRef();
-        farmPlot.setId(UUID.randomUUID());
+        farmPlot.setId(UUID.randomUUID().toString());
         device.setFarmPlot(farmPlot);
 
         FarmZoneRef zone = new FarmZoneRef();
-        zone.setId(UUID.randomUUID());
+        zone.setId(UUID.randomUUID().toString());
         device.setZone(zone);
         return device;
     }
 
-    private DeviceMediaEvent createMediaEvent(UUID zoneId, UUID deviceId) {
+    private DeviceMediaEvent createMediaEvent(String zoneId, UUID deviceId) {
         DeviceMediaEvent mediaEvent = new DeviceMediaEvent();
         mediaEvent.setId(UUID.randomUUID());
         mediaEvent.setCapturedAt(Instant.parse("2026-04-10T06:08:00Z"));
@@ -289,7 +289,7 @@ class DashboardQueryServiceImplTest {
         mediaEvent.setZone(zone);
 
         FileRef file = new FileRef();
-        file.setId(UUID.randomUUID());
+        file.setId(UUID.randomUUID().toString());
         mediaEvent.setFile(file);
         return mediaEvent;
     }

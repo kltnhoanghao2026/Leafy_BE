@@ -4,6 +4,7 @@ import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.leafy.iotmetricscollectorservice.service.DeviceConfigAckService;
+import com.leafy.iotmetricscollectorservice.service.DeviceMediaService;
 import com.leafy.iotmetricscollectorservice.service.DeviceStatusIngestService;
 import com.leafy.iotmetricscollectorservice.service.TelemetryIngestService;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,9 @@ class MqttInboundMessageHandlerTest {
     @Mock
     private DeviceConfigAckService deviceConfigAckService;
 
+    @Mock
+    private DeviceMediaService deviceMediaService;
+
     private MqttInboundMessageHandler mqttInboundMessageHandler;
 
     @BeforeEach
@@ -34,7 +38,8 @@ class MqttInboundMessageHandlerTest {
             JsonMapper.builder().findAndAddModules().build(),
             telemetryIngestService,
             deviceStatusIngestService,
-            deviceConfigAckService
+            deviceConfigAckService,
+            deviceMediaService
         );
     }
 

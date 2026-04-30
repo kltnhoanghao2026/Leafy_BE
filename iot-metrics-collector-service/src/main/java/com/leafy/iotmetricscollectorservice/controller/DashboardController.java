@@ -21,12 +21,12 @@ public class DashboardController {
     private final DashboardQueryService dashboardQueryService;
 
     @GetMapping("/farm-zones/{zoneId}/overview")
-    public ResponseEntity<ZoneOverviewResponse> getZoneOverview(@PathVariable UUID zoneId) {
+    public ResponseEntity<ZoneOverviewResponse> getZoneOverview(@PathVariable String zoneId) {
         return ResponseEntity.ok(dashboardQueryService.getZoneOverview(zoneId));
     }
 
     @GetMapping("/dashboard/overview")
-    public ResponseEntity<DashboardOverviewResponse> getFarmOverview(@RequestParam UUID farmPlotId) {
+    public ResponseEntity<DashboardOverviewResponse> getFarmOverview(@RequestParam String farmPlotId) {
         return ResponseEntity.ok(dashboardQueryService.getFarmOverview(farmPlotId));
     }
 

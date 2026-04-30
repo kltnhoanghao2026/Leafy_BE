@@ -5,8 +5,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leafy.iotmetricscollectorservice.dto.ingest.StatusPayload;
 import com.leafy.iotmetricscollectorservice.dto.ingest.TelemetryPayload;
+import com.leafy.iotmetricscollectorservice.dto.media.ImageMetaPayload;
 import com.leafy.iotmetricscollectorservice.integration.mqtt.util.MqttTopicParser;
 import com.leafy.iotmetricscollectorservice.service.DeviceConfigAckService;
+import com.leafy.iotmetricscollectorservice.service.DeviceMediaService;
 import com.leafy.iotmetricscollectorservice.service.DeviceStatusIngestService;
 import com.leafy.iotmetricscollectorservice.service.TelemetryIngestService;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +29,7 @@ public class MqttInboundMessageHandler implements MessageHandler {
     private final TelemetryIngestService telemetryIngestService;
     private final DeviceStatusIngestService deviceStatusIngestService;
     private final DeviceConfigAckService deviceConfigAckService;
+    private final DeviceMediaService deviceMediaService;
 
     @Override
     public void handleMessage(Message<?> message) {
@@ -55,10 +58,7 @@ public class MqttInboundMessageHandler implements MessageHandler {
             switch (messageType) {
                 case "telemetry" -> handleTelemetry(deviceUid, payloadText, topic);
                 case "status" -> handleStatus(deviceUid, payloadText, topic);
-                case "image/meta" -> log.info(
-                        "Received image metadata event. topic={}, deviceUid={}, payload={}",
-                        topic, deviceUid, payloadText
-                );
+                case "image/meta" -> handleImageMeta(deviceUid, payloadText, topic);
                 case "ack" -> handleAck(deviceUid, payloadText, topic);
                 default -> log.warn(
                         "Unhandled MQTT message type. topic={}, deviceUid={}, messageType={}, payload={}",
@@ -90,6 +90,12 @@ public class MqttInboundMessageHandler implements MessageHandler {
         ConfigAckPayload payload = objectMapper.readValue(payloadText, ConfigAckPayload.class);
         deviceConfigAckService.handleConfigAck(deviceUid, payload);
         log.info("Ack processed successfully. topic={}, deviceUid={}", topic, deviceUid);
+    }
+
+    private void handleImageMeta(String deviceUid, String payloadText, String topic) throws JsonProcessingException {
+        ImageMetaPayload payload = objectMapper.readValue(payloadText, ImageMetaPayload.class);
+        deviceMediaService.handleImageMeta(deviceUid, payload);
+        log.info("Image metadata processed. topic={}, deviceUid={}, requestId={}", topic, deviceUid, payload.getRequestId());
     }
 
     private String getHeaderAsString(Message<?> message, String headerName) {

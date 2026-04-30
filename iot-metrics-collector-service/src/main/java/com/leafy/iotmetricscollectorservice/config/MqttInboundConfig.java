@@ -24,7 +24,6 @@ import org.springframework.messaging.MessageHandler;
 public class MqttInboundConfig {
 
     private final MqttProperties mqttProperties;
-    private final MqttInboundMessageHandler mqttInboundMessageHandler;
 
     @Bean
     public MqttConnectOptions mqttConnectOptions() {
@@ -94,7 +93,7 @@ public class MqttInboundConfig {
 
     @Bean
     @ServiceActivator(inputChannel = "mqttInputChannel")
-    public MessageHandler mqttMessageHandler() {
+    public MessageHandler mqttMessageHandler(MqttInboundMessageHandler mqttInboundMessageHandler) {
         return mqttInboundMessageHandler;
     }
 

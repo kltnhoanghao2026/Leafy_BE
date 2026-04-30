@@ -19,9 +19,9 @@ public class DeviceDetailResponse {
     private String status;
     private String provisioningStatus;
     private Boolean isActive;
-    private UUID ownerUserId;
-    private UUID farmPlotId;
-    private UUID zoneId;
+    private String ownerUserId;
+    private String farmPlotId;
+    private String zoneId;
     private Instant lastSeenAt;
     private AlertSummaryResponse alertSummary;
     private DeviceConfigSnapshotResponse config;
