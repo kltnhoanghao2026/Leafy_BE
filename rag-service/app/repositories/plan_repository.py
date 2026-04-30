@@ -8,12 +8,12 @@ from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "treatment_plans"
+COLLECTION_NAME = "plans"
 
 
-class TreatmentPlanRepository:
+class PlanRepository:
     """
-    Repository for TreatmentPlan MongoDB documents.
+    Repository for Plan MongoDB documents.
     Follows the same pattern as DiagnoseRepository in disease-detection-service.
     """
 
@@ -30,22 +30,22 @@ class TreatmentPlanRepository:
                 instance._collection.create_index([("userId", pymongo.ASCENDING)])
                 instance._collection.create_index([("planId", pymongo.ASCENDING)], unique=True)
                 logger.info(
-                    "TreatmentPlanRepository connected to MongoDB database '%s', collection '%s'",
+                    "PlanRepository connected to MongoDB database '%s', collection '%s'",
                     settings.MONGODB_DATABASE_RAG,
                     COLLECTION_NAME,
                 )
                 cls._instance = instance
             except Exception as e:
-                logger.error("TreatmentPlanRepository failed to initialize: %s", e)
+                logger.error("PlanRepository failed to initialize: %s", e)
                 raise RuntimeError(f"MongoDB connection failed: {e}") from e
         return cls._instance
 
     # ─────────────────────────────────────────────────────────────────────────
 
     def save_plan(self, doc: Dict[str, Any]) -> str:
-        """Insert a TreatmentPlan document. Returns the planId."""
+        """Insert a Plan document. Returns the planId."""
         self._collection.insert_one(doc)
-        logger.info("TreatmentPlan saved — planId=%s, userId=%s", doc.get("planId"), doc.get("userId"))
+        logger.info("Plan saved — planId=%s, userId=%s", doc.get("planId"), doc.get("userId"))
         return doc["planId"]
 
     def find_by_user(
@@ -82,9 +82,9 @@ class TreatmentPlanRepository:
         result = self._collection.delete_one({"planId": plan_id})
         deleted = result.deleted_count > 0
         if deleted:
-            logger.info("TreatmentPlan deleted — planId=%s", plan_id)
+            logger.info("Plan deleted — planId=%s", plan_id)
         return deleted
 
 
-def get_treatment_plan_repository() -> TreatmentPlanRepository:
-    return TreatmentPlanRepository()
+def get_plan_repository() -> PlanRepository:
+    return PlanRepository()

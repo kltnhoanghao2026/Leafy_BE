@@ -32,6 +32,7 @@ public record ChatNotification(
                 Integer unreadCount,
                 ReplyMetadataResponse replyTo,
                 boolean isForwarded,
+                boolean isEdited,
                 boolean isFromMe,
                 MessageStatus status,
                 Map<String, Object> metadata,

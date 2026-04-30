@@ -3,6 +3,7 @@ package com.leafy.messageservice.controller;
 import com.leafy.common.dto.ApiResponse;
 import com.leafy.messageservice.dto.response.PageResponse;
 import com.leafy.messageservice.dto.request.MessageSendRequest;
+import com.leafy.messageservice.dto.request.MessageEditRequest;
 import com.leafy.messageservice.dto.request.ReactionRequest;
 import com.leafy.messageservice.dto.response.MessageResponse;
 import com.leafy.messageservice.dto.response.CursorPageResponse;
@@ -71,6 +72,15 @@ public class MessageController {
     @Operation(summary = "Revoke a message (sender only)")
     public ResponseEntity<ApiResponse<Void>> revokeMessage(@PathVariable String messageId) {
         messageService.revokeMessage(messageId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @PutMapping("/messages/{messageId}")
+    @Operation(summary = "Edit a message (sender only)")
+    public ResponseEntity<ApiResponse<Void>> editMessage(
+            @PathVariable String messageId,
+            @Valid @RequestBody MessageEditRequest request) {
+        messageService.editMessage(messageId, request);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 

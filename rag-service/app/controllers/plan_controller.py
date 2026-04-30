@@ -8,7 +8,7 @@ from app.dto.response.api_response import ApiResponse
 from app.exceptions.app_exception import AppException
 from app.exceptions.error_code import ErrorCode
 from app.i18n import get_message, resolve_locale
-from app.repositories.treatment_plan_repository import get_treatment_plan_repository
+from app.repositories.plan_repository import get_plan_repository
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ router = APIRouter()
         401: {"description": "Authentication required."},
     },
 )
-async def list_treatment_plans(
+async def list_plans(
     request: Request,
     page: int = Query(0, ge=0, description="Zero-based page number."),
     size: int = Query(20, ge=1, le=100, description="Number of plans per page."),
@@ -35,7 +35,7 @@ async def list_treatment_plans(
     - **ADMIN** users see all plans.
     - **USER** role sees only their own plans.
     """
-    repo = get_treatment_plan_repository()
+    repo = get_plan_repository()
     skip = page * size
 
     is_admin = "ROLE_ADMIN" in current_user.roles
@@ -58,21 +58,21 @@ async def list_treatment_plans(
         403: {"description": "Access denied."},
     },
 )
-async def get_treatment_plan(
+async def get_plan(
     request: Request,
     plan_id: str,
     current_user: UserPrincipal = Depends(get_current_user),
 ):
-    """Retrieve a single TreatmentPlan by its UUID. Owner or ADMIN only."""
-    repo = get_treatment_plan_repository()
+    """Retrieve a single Plan by its UUID. Owner or ADMIN only."""
+    repo = get_plan_repository()
     plan = repo.find_by_id(plan_id)
 
     if not plan:
-        raise AppException(ErrorCode.TREATMENT_PLAN_NOT_FOUND)
+        raise AppException(ErrorCode.PLAN_NOT_FOUND)
 
     is_admin = "ROLE_ADMIN" in current_user.roles
     if not is_admin and plan.get("userId") != current_user.id:
-        raise AppException(ErrorCode.TREATMENT_PLAN_ACCESS_DENIED)
+        raise AppException(ErrorCode.PLAN_ACCESS_DENIED)
 
     locale = resolve_locale(request)
     return ApiResponse.success(result=plan, locale=locale)
@@ -88,24 +88,24 @@ async def get_treatment_plan(
         403: {"description": "Access denied."},
     },
 )
-async def delete_treatment_plan(
+async def delete_plan(
     request: Request,
     plan_id: str,
     current_user: UserPrincipal = Depends(get_current_user),
 ):
-    """Hard-delete a TreatmentPlan. Owner or ADMIN only."""
-    repo = get_treatment_plan_repository()
+    """Hard-delete a Plan. Owner or ADMIN only."""
+    repo = get_plan_repository()
     plan = repo.find_by_id(plan_id)
 
     if not plan:
-        raise AppException(ErrorCode.TREATMENT_PLAN_NOT_FOUND)
+        raise AppException(ErrorCode.PLAN_NOT_FOUND)
 
     is_admin = "ROLE_ADMIN" in current_user.roles
     if not is_admin and plan.get("userId") != current_user.id:
-        raise AppException(ErrorCode.TREATMENT_PLAN_ACCESS_DENIED)
+        raise AppException(ErrorCode.PLAN_ACCESS_DENIED)
 
     repo.delete_by_id(plan_id)
-    logger.info("TreatmentPlan deleted — planId=%s, by userId=%s", plan_id, current_user.id)
+    logger.info("Plan deleted — planId=%s, by userId=%s", plan_id, current_user.id)
     locale = resolve_locale(request)
     return ApiResponse.success(
         message=get_message("response.treatment.plan.deleted", locale),

@@ -188,10 +188,10 @@ spring:
                     fallbackUri: forward:/fallback/plant-management-service
 
             # Treatment Plan Routes (Plant Management)
-            - id: treatment-plans-service
+            - id: plans-service
               uri: lb://plant-management-service
               predicates:
-                - Path=/api/treatment-plans/**
+                - Path=/api/plans/**
               filters:
                 - StripPrefix=1
                 - name: CircuitBreaker

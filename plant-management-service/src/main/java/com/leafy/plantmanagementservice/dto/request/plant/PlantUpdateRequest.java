@@ -32,4 +32,5 @@ public class PlantUpdateRequest {
 
     String speciesId;
     String farmPlotId;
+    String farmZoneId;
 }

@@ -51,21 +51,46 @@ public class PlantController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<PlantResponse>>> getAllPlants(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESC") String sortDir,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String farmPlotId,
+            @RequestParam(required = false) String farmZoneId,
+            @RequestParam(required = false) String speciesId,
             @RequestParam(required = false) PlantStatus status) {
-        log.info("GET /plants - Getting all plants with pagination, status={}", status);
+        log.info("GET /plants - Getting all plants with filters: search={}, farmPlotId={}, farmZoneId={}, speciesId={}, status={}", search, farmPlotId, farmZoneId, speciesId, status);
 
         Sort sort = sortDir.equalsIgnoreCase("ASC")
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<PlantResponse> response = plantService.getAllPlants(status, pageable);
+        Page<PlantResponse> response = plantService.getAllPlants(search, farmPlotId, farmZoneId, speciesId, status, pageable);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<Page<PlantResponse>>> getMyPlants(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String farmPlotId,
+            @RequestParam(required = false) String farmZoneId,
+            @RequestParam(required = false) String speciesId,
+            @RequestParam(required = false) PlantStatus status) {
+        log.info("GET /plants/me - Getting my plants with filters: search={}, farmPlotId={}, farmZoneId={}, speciesId={}, status={}", search, farmPlotId, farmZoneId, speciesId, status);
+
+        Sort sort = sortDir.equalsIgnoreCase("ASC")
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<PlantResponse> response = plantService.getMyPlants(search, farmPlotId, farmZoneId, speciesId, status, pageable);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

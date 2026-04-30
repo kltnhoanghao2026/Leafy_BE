@@ -17,6 +17,7 @@ public class KafkaTopicProperties {
     private CommunityEvents communityEvents = new CommunityEvents();
     private ProfileEvents profileEvents = new ProfileEvents();
     private SocketEvents socketEvents = new SocketEvents();
+    private SystemEvents systemEvents = new SystemEvents();
 
     @Getter
     @Setter
@@ -50,7 +51,7 @@ public class KafkaTopicProperties {
     @Getter
     @Setter
     public static class SystemEvents {
-
+        private String planApplied = "system.plan.applied";
     }
 
     @Getter

@@ -1,4 +1,4 @@
-package com.leafy.notificationservice.controller;
+package com.leafy.notificationservice.controller.internal;
 
 import com.leafy.notificationservice.dto.TestPushRequest;
 import com.leafy.notificationservice.service.PushDeliveryException;

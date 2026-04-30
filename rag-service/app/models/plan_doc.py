@@ -7,17 +7,17 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
-class TreatmentPlanDoc(BaseModel):
+class PlanDoc(BaseModel):
     """
-    MongoDB document model for a persisted TreatmentPlan.
+    MongoDB document model for a persisted Plan.
     Mirrors the pattern used by DiagnoseRequest / DiagnoseResult in disease-detection-service.
     """
 
     planId: str = Field(default_factory=lambda: str(uuid.uuid4()))
     userId: str = Field(..., description="ID of the user who triggered the plan generation.")
     question: str = Field(..., description="Original user question that produced this plan.")
-    plantId: Optional[str] = Field(None, description="Plant ID extracted from the TreatmentPlan.")
-    diseaseName: Optional[str] = Field(None, description="Disease name from the TreatmentPlan.")
+    plantId: Optional[str] = Field(None, description="Plant ID extracted from the Plan.")
+    diseaseName: Optional[str] = Field(None, description="Disease name from the Plan.")
     severityLevel: Optional[str] = Field(None)
     urgency: Optional[str] = Field(None)
     source: Optional[Literal["websearch", "documents"]] = Field(
@@ -27,7 +27,7 @@ class TreatmentPlanDoc(BaseModel):
             "Accepted values: `websearch`, `documents`."
         ),
     )
-    plan: Dict[str, Any] = Field(..., description="Full serialized TreatmentPlan object.")
+    plan: Dict[str, Any] = Field(..., description="Full serialized Plan object.")
     source_documents: Optional[List[Dict[str, Any]]] = Field(
         None,
         description=(

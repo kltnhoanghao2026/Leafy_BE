@@ -170,6 +170,9 @@ public class AuthServiceImpl implements AuthService {
             if (profileResponse != null && profileResponse.data() != null) {
                 profileId = profileResponse.data().getId();
                 log.info("Profile created synchronously for user: {}", savedUser.getId());
+                // Cache profileId on the User document to avoid cross-service lookups later
+                savedUser.setProfileId(profileId);
+                userRepository.save(savedUser);
             }
         } catch (Exception e) {
             log.error("Failed to create profile synchronously for user {}: {}", savedUser.getId(), e.getMessage());
@@ -243,7 +246,7 @@ public class AuthServiceImpl implements AuthService {
                 request.getAppVersion(),
                 response,
                 "Login successful",
-                null
+                user.getProfileId()  // read directly from User — zero extra latency
         );
     }
 
@@ -294,7 +297,7 @@ public class AuthServiceImpl implements AuthService {
 
         blacklistService.blacklistRefreshToken(payload.getJti());
 
-        String newAccessToken = jwtService.generateAccessToken(user, deviceId);
+        String newAccessToken = jwtService.generateAccessToken(user, deviceId, user.getProfileId());
         String newRefreshToken = jwtService.generateRefreshToken(user, deviceId);
         String newAccessTokenJti = jwtService.extractJti(newAccessToken);
         String newRefreshTokenJti = jwtService.extractJti(newRefreshToken);

@@ -25,8 +25,8 @@ class ErrorCode(Enum):
     RAG_PIPELINE_ERROR = (4301, "error.rag.pipeline", 500)
 
     # ── Treatment Plan ────────────────────────────────────────────────────────
-    TREATMENT_PLAN_NOT_FOUND = (4401, "error.treatment.plan.not.found", 404)
-    TREATMENT_PLAN_ACCESS_DENIED = (4403, "error.treatment.plan.access.denied", 403)
+    PLAN_NOT_FOUND = (4401, "error.treatment.plan.not.found", 404)
+    PLAN_ACCESS_DENIED = (4403, "error.treatment.plan.access.denied", 403)
 
     # ── Conversation ─────────────────────────────────────────────────────────
     CONVERSATION_NOT_FOUND = (4501, "error.conversation.not.found", 404)

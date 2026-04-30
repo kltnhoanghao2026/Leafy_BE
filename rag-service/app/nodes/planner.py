@@ -1,7 +1,7 @@
 """
 General Planner Node
 
-Generates a structured, chronological agronomic action schedule (TreatmentPlan)
+Generates a structured, chronological agronomic action schedule (Plan)
 for coffee operations including routine care, treatment, pruning/denoting,
 and seasonal field activities using retrieved knowledge and Gemini Pro.
 
@@ -17,14 +17,14 @@ from langchain_core.messages import AIMessage
 
 from app.agents.rag_state import GraphState
 from app.core.ai_providers import get_gemini_pro
-from app.schemas import TreatmentPlan
+from app.schemas import Plan
 
 logger = logging.getLogger(__name__)
 
 
 def planner(state: GraphState) -> dict:
     """
-    Generate a structured TreatmentPlan from retrieved agronomic documents.
+    Generate a structured Plan from retrieved agronomic documents.
 
     Uses Gemini Pro with structured output (via Pydantic) to produce a
     chronological list of PlantEvent objects that map directly to the
@@ -39,7 +39,7 @@ def planner(state: GraphState) -> dict:
 
     Returns:
         Updated state with:
-          - `generated_plan`: dict (serialized TreatmentPlan incl. calculated dates)
+          - `generated_plan`: dict (serialized Plan incl. calculated dates)
           - `plant_id`: str extracted by the LLM from the question
     """
     question = state["question"]
@@ -55,7 +55,7 @@ def planner(state: GraphState) -> dict:
         return {"generated_plan": None, "plant_id": None}
 
     llm = get_gemini_pro(temperature=0)
-    structured_llm = llm.with_structured_output(TreatmentPlan)
+    structured_llm = llm.with_structured_output(Plan)
 
     docs_context = "\n---\n".join(
         f"Agronomic Source {i + 1}:\n{doc.page_content}"
@@ -204,11 +204,11 @@ Agronomic Knowledge (from knowledge base):
 User Query:
 {question}
 
-Generate the complete TreatmentPlan object now.
+Generate the complete Plan object now.
 IMPORTANT: The entire output, including plan descriptions, notes, and ALL events MUST be detailed in the following language: {language}."""
 
     try:
-        plan: TreatmentPlan = structured_llm.invoke(prompt)
+        plan: Plan = structured_llm.invoke(prompt)
     except Exception as e:
         logger.error("[GENERAL PLANNER] Structured output failed: %s", e, exc_info=True)
         return {"generated_plan": None, "plant_id": None}
@@ -264,4 +264,4 @@ IMPORTANT: The entire output, including plan descriptions, notes, and ALL events
 
 
 # Backward-compatible alias for existing imports.
-treatment_planner = planner
+planner = planner

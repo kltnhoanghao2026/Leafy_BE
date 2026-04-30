@@ -1,4 +1,4 @@
-package com.leafy.plantmanagementservice.dto.request.treatmentplan;
+package com.leafy.plantmanagementservice.dto.request.plan;
 
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventCreateRequest;
 import jakarta.validation.Valid;
@@ -15,13 +15,16 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class TreatmentPlanCreateRequest {
+public class PlanCreateRequest {
 
-    /** UUID from the RAG service TreatmentPlanDoc — links both records. */
+    /** UUID from the RAG service PlanDoc — links both records. */
     String ragPlanId;
 
     /** Original natural-language question the user sent to the RAG service. */
     String question;
+
+    /** Custom name for the plan */
+    String planName;
 
     @Pattern(regexp = "^(websearch|documents)$", message = "source must be one of: websearch, documents")
     String source;

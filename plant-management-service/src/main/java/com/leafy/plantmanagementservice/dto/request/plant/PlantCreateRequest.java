@@ -41,4 +41,6 @@ public class PlantCreateRequest {
 
     @NotBlank(message = "Farm plot ID is required")
     String farmPlotId;
+
+    String farmZoneId;
 }

@@ -47,7 +47,7 @@ public enum ErrorCode {
         PLANT_NOT_FOUND(HttpStatus.NOT_FOUND, 2017, "error.plant.not.found"),
         SPECIES_NOT_FOUND(HttpStatus.NOT_FOUND, 2018, "error.species.not.found"),
         PLANT_EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, 2019, "error.plant.event.not.found"),
-        TREATMENT_PLAN_NOT_FOUND(HttpStatus.NOT_FOUND, 2020, "error.treatment.plan.not.found"),
+        PLAN_NOT_FOUND(HttpStatus.NOT_FOUND, 2020, "error.treatment.plan.not.found"),
 
         // Role and permission errors (21xx)
         ROLE_NOT_FOUND(HttpStatus.NOT_FOUND, 2101, "error.role.not.found"),

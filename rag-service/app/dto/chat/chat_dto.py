@@ -49,7 +49,7 @@ class ChatResponse(BaseModel):
         None,
         description="Source document chunks used to ground the answer.",
     )
-    treatment_plan: Optional[Dict[str, Any]] = Field(
+    plan: Optional[Dict[str, Any]] = Field(
         None,
         description="Structured treatment plan if a planning request was made.",
     )
@@ -63,5 +63,5 @@ class ChatResponse(BaseModel):
     )
     saved_plan_id: Optional[str] = Field(
         None,
-        description="MongoDB document ID of the saved TreatmentPlan, if one was generated.",
+        description="MongoDB document ID of the saved Plan, if one was generated.",
     )

@@ -41,7 +41,7 @@ class GraphState(TypedDict, total=False):
         regulatory_flags: Compliance violation flags
         
         # Phase 5: Treatment Planning
-        generated_plan: Serialized TreatmentPlan dict (with calculated dates)
+        generated_plan: Serialized Plan dict (with calculated dates)
         plant_id: Plant ID extracted by the planner from the user query
     """
     # Conversation history — add_messages reducer APPENDS rather than overwrites

@@ -1,4 +1,4 @@
-package com.leafy.plantmanagementservice.dto.response.treatmentplan;
+package com.leafy.plantmanagementservice.dto.response.plan;
 
 import com.leafy.plantmanagementservice.model.enums.TreatmentStatus;
 import lombok.*;
@@ -13,13 +13,14 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class TreatmentPlanResponse {
+public class PlanResponse {
 
     String id;
 
     // ── Source tracking ───────────────────────────────────────────────────────
     String userId;
     String ragPlanId;
+    String planName;
     String question;
     String source;
 
@@ -45,6 +46,7 @@ public class TreatmentPlanResponse {
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     TreatmentStatus status;
+    Integer applyCount;
 
     // ── Audit fields (BaseModel) ──────────────────────────────────────────────
     LocalDateTime createdAt;

@@ -26,6 +26,10 @@ public class PlantSeederResponse {
     long deletedEventCount;
     int seededEventCount;
 
+    // Treatment Plans
+    long deletedPlanCount;
+    int seededPlanCount;
+
     // Source data used
     int sourceFarmPlotCount;
     int sourceFarmZoneCount;

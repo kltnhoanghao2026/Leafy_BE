@@ -1,6 +1,7 @@
 package com.leafy.messageservice.service.message;
 
 import com.leafy.messageservice.dto.response.PageResponse;
+import com.leafy.messageservice.dto.request.MessageEditRequest;
 import com.leafy.messageservice.dto.request.MessageSendRequest;
 import com.leafy.messageservice.dto.response.MessageResponse;
 import com.leafy.messageservice.dto.response.CursorPageResponse;
@@ -31,6 +32,11 @@ public interface MessageService {
      * Thu hồi tin nhắn (chỉ người gửi).
      */
     void revokeMessage(String messageId);
+
+    /**
+     * Sửa tin nhắn (chỉ người gửi).
+     */
+    void editMessage(String messageId, MessageEditRequest request);
 
     /**
      * Xóa tin nhắn chỉ phía mình.

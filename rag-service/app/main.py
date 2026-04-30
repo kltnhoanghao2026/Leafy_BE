@@ -47,7 +47,7 @@ from app.exceptions.global_exception_handler import register_exception_handlers
 from app.controllers.chat_controller import router as chat_router
 from app.controllers.ingestion_controller import router as ingestion_router
 from app.controllers.conversation_controller import router as conversation_router
-from app.controllers.treatment_plan_controller import router as treatment_plan_router
+from app.controllers.plan_controller import router as plan_router
 import app.agents.rag_agent as rag_agent_module
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
@@ -102,7 +102,7 @@ tags_metadata = [
     },
     {
         "name": "Treatment Plans",
-        "description": "CRUD endpoints for persisted TreatmentPlan documents.",
+        "description": "CRUD endpoints for persisted Plan documents.",
     },
     {
         "name": "Conversations",
@@ -128,7 +128,7 @@ app = FastAPI(
         "                          ├── Hybrid Search (Dense + BM25)\n"
         "                          ├── Cross-Encoder Reranking\n"
         "                          └── Grounded Generation (Gemini / GPT)\n"
-        "                              └── TreatmentPlan → MongoDB (leafy_rag)\n"
+        "                              └── Plan → MongoDB (leafy_rag)\n"
         "```\n\n"
         "### Authentication\n"
         "All endpoints require `X-User-Id` and `X-User-Email` headers (set by the API Gateway).\n\n"
@@ -161,7 +161,7 @@ register_exception_handlers(app)
 # ── Routers ──────────────────────────────────────────────────────────────────
 app.include_router(ingestion_router, prefix="/rag/v1", tags=["Ingestion"])
 app.include_router(chat_router, prefix="/rag/v1", tags=["Chat"])
-app.include_router(treatment_plan_router, prefix="/rag/v1/treatment-plans", tags=["Treatment Plans"])
+app.include_router(plan_router, prefix="/rag/v1/plans", tags=["Treatment Plans"])
 app.include_router(conversation_router, prefix="/rag/v1/conversations", tags=["Conversations"])
 
 

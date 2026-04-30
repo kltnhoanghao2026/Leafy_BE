@@ -23,6 +23,7 @@ import com.leafy.messageservice.repository.MessageRepository;
 import com.leafy.messageservice.repository.ChatUserRepository;
 import com.leafy.messageservice.service.conversation.ConversationService;
 import com.leafy.messageservice.dto.request.AttachmentRequest;
+import com.leafy.messageservice.dto.request.MessageEditRequest;
 import com.leafy.messageservice.dto.request.MessageSendRequest;
 
 import com.leafy.common.config.kafka.KafkaTopicProperties;
@@ -442,6 +443,54 @@ public class MessageServiceImpl implements MessageService {
 
         updateLastMessageStatus(message, MessageStatus.REVOKED);
         broadcastStatusChange(message.getConversationId(), messageId, MessageStatus.REVOKED);
+    }
+
+    @Override
+    public void editMessage(String messageId, MessageEditRequest request) {
+        String currentUserId = securityUtil.getCurrentUserId();
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        if (!message.getSenderId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        if (message.getStatus() == MessageStatus.REVOKED || message.getStatus() == MessageStatus.DELETED_BY_ADMIN) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        if (message.getCreatedAt().isBefore(LocalDateTime.now().minusHours(24))) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        message.setContent(request.content());
+        message.setEdited(true);
+        messageRepository.save(message);
+
+        // Update lastMessage if this is the last message
+        Query query = new Query(Criteria.where("id").is(message.getConversationId())
+                .and("lastMessage.messageId").is(message.getId()));
+        Update update = new Update()
+                .set("lastMessage.content", request.content());
+        mongoTemplate.updateFirst(query, update, Conversation.class);
+
+        // Broadcast the edit update
+        Conversation conversation = conversationRepository.findById(message.getConversationId()).orElse(null);
+        if (conversation != null) {
+            for (ConversationMember member : conversation.getMembers()) {
+                if (Boolean.FALSE.equals(member.getActive())) continue;
+
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("type", "MESSAGE_EDIT_UPDATE");
+                payload.put("conversationId", conversation.getId());
+                payload.put("messageId", messageId);
+                payload.put("content", request.content());
+
+                kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
+                        new SocketEvent(SocketEventType.MESSAGE, member.getUserId(),
+                                "/queue/status-updates", payload));
+            }
+        }
     }
 
     @Override

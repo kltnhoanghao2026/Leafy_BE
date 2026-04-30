@@ -39,6 +39,9 @@ public class Message extends BaseModel {
     boolean isForwarded = false;
 
     @Builder.Default
+    boolean isEdited = false;
+
+    @Builder.Default
     MessageStatus status = MessageStatus.NORMAL;
 
     Map<String, Object> metadata; // system message action data

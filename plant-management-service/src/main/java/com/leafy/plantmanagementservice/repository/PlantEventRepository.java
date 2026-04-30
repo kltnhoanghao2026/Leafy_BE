@@ -35,4 +35,7 @@ public interface PlantEventRepository extends MongoRepository<PlantEvent, String
 
     List<PlantEvent> findByPlantIdAndCalculatedStartDateLessThanEqualAndCalculatedEndDateGreaterThanEqual(
             String plantId, LocalDate rangeEnd, LocalDate rangeStart);
+
+    List<PlantEvent> findByFarmPlotIdInAndCalculatedStartDateLessThanEqualAndCalculatedEndDateGreaterThanEqual(
+            List<String> farmPlotIds, LocalDate rangeEnd, LocalDate rangeStart);
 }

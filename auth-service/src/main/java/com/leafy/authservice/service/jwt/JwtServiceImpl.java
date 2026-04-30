@@ -5,7 +5,6 @@ import com.leafy.authservice.enums.TokenType;
 import com.leafy.authservice.model.User;
 import com.leafy.common.enums.Role;
 import com.leafy.common.utils.JwtUtil;
-import com.leafy.authservice.client.ProfileServiceClient;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -25,26 +24,10 @@ import java.util.UUID;
 public class JwtServiceImpl implements JwtService {
     
     JwtUtil jwtUtil;
-    ProfileServiceClient profileServiceClient;
     
     @Override
     public String generateAccessToken(User user, String deviceId, String profileId) {
         String sessionId = UUID.randomUUID().toString();
-        if (profileId == null) {
-            try {
-                var response = profileServiceClient.getProfileByUserId(
-                        user.getId(), 
-                        user.getId(), 
-                        user.getEmail(), 
-                        user.getRole() != null ? user.getRole().name() : "USER");
-                if (response != null && response.data() != null) {
-                    profileId = response.data().getId();
-                }
-            } catch (Exception e) {
-                log.warn("Failed to fetch profileId for user {} during token generation: {}", user.getId(), e.getMessage());
-            }
-        }
-        
         return jwtUtil.generateAccessToken(user.getId(), user.getEmail(), user.getRole(), sessionId, deviceId, profileId);
     }
 

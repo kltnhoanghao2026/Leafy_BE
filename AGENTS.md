@@ -197,7 +197,7 @@ docker compose up -d api-gateway
 - **Schemas / DTOs**: Define all request and response models as `pydantic.BaseModel` subclasses in `app/dto/` or `app/schemas.py`.
 - **Type hints**: Required on every function signature — parameters, return types, and local variables where the type isn't obvious.
   ```python
-  async def get_treatment_plan(plan_id: str) -> TreatmentPlanResponse:
+  async def get_plan(plan_id: str) -> PlanResponse:
       ...
   ```
 - **Routers**: Each resource owns a router in `app/controllers/<resource>_controller.py`. Register routers in `app/main.py`.

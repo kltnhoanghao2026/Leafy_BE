@@ -54,7 +54,7 @@ class ChatResponse(BaseModel):
             "Each item contains the chunk text and associated metadata (filename, page, score …)."
         ),
     )
-    treatment_plan: Optional[Dict[str, Any]] = Field(
+    plan: Optional[Dict[str, Any]] = Field(
         None,
         description="Structured treatment plan if a planning request was made.",
     )
@@ -77,7 +77,7 @@ class ChatResponse(BaseModel):
                         "metadata": {"source": "plant-disease-report.pdf", "page": 3},
                     }
                 ],
-                "treatment_plan": {
+                "plan": {
                     "schedule": [
                         {
                             "eventType": "DISEASE_DETECTED",
@@ -127,7 +127,7 @@ async def chat(request: ChatRequest):
         return ChatResponse(
             answer=final_state.get("generation", "I could not generate an answer."),
             documents=final_state.get("documents", []),
-            treatment_plan=final_state.get("generated_plan"),
+            plan=final_state.get("generated_plan"),
             plant_id=final_state.get("plant_id"),
             web_search_results=final_state.get("web_search_results", []),
         )

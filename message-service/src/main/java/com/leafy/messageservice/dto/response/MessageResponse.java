@@ -29,6 +29,7 @@ public record MessageResponse(
                 OffsetDateTime lastModifiedAt,
                 ReplyMetadataResponse replyTo,
                 boolean isForwarded,
+                boolean isEdited,
                 MessageStatus status,
                 Map<String, Object> metadata,
                 String deletedByAdminId,

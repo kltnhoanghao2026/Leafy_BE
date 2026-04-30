@@ -109,20 +109,12 @@ public class SeederServiceImpl implements SeederService {
     private List<String> fetchProfileIds(UserPrincipal currentUser) {
         Set<String> profileIds = new LinkedHashSet<>();
 
-        String roleHeader = currentUser.getAuthorities().stream()
-                .map(authority -> authority.getAuthority())
-                .collect(Collectors.joining(","));
-
         for (int page = 0; page < seederProperties.getProfileMaxPages(); page++) {
             ExternalApiResponse<PagedResponse<ProfileSummaryResponse>> response = profileServiceClient.getActiveProfiles(
                     page,
                     seederProperties.getProfilePageSize(),
                     "createdAt",
-                    "DESC",
-                    currentUser.getUserId(),
-                    currentUser.getEmail(),
-                    roleHeader,
-                    currentUser.getProfileId());
+                    "DESC");
 
             if (response == null || response.getData() == null || response.getData().getContent() == null) {
                 break;

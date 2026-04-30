@@ -6,8 +6,14 @@ import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventCreateR
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventUpdateRequest;
 import com.leafy.plantmanagementservice.dto.response.plantevent.PlantEventResponse;
 import com.leafy.plantmanagementservice.mapper.PlantEventMapper;
+import com.leafy.plantmanagementservice.model.Plant;
 import com.leafy.plantmanagementservice.model.PlantEvent;
 import com.leafy.plantmanagementservice.model.enums.EventType;
+import com.leafy.common.security.UserPrincipal;
+import com.leafy.common.utils.ServiceSecurityUtils;
+import com.leafy.plantmanagementservice.client.FarmServiceClient;
+import com.leafy.plantmanagementservice.client.dto.ExternalApiResponse;
+import com.leafy.plantmanagementservice.client.dto.FarmPlotSummary;
 import com.leafy.plantmanagementservice.repository.PlantEventRepository;
 import com.leafy.plantmanagementservice.repository.PlantRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +27,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +37,7 @@ public class PlantEventServiceImpl implements PlantEventService {
     private final PlantEventRepository plantEventRepository;
     private final PlantRepository plantRepository;
     private final PlantEventMapper plantEventMapper;
+    private final FarmServiceClient farmServiceClient;
 
     @Override
     @Transactional
@@ -127,26 +135,100 @@ public class PlantEventServiceImpl implements PlantEventService {
     }
 
     @Override
-    public List<PlantEventResponse> getEventsForCalendar(String farmPlotId, String farmZoneId, String plantId,
+    public List<PlantEventResponse> getEventsForCalendar(String targetProfileId, String farmPlotId, String farmZoneId, String plantId,
                                                           LocalDate startDate, LocalDate endDate) {
-        log.info("Fetching calendar events: farmPlotId={}, farmZoneId={}, plantId={}, range=[{}, {}]",
-                farmPlotId, farmZoneId, plantId, startDate, endDate);
+        log.info("Fetching calendar events: profileId={}, farmPlotId={}, farmZoneId={}, plantId={}, range=[{}, {}]",
+                targetProfileId, farmPlotId, farmZoneId, plantId, startDate, endDate);
 
         List<PlantEvent> events;
-        if (StringUtils.hasText(plantId)) {
+        boolean hasPlantId  = StringUtils.hasText(plantId);
+        boolean hasPlotId   = StringUtils.hasText(farmPlotId);
+        boolean hasZoneId   = StringUtils.hasText(farmZoneId);
+
+        if (hasPlantId) {
+            // Most specific — filter by a single plant
             events = plantEventRepository
                     .findByPlantIdAndCalculatedStartDateLessThanEqualAndCalculatedEndDateGreaterThanEqual(
                             plantId, endDate, startDate);
-        } else if (StringUtils.hasText(farmZoneId)) {
+        } else if (hasPlotId && hasZoneId) {
+            // Both provided → OR them (a plot event OR a zone event)
+            events = plantEventRepository
+                    .findByPlotOrZoneAndDateRange(farmPlotId, farmZoneId, startDate, endDate);
+        } else if (hasZoneId) {
             events = plantEventRepository
                     .findByFarmZoneIdAndCalculatedStartDateLessThanEqualAndCalculatedEndDateGreaterThanEqual(
                             farmZoneId, endDate, startDate);
-        } else if (StringUtils.hasText(farmPlotId)) {
+        } else if (hasPlotId) {
             events = plantEventRepository
                     .findByFarmPlotIdAndCalculatedStartDateLessThanEqualAndCalculatedEndDateGreaterThanEqual(
                             farmPlotId, endDate, startDate);
         } else {
-            throw new AppException(ErrorCode.INVALID_EVENT_TARGET);
+            String profileId = StringUtils.hasText(targetProfileId) ? targetProfileId : ServiceSecurityUtils.getCurrentProfileId();
+            if (StringUtils.hasText(profileId)) {
+                // ── Resolve user's farm plots ────────────────────────────────────
+                List<String> plotIds = java.util.Collections.emptyList();
+                ExternalApiResponse<List<FarmPlotSummary>> plotResponse = farmServiceClient.getPlotsByOwner(profileId);
+                if (plotResponse != null && plotResponse.getData() != null) {
+                    plotIds = plotResponse.getData().stream()
+                            .map(FarmPlotSummary::getId)
+                            .filter(id -> id != null && !id.isBlank())
+                            .toList();
+                }
+
+                // ── Resolve all zone IDs within those plots ──────────────────────
+                List<String> zoneIds = new java.util.ArrayList<>();
+                for (String plotId : plotIds) {
+                    try {
+                        ExternalApiResponse<List<com.leafy.plantmanagementservice.client.dto.FarmZoneSummary>> zoneResponse =
+                                farmServiceClient.getZonesByPlot(plotId);
+                        if (zoneResponse != null && zoneResponse.getData() != null) {
+                            zoneResponse.getData().stream()
+                                    .map(z -> z.getId())
+                                    .filter(id -> id != null && !id.isBlank())
+                                    .forEach(zoneIds::add);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Could not resolve zones for plot={}: {}", plotId, e.getMessage());
+                    }
+                }
+
+                // ── Resolve plants in those plots AND zones ───────────────────────
+                List<String> plantIds = plantRepository
+                        .findByFarmPlotIdInOrFarmZoneIdIn(plotIds, zoneIds)
+                        .stream()
+                        .map(Plant::getId)
+                        .toList();
+
+                if (plotIds.isEmpty() && zoneIds.isEmpty() && plantIds.isEmpty()) {
+                    events = List.of();
+                } else {
+                    events = plantEventRepository.findProfileCalendarEvents(plotIds, zoneIds, plantIds, startDate, endDate);
+                }
+
+            } else {
+                throw new AppException(ErrorCode.INVALID_EVENT_TARGET);
+            }
+        }
+
+        if (!events.isEmpty()) {
+            List<String> eventPlantIds = events.stream()
+                    .map(PlantEvent::getPlantId)
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList();
+
+            if (!eventPlantIds.isEmpty()) {
+                List<String> inactivePlantIds = plantRepository.findAllById(eventPlantIds).stream()
+                        .filter(p -> com.leafy.plantmanagementservice.model.enums.PlantStatus.INACTIVE.equals(p.getPlantStatus()))
+                        .map(Plant::getId)
+                        .toList();
+
+                if (!inactivePlantIds.isEmpty()) {
+                    events = events.stream()
+                            .filter(e -> !StringUtils.hasText(e.getPlantId()) || !inactivePlantIds.contains(e.getPlantId()))
+                            .toList();
+                }
+            }
         }
 
         return plantEventMapper.toResponseList(events);

@@ -1,7 +1,7 @@
 package com.leafy.authservice.service.seeder;
 
-import com.leafy.authservice.client.ProfileClient;
-import com.leafy.authservice.client.dto.CreateProfileRequest;
+import com.leafy.authservice.client.ProfileServiceClient;
+import com.leafy.authservice.client.dto.ProfileCreateRequest;
 import com.leafy.authservice.model.User;
 import com.leafy.authservice.repository.UserRepository;
 import com.leafy.common.dto.client.userservice.user.request.UserCreateRequest;
@@ -33,7 +33,7 @@ public class AccountSeederServiceImpl implements AccountSeederService {
 
     UserRepository userRepository;
     PasswordEncoder passwordEncoder;
-    ProfileClient profileClient;
+    ProfileServiceClient profileServiceClient;
     Optional<OutboxEventPublisher> outboxEventPublisher;
 
     static final String[] BASE_NAMES = {
@@ -75,6 +75,7 @@ public class AccountSeederServiceImpl implements AccountSeederService {
         int skipped = 0;
         int profileCreated = 0;
         int profileFailed = 0;
+        int profileIdCached = 0;
         int eventsPublished = 0;
 
         Random random = new Random();
@@ -102,8 +103,10 @@ public class AccountSeederServiceImpl implements AccountSeederService {
 
                 User savedUser = userRepository.save(user);
 
-                if (createProfile(savedUser, fullName, currentIndex)) {
+                String profileId = createProfileAndCacheId(savedUser, fullName, currentIndex);
+                if (profileId != null) {
                     profileCreated++;
+                    profileIdCached++;
                 } else {
                     profileFailed++;
                 }
@@ -124,6 +127,7 @@ public class AccountSeederServiceImpl implements AccountSeederService {
         result.put("total", count);
         result.put("profileCreated", profileCreated);
         result.put("profileFailed", profileFailed);
+        result.put("profileIdCached", profileIdCached);
         result.put("eventsPublished", eventsPublished);
         result.put("seededPassword", DEFAULT_PASSWORD);
         result.put("nextStartIndex", startIndex + count);
@@ -133,28 +137,44 @@ public class AccountSeederServiceImpl implements AccountSeederService {
         return result;
     }
 
-    private boolean createProfile(User user, String fullName, int index) {
+    /**
+     * Creates a profile via profile-service, captures the returned profileId,
+     * and persists it on the User document to avoid cross-service calls at login time.
+     *
+     * @return the profileId string if successful, null otherwise
+     */
+    private String createProfileAndCacheId(User user, String fullName, int index) {
         try {
             int mod = index % 10;
             int geoIdx = index % GEO_COORDS.length;
-            profileClient.createProfile(CreateProfileRequest.builder()
-                    .userId(user.getId())
-                    .fullName(fullName)
-                    .email(user.getEmail())
-                    .phoneNumber(user.getPhoneNumber())
-                    .role(index % 3 == 0 ? "EXPERT" : "FARMER")
-                    .specialty(SPECIALTIES[index % SPECIALTIES.length])
-                    .addressLine(ADDRESS_LINES[mod])
-                    .provinceCode(PROVINCE_CODES[mod])
-                    .districtCode(DISTRICT_CODES[mod])
-                    .wardCode(WARD_CODES[mod])
-                    .latitude(GEO_COORDS[geoIdx][0])
-                    .longitude(GEO_COORDS[geoIdx][1])
-                    .build());
-            return true;
+
+            var response = profileServiceClient.createProfile(
+                    ProfileCreateRequest.builder()
+                            .userId(user.getId())
+                            .fullName(fullName)
+                            .role(index % 3 == 0 ? "EXPERT" : "FARMER")
+                            .specialty(SPECIALTIES[index % SPECIALTIES.length])
+                            .addressLine(ADDRESS_LINES[mod])
+                            .provinceCode(PROVINCE_CODES[mod])
+                            .districtCode(DISTRICT_CODES[mod])
+                            .wardCode(WARD_CODES[mod])
+                            .latitude(GEO_COORDS[geoIdx][0])
+                            .longitude(GEO_COORDS[geoIdx][1])
+                            .build()
+            );
+
+            if (response != null && response.data() != null) {
+                String profileId = response.data().getId();
+                user.setProfileId(profileId);
+                userRepository.save(user);
+                return profileId;
+            }
+
+            log.warn("Profile creation returned empty response for userId={}", user.getId());
+            return null;
         } catch (Exception ex) {
             log.warn("Profile creation failed for userId={}", user.getId(), ex);
-            return false;
+            return null;
         }
     }
 

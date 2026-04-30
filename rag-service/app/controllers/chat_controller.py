@@ -36,8 +36,8 @@ async def chat(
     5. **Self-correction** — if the answer is not grounded, the query is transformed
        and the graph retries (up to `max_retries` times).
 
-    If the query is a treatment-plan request, the generated plan is automatically
-    persisted to MongoDB (`leafy_rag.treatment_plans`).
+    If the query is a plan request, the generated plan is automatically
+    persisted to MongoDB (`leafy_rag.plans`).
     """
     service = get_chat_service()
     result = await service.run_chat(
