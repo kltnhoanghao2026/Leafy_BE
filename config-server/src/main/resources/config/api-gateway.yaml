@@ -93,6 +93,17 @@ spring:
                     name: seedServiceCircuitBreaker
                     fallbackUri: forward:/fallback/community-feed-service
 
+            - id: admin-seed-profiles
+              uri: lb://community-feed-service
+              predicates:
+                - Path=/api/admin/seed/profiles
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/community-feed-service
+
             - id: admin-seed-certificates
               uri: lb://profile-service
               predicates:
@@ -343,7 +354,7 @@ spring:
             - id: search-service
               uri: lb://search-service
               predicates:
-                - Path=/api/search/posts/**, /api/search/profiles/**, /api/search/sync/**, /api/search/failed-events/**
+                - Path=/api/search/search, /api/search/posts/**, /api/search/profiles/**, /api/search/sync/**, /api/search/failed-events/**
               filters:
                 - StripPrefix=2
                 - name: CircuitBreaker

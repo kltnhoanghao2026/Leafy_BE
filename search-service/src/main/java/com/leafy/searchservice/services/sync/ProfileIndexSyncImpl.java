@@ -1,5 +1,11 @@
 package com.leafy.searchservice.services.sync;
 
+import com.leafy.common.dto.ApiResponse;
+import com.leafy.searchservice.client.AuthUserClient;
+import com.leafy.searchservice.client.ProfileClient;
+import com.leafy.searchservice.client.dto.AuthUserResponse;
+import com.leafy.searchservice.client.dto.ProfileServiceProfileResponse;
+import com.leafy.searchservice.client.dto.profile.UserSyncResponse;
 import com.leafy.searchservice.config.ElasticSearchProperties;
 import com.leafy.searchservice.dto.request.sync.ProfileSyncDocumentRequest;
 import com.leafy.searchservice.model.elasticsearch.ProfileIndex;
@@ -11,6 +17,7 @@ import org.springframework.data.elasticsearch.core.IndexOperations;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -18,25 +25,30 @@ import java.util.List;
 @Slf4j
 public class ProfileIndexSyncImpl {
 
-	private final ProfileIndexSearchRepository profileIndexSearchRepository;
-	private final ElasticsearchOperations elasticsearchOperations;
-	private final ElasticSearchProperties elasticSearchProperties;
-    private final com.leafy.searchservice.client.ProfileClient profileClient;
+    private final ProfileIndexSearchRepository profileIndexSearchRepository;
+    private final ElasticsearchOperations elasticsearchOperations;
+    private final ElasticSearchProperties elasticSearchProperties;
+    private final ProfileClient profileClient;
+    private final AuthUserClient authUserClient;
+
+    // ── Index lifecycle ───────────────────────────────────────────────────────
 
     public void resetIndex() {
-        String profileIndexAlias = elasticSearchProperties.getProfileAlias();
-        IndexOperations indexOperations = elasticsearchOperations.indexOps(IndexCoordinates.of(profileIndexAlias));
+        String alias = elasticSearchProperties.getProfileAlias();
+        IndexOperations indexOps = elasticsearchOperations.indexOps(IndexCoordinates.of(alias));
 
-        if (indexOperations.exists()) {
-            indexOperations.delete();
-            log.info("Deleted existing Elasticsearch profile index for alias={}", profileIndexAlias);
+        if (indexOps.exists()) {
+            indexOps.delete();
+            log.info("Deleted existing Elasticsearch profile index for alias={}", alias);
         }
 
-        var settings = indexOperations.createSettings(ProfileIndex.class);
-        indexOperations.create(settings);
-        indexOperations.putMapping(indexOperations.createMapping(ProfileIndex.class));
-        log.info("Created fresh empty Elasticsearch profile index and mapping for alias={}", profileIndexAlias);
+        var settings = indexOps.createSettings(ProfileIndex.class);
+        indexOps.create(settings);
+        indexOps.putMapping(indexOps.createMapping(ProfileIndex.class));
+        log.info("Created fresh empty Elasticsearch profile index and mapping for alias={}", alias);
     }
+
+    // ── Reindex: pull all profiles from profile-service (cursor-based) ────────
 
     public int reindexAll(int pageSize) {
         resetIndex();
@@ -45,32 +57,97 @@ public class ProfileIndexSyncImpl {
         String lastId = null;
 
         while (true) {
-            com.leafy.common.dto.ApiResponse<java.util.List<com.leafy.searchservice.client.dto.profile.UserSyncResponse>> response = 
-                profileClient.getUsersBatch(lastId, pageSize);
-                
-            if (response == null || response.data() == null || response.data().isEmpty()) {
+            List<UserSyncResponse> profiles = getUsersBatch(lastId, pageSize);
+            if (profiles.isEmpty()) {
                 break;
             }
-
-            List<com.leafy.searchservice.client.dto.profile.UserSyncResponse> profiles = response.data();
 
             List<ProfileIndex> documents = profiles.stream()
                     .map(this::toProfileIndexFromSync)
                     .toList();
 
-            if (!documents.isEmpty()) {
-                profileIndexSearchRepository.saveAll(documents);
-                indexedCount += documents.size();
-            }
+            profileIndexSearchRepository.saveAll(documents);
+            indexedCount += documents.size();
 
-            // Update lastId for next cursor
             lastId = profiles.get(profiles.size() - 1).getId();
         }
 
         return indexedCount;
     }
 
-    private ProfileIndex toProfileIndexFromSync(com.leafy.searchservice.client.dto.profile.UserSyncResponse response) {
+    // ── Upsert: real-time event-driven sync ───────────────────────────────────
+
+    /**
+     * Fetch the latest data for a single profile from profile-service + auth-service,
+     * then save (or update) the corresponding ProfileIndex document.
+     * Called by {@link com.leafy.searchservice.listener.ProfileIndexEventListener}.
+     */
+    public void upsertProfile(String profileId) {
+        ProfileServiceProfileResponse profile = fetchProfile(profileId);
+        AuthUserResponse user = fetchUser(profile.getUserId());
+
+        ProfileIndex document = toProfileIndex(profile, user);
+        profileIndexSearchRepository.save(document);
+        log.info("Upserted profile index document: profileId={}", profileId);
+    }
+
+    // ── Bulk upsert: push sync (external caller supplies data) ────────────────
+
+    public int bulkUpsert(List<ProfileSyncDocumentRequest> documents) {
+        if (documents == null || documents.isEmpty()) {
+            return 0;
+        }
+
+        List<ProfileIndex> profileIndices = documents.stream()
+                .map(this::toProfileIndex)
+                .toList();
+
+        profileIndexSearchRepository.saveAll(profileIndices);
+        return profileIndices.size();
+    }
+
+    public int resetAndReindex(List<ProfileSyncDocumentRequest> documents) {
+        resetIndex();
+        return bulkUpsert(documents);
+    }
+
+    // ── Mapping helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Map from the Feign-fetched profile + auth-user pair → {@link ProfileIndex}.
+     * Used by {@link #upsertProfile} and {@link #reindexAll} (indirectly via
+     * {@link #toProfileIndexFromSync}).
+     */
+    private ProfileIndex toProfileIndex(ProfileServiceProfileResponse profile, AuthUserResponse user) {
+        return ProfileIndex.builder()
+                .id(profile.getId())
+                .userId(profile.getUserId())
+                .fullName(profile.getFullName())
+                .profilePicture(profile.getProfilePicture())
+                .avatar(profile.getAvatar())
+                .phoneNumber(user != null ? user.getPhoneNumber() : null)
+                .email(user != null ? user.getEmail() : null)
+                .role(profile.getRole())
+                .specialty(profile.getSpecialty())
+                .isVerified(profile.getIsVerified())
+                .active(profile.getActive())
+                .bio(profile.getBio())
+                .addressLine(profile.getAddressLine())
+                .provinceCode(profile.getProvinceCode())
+                .districtCode(profile.getDistrictCode())
+                .wardCode(profile.getWardCode())
+                .latitude(profile.getLatitude())
+                .longitude(profile.getLongitude())
+                .build();
+    }
+
+    /**
+     * Map from the lightweight {@link UserSyncResponse} returned by the
+     * profile-service batch endpoint → {@link ProfileIndex}.
+     * Used only by {@link #reindexAll}. Auth-service fields (phone/email) are
+     * not available in the batch response and default to {@code null}.
+     */
+    private ProfileIndex toProfileIndexFromSync(UserSyncResponse response) {
         return ProfileIndex.builder()
                 .id(response.getId())
                 .userId(response.getUserId())
@@ -91,55 +168,56 @@ public class ProfileIndexSyncImpl {
                 .build();
     }
 
-	public int bulkUpsert(List<ProfileSyncDocumentRequest> documents) {
-		if (documents == null || documents.isEmpty()) {
-			return 0;
-		}
+    /**
+     * Map from a push-sync {@link ProfileSyncDocumentRequest} → {@link ProfileIndex}.
+     * Used only by {@link #bulkUpsert} / {@link #resetAndReindex}.
+     */
+    private ProfileIndex toProfileIndex(ProfileSyncDocumentRequest request) {
+        return ProfileIndex.builder()
+                .id(request.getId())
+                .userId(request.getUserId())
+                .fullName(request.getFullName())
+                .profilePicture(request.getProfilePicture())
+                .avatar(request.getAvatar())
+                .phoneNumber(request.getPhoneNumber())
+                .email(request.getEmail())
+                .role(request.getRole())
+                .specialty(request.getSpecialty())
+                .isVerified(request.getIsVerified())
+                .active(request.getActive())
+                .bio(request.getBio())
+                .addressLine(request.getAddressLine())
+                .provinceCode(request.getProvinceCode())
+                .districtCode(request.getDistrictCode())
+                .wardCode(request.getWardCode())
+                .latitude(request.getLatitude())
+                .longitude(request.getLongitude())
+                .build();
+    }
 
-		List<ProfileIndex> profileIndices = documents.stream()
-				.map(this::toProfileIndex)
-				.toList();
+    // ── Client helpers ────────────────────────────────────────────────────────
 
-		profileIndexSearchRepository.saveAll(profileIndices);
-		return profileIndices.size();
-	}
+    private List<UserSyncResponse> getUsersBatch(String lastId, int pageSize) {
+        ApiResponse<List<UserSyncResponse>> response = profileClient.getUsersBatch(lastId, pageSize);
+        if (response == null || response.data() == null) {
+            return Collections.emptyList();
+        }
+        return response.data();
+    }
 
-	public int resetAndReindex(List<ProfileSyncDocumentRequest> documents) {
-		String profileIndexAlias = elasticSearchProperties.getProfileAlias();
-		IndexOperations indexOperations = elasticsearchOperations.indexOps(IndexCoordinates.of(profileIndexAlias));
+    private ProfileServiceProfileResponse fetchProfile(String profileId) {
+        var response = profileClient.getProfileById(profileId);
+        if (response == null || response.data() == null) {
+            throw new IllegalStateException("Profile service returned empty data for profileId=" + profileId);
+        }
+        return response.data();
+    }
 
-		if (indexOperations.exists()) {
-			indexOperations.delete();
-			log.info("Deleted existing Elasticsearch index for alias={}", profileIndexAlias);
-		}
-
-		indexOperations.create();
-		indexOperations.putMapping(indexOperations.createMapping(ProfileIndex.class));
-		log.info("Created fresh Elasticsearch index and mapping for alias={}", profileIndexAlias);
-
-		return bulkUpsert(documents);
-	}
-
-	private ProfileIndex toProfileIndex(ProfileSyncDocumentRequest request) {
-		return ProfileIndex.builder()
-				.id(request.getId())
-				.userId(request.getUserId())
-				.fullName(request.getFullName())
-				.profilePicture(request.getProfilePicture())
-				.avatar(request.getAvatar())
-				.phoneNumber(request.getPhoneNumber())
-				.email(request.getEmail())
-				.role(request.getRole())
-				.specialty(request.getSpecialty())
-				.isVerified(request.getIsVerified())
-				.active(request.getActive())
-				.bio(request.getBio())
-				.addressLine(request.getAddressLine())
-				.provinceCode(request.getProvinceCode())
-				.districtCode(request.getDistrictCode())
-				.wardCode(request.getWardCode())
-				.latitude(request.getLatitude())
-				.longitude(request.getLongitude())
-				.build();
-	}
+    private AuthUserResponse fetchUser(String userId) {
+        var response = authUserClient.getUserById(userId);
+        if (response == null || response.data() == null) {
+            throw new IllegalStateException("Auth service returned empty data for userId=" + userId);
+        }
+        return response.data();
+    }
 }

@@ -17,7 +17,6 @@ import com.leafy.messageservice.repository.ChatUserRepository;
 import com.leafy.messageservice.model.enums.MemberRole;
 import com.leafy.common.dto.client.socketservice.SocketEvent;
 import com.leafy.common.enums.SocketEventType;
-import com.leafy.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -64,9 +63,9 @@ public class ConversationServiceImpl implements ConversationService {
                             .uniqueKey(uniqueKey)
                             .members(new HashSet<>(Arrays.asList(
                                     ConversationMember.builder()
-                                            .userId(userA).role(MemberRole.OWNER).joinedAt(now).build(),
+                                            .profileId(userA).role(MemberRole.OWNER).joinedAt(now).build(),
                                     ConversationMember.builder()
-                                            .userId(userB).role(MemberRole.MEMBER).joinedAt(now).build()
+                                            .profileId(userB).role(MemberRole.MEMBER).joinedAt(now).build()
                             )))
                             .lastMessage(LastMessageInfo.builder().timestamp(now).build())
                             .build();
@@ -77,13 +76,13 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public ConversationResponse getOrCreateConversationForUser(String partnerId) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
         Conversation room = getOrCreateDirectConversation(currentUserId, partnerId);
 
         Set<String> userIds = new HashSet<>();
         userIds.add(currentUserId);
         userIds.add(partnerId);
-        room.getMembers().forEach(m -> userIds.add(m.getUserId()));
+        room.getMembers().forEach(m -> userIds.add(m.getProfileId()));
 
         Map<String, ChatUser> userCache = chatUserRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(ChatUser::getId, u -> u));
@@ -116,9 +115,9 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public PageResponse<List<ConversationResponse>> getUserConversations(int page, int size) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "lastMessage.timestamp"));
-        Page<Conversation> roomsPage = conversationRepository.findAllByMembersUserId(currentUserId, pageable);
+        Page<Conversation> roomsPage = conversationRepository.findAllByMembersProfileId(currentUserId, pageable);
         log.info("[Conversation] Fetched page {} of conversations for user {} with {} rooms",
                 page, currentUserId, roomsPage.getTotalElements());
         if (roomsPage.isEmpty()) {
@@ -128,7 +127,7 @@ public class ConversationServiceImpl implements ConversationService {
         Set<String> allUserIds = new HashSet<>();
         allUserIds.add(currentUserId);
         roomsPage.getContent().forEach(room -> {
-            room.getMembers().forEach(m -> allUserIds.add(m.getUserId()));
+            room.getMembers().forEach(m -> allUserIds.add(m.getProfileId()));
             if (room.getLastMessage() != null && room.getLastMessage().getSenderId() != null) {
                 allUserIds.add(room.getLastMessage().getSenderId());
             }
@@ -153,7 +152,7 @@ public class ConversationServiceImpl implements ConversationService {
         return PageResponse.fromPage(roomsPage, room -> {
             String partnerId = room.getMembers().stream()
                     .filter(helper::isActiveMember)
-                    .map(ConversationMember::getUserId)
+                    .map(ConversationMember::getProfileId)
                     .filter(uid -> !uid.equals(currentUserId))
                     .findFirst()
                     .orElse(currentUserId);
@@ -178,13 +177,13 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public void markAsRead(String conversationId, String lastReadMessageId) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
 
         Conversation room = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
 
         boolean isMember = room.getMembers().stream()
-                .anyMatch(m -> m.getUserId().equals(currentUserId));
+                .anyMatch(m -> m.getProfileId().equals(currentUserId));
         if (!isMember) {
             throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
         }
@@ -194,7 +193,7 @@ public class ConversationServiceImpl implements ConversationService {
                 : (room.getLastMessage() != null ? room.getLastMessage().getMessageId() : null);
 
         Query query = new Query(Criteria.where("id").is(conversationId)
-                .and("members.userId").is(currentUserId));
+                .and("members.profileId").is(currentUserId));
         Update update = new Update().set("unreadCounts." + currentUserId, 0);
         if (finalReadId != null) {
             update.set("members.$.lastReadMessageId", finalReadId);
@@ -209,13 +208,13 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public UnreadAnchorResponse getUnreadAnchor(String conversationId) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
 
         Conversation room = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
 
         ConversationMember currentMember = room.getMembers().stream()
-                .filter(m -> m.getUserId().equals(currentUserId))
+                .filter(m -> m.getProfileId().equals(currentUserId))
                 .findFirst()
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
 
@@ -305,13 +304,13 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public void deleteConversationForMe(String conversationId) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
 
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
 
         conversation.getMembers().stream()
-                .filter(m -> m.getUserId().equals(currentUserId))
+                .filter(m -> m.getProfileId().equals(currentUserId))
                 .findFirst()
                 .ifPresent(member -> {
                     member.setActive(false);
@@ -336,14 +335,21 @@ public class ConversationServiceImpl implements ConversationService {
     private void broadcastReadReceipt(Conversation room, String currentUserId, String lastReadMessageId) {
         List<ConversationMember> otherMembers = room.getMembers().stream()
                 .filter(helper::isActiveMember)
-                .filter(m -> !m.getUserId().equals(currentUserId))
+                .filter(m -> !m.getProfileId().equals(currentUserId))
                 .toList();
 
         if (otherMembers.isEmpty()) return;
 
+        // Resolve accountIds for WS routing (socket-service registers connections by accountId / JWT sub)
+        Set<String> memberProfileIds = otherMembers.stream()
+                .map(ConversationMember::getProfileId).collect(Collectors.toSet());
+        Map<String, ChatUser> receiptCache = helper.getChatUserRepository().findAllById(memberProfileIds).stream()
+                .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
         otherMembers.forEach(m -> {
+            String targetAccountId = helper.resolveAccountId(m.getProfileId(), receiptCache);
             helper.getKafkaTemplate().send(helper.getKafkaTopicProperties().getSocketEvents().getSocketEvents(),
-                    new SocketEvent(SocketEventType.MESSAGE, m.getUserId(),
+                    new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
                             "/queue/read-receipts",
                             ReadReceiptNotification.builder()
                                     .conversationId(room.getId())
@@ -358,14 +364,14 @@ public class ConversationServiceImpl implements ConversationService {
         return conversationRepository.findById(conversationId)
                 .map(conv -> conv.getMembers().stream()
                         .filter(helper::isActiveMember)
-                        .map(m -> m.getUserId())
+                        .map(m -> m.getProfileId())
                         .collect(java.util.stream.Collectors.toSet()))
                 .orElse(java.util.Collections.emptySet());
     }
 
     @Override
     public void pinConversation(String conversationId) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
         ChatUser user = chatUserRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
         if (user.getPinnedConversations() == null) {
@@ -382,7 +388,7 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public void unpinConversation(String conversationId) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
         ChatUser user = chatUserRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
         if (user.getPinnedConversations() != null && user.getPinnedConversations().contains(conversationId)) {
@@ -393,7 +399,7 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public List<ConversationResponse> getPinnedConversations() {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
         ChatUser user = chatUserRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
         if (user.getPinnedConversations() == null || user.getPinnedConversations().isEmpty()) {

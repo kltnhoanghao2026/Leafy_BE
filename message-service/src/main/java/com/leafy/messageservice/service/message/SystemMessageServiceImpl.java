@@ -3,18 +3,20 @@ package com.leafy.messageservice.service.message;
 import com.leafy.messageservice.model.enums.MessageType;
 import com.leafy.messageservice.model.enums.SystemActionType;
 import com.leafy.common.utils.S3UtilV2;
-import com.leafy.common.utils.S3UtilV2;
 import com.leafy.common.config.kafka.KafkaTopicProperties;
 import com.leafy.common.dto.client.socketservice.SocketEvent;
 import com.leafy.common.enums.SocketEventType;
 import com.leafy.messageservice.dto.response.ChatNotification;
 import com.leafy.messageservice.mapper.MessageMapper;
+import com.leafy.messageservice.model.ChatUser;
 import com.leafy.messageservice.model.Conversation;
 import com.leafy.messageservice.model.LastMessageInfo;
 import com.leafy.messageservice.model.Message;
+import com.leafy.messageservice.repository.ChatUserRepository;
 import com.leafy.messageservice.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.leafy.messageservice.service.conversation.ConversationHelper;
 
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -26,6 +28,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,11 +36,13 @@ import java.util.*;
 public class SystemMessageServiceImpl implements SystemMessageService {
 
     private final MessageRepository messageRepository;
+    private final ChatUserRepository chatUserRepository;
     private final MongoTemplate mongoTemplate;
     private final MessageMapper messageMapper;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final S3UtilV2 s3UtilV2;
     private final KafkaTopicProperties kafkaTopicProperties;
+    private final ConversationHelper conversationHelper;
 
     @Override
     public void sendSystemMessage(String conversationId, String actorId, String actorName, String actorAvatar,
@@ -136,20 +141,29 @@ public class SystemMessageServiceImpl implements SystemMessageService {
         if (room != null) {
             String baseUrl = s3UtilV2.getS3BaseUrl();
 
+            // Batch-resolve accountIds for all relevant members (socket-service routes by accountId)
+            Set<String> sysProfileIds = room.getMembers().stream()
+                    .filter(m -> recipientUserIds == null || recipientUserIds.contains(m.getProfileId()))
+                    .map(com.leafy.messageservice.model.ConversationMember::getProfileId)
+                    .collect(Collectors.toSet());
+            Map<String, ChatUser> sysCache = chatUserRepository.findAllById(sysProfileIds).stream()
+                    .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
             room.getMembers().forEach(member -> {
-                if (recipientUserIds != null && !recipientUserIds.contains(member.getUserId())) {
+                if (recipientUserIds != null && !recipientUserIds.contains(member.getProfileId())) {
                     return;
                 }
 
                 Integer currentUnread = room.getUnreadCounts() != null
-                        ? room.getUnreadCounts().getOrDefault(member.getUserId(), 0) : 0;
-                boolean isFromMe = member.getUserId().equals(actorId);
+                        ? room.getUnreadCounts().getOrDefault(member.getProfileId(), 0) : 0;
+                boolean isFromMe = member.getProfileId().equals(actorId);
 
                 ChatNotification notification = messageMapper.mapToChatNotification(savedMessage, baseUrl, currentUnread);
                 notification = notification.toBuilder().isFromMe(isFromMe).build();
 
+                String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), sysCache);
                 kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
-                        new SocketEvent(SocketEventType.MESSAGE, member.getUserId(),
+                        new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
                                 "/queue/messages", notification));
             });
         }

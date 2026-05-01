@@ -10,6 +10,9 @@ import com.leafy.profileservice.repository.UserConnectionRepository;
 import com.leafy.profileservice.service.stream.ProfileEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse;
+import com.leafy.profileservice.dto.response.profile.ProfileResponse;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +28,7 @@ public class UserConnectionServiceImpl implements UserConnectionService {
     private final UserConnectionRepository userConnectionRepository;
     private final ProfileRepository profileRepository;
     private final ProfileEventPublisher eventPublisher;
+    private final com.leafy.profileservice.mapper.ProfileMapper profileMapper;
 
     @Override
     public UserConnection followUser(String followerId, String followingId) {
@@ -142,12 +146,12 @@ public class UserConnectionServiceImpl implements UserConnectionService {
     }
 
     @Override
-    public org.springframework.data.domain.Page<com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse> getPendingConsultations(String expertId, Pageable pageable) {
+    public Page<ConsultationRequestResponse> getPendingConsultations(String expertId, Pageable pageable) {
         return userConnectionRepository.findAllByFollowingIdAndConsultationStatus(expertId, ConsultationStatus.PENDING, pageable)
                 .map(connection -> {
                     Profile followerProfile = profileRepository.findByUserId(connection.getFollowerId()).orElse(null);
                     
-                    return com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse.builder()
+                    return ConsultationRequestResponse.builder()
                             .connectionId(connection.getId())
                             .followerId(connection.getFollowerId())
                             .followerName(followerProfile != null ? followerProfile.getFullName() : "Người dùng ẩn danh")
@@ -160,12 +164,12 @@ public class UserConnectionServiceImpl implements UserConnectionService {
     }
 
     @Override
-    public org.springframework.data.domain.Page<com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse> getAcceptedConsultations(String expertId, Pageable pageable) {
+    public Page<ConsultationRequestResponse> getAcceptedConsultations(String expertId, Pageable pageable) {
         return userConnectionRepository.findAllByFollowingIdAndConsultationStatus(expertId, ConsultationStatus.ACCEPTED, pageable)
                 .map(connection -> {
                     Profile followerProfile = profileRepository.findByUserId(connection.getFollowerId()).orElse(null);
                     
-                    return com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse.builder()
+                    return ConsultationRequestResponse.builder()
                             .connectionId(connection.getId())
                             .followerId(connection.getFollowerId())
                             .followerName(followerProfile != null ? followerProfile.getFullName() : "Người dùng ẩn danh")
@@ -174,6 +178,16 @@ public class UserConnectionServiceImpl implements UserConnectionService {
                             .requestedAt(connection.getCreatedAt())
                             .status(connection.getConsultationStatus())
                             .build();
+                });
+    }
+
+    @Override
+    public Page<ProfileResponse> getUserFollowerProfiles(String followingId, Pageable pageable) {
+        return userConnectionRepository.findAllByFollowingIdAndIsFollowingTrue(followingId, pageable)
+                .map(connection -> {
+                    Profile followerProfile = profileRepository.findByUserId(connection.getFollowerId()).orElse(null);
+                    if (followerProfile == null) return null;
+                    return profileMapper.toResponse(followerProfile);
                 });
     }
 }

@@ -16,18 +16,18 @@ public interface ConversationRepository extends MongoRepository<Conversation, St
      * Tìm cuộc trò chuyện 1-1 giữa 2 user bằng $all operator.
      * Không phụ thuộc vào thứ tự userA/userB.
      */
-    @Query("{ 'isGroup': false, 'members': { '$size': 2, '$all': [ { '$elemMatch': { 'userId': ?0, 'active': { '$ne': false } } }, { '$elemMatch': { 'userId': ?1, 'active': { '$ne': false } } } ] } }")
+    @Query("{ 'isGroup': false, 'members': { '$size': 2, '$all': [ { '$elemMatch': { 'profileId': ?0, 'active': { '$ne': false } } }, { '$elemMatch': { 'profileId': ?1, 'active': { '$ne': false } } } ] } }")
     Optional<Conversation> findDirectConversation(String userA, String userB);
 
     @Query("{ '$or': ["
-            + "  { 'members': { '$elemMatch': { 'userId': ?0, 'active': { '$ne': false } } } },"
+            + "  { 'members': { '$elemMatch': { 'profileId': ?0, 'active': { '$ne': false } } } },"
             + "  { '$and': ["
             + "    { 'isGroup': true },"
-            + "    { 'members': { '$elemMatch': { 'userId': ?0, 'active': false } } },"
+            + "    { 'members': { '$elemMatch': { 'profileId': ?0, 'active': false } } },"
             + "    { 'deletedBefore.?0': { '$exists': false } }"
             + "  ] }"
             + "] }")
-    Page<Conversation> findAllByMembersUserId(String userId, Pageable pageable);
+    Page<Conversation> findAllByMembersProfileId(String profileId, Pageable pageable);
 
     Optional<Conversation> findByJoinLinkToken(String joinLinkToken);
 }

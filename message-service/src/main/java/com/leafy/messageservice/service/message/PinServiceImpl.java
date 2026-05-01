@@ -45,7 +45,7 @@ public class PinServiceImpl implements PinService {
 
     @Override
     public PinnedMessageInfo pinMessage(String conversationId, String messageId) {
-        String actorId = securityUtil.getCurrentUserId();
+        String actorId = securityUtil.getCurrentProfileId();
         Conversation conv = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
 
@@ -102,7 +102,7 @@ public class PinServiceImpl implements PinService {
 
     @Override
     public void unpinMessage(String conversationId, String messageId) {
-        String actorId = securityUtil.getCurrentUserId();
+        String actorId = securityUtil.getCurrentProfileId();
         Conversation conv = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
 

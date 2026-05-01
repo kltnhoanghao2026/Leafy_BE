@@ -11,7 +11,7 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 @SpringBootApplication(scanBasePackages = {"com.leafy.common", "com.leafy.messageservice"})
 @EnableMongoRepositories(basePackages = {"com.leafy.messageservice.repository", "com.leafy.common.repository"})
 @EnableDiscoveryClient
-@EnableFeignClients(basePackages = "com.leafy.common.dto.client")
+@EnableFeignClients(basePackages = {"com.leafy.common.dto.client", "com.leafy.messageservice.client"})
 @EnableMongoAuditing
 public class MessageServiceApplication {
 

@@ -31,7 +31,7 @@ public class GroupInviteServiceImpl implements GroupInviteService {
 
     @Override
     public void sendInvites(String conversationId, GroupInviteSendRequest request) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
 
         Conversation conversation = helper.findGroupConversation(conversationId);
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);

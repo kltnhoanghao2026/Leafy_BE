@@ -6,6 +6,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 @FeignClient(name = "search-service")
 public interface SearchServiceClient {
 
-    @PostMapping("/internal/posts/reset")
+    @PostMapping("/sync/posts/reset")
     void resetPostIndex();
 }

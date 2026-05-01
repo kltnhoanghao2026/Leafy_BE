@@ -6,6 +6,7 @@ import lombok.Builder;
 @Builder
 public record AdminMemberResponse(
         String userId,
+        String profileId,
         String fullName,
         String avatar,
         MemberRole role

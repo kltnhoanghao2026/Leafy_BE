@@ -46,7 +46,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     @Override
     public ConversationResponse joinByLink(String token, JoinByLinkRequest request) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
 
         Conversation conversation = conversationRepository.findByJoinLinkToken(token)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
@@ -59,7 +59,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         }
 
         boolean isAlreadyActive = conversation.getMembers().stream()
-                .anyMatch(m -> m.getUserId().equals(currentUserId) && helper.isActiveMember(m));
+                .anyMatch(m -> m.getProfileId().equals(currentUserId) && helper.isActiveMember(m));
         if (isAlreadyActive) {
             throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
         }
@@ -88,7 +88,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     @Override
     public JoinGroupPreviewResponse getJoinPreview(String token) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
 
         Conversation conversation = conversationRepository.findByJoinLinkToken(token)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
@@ -104,23 +104,23 @@ public class JoinRequestServiceImpl implements JoinRequestService {
                 .filter(helper::isActiveMember).collect(Collectors.toSet());
 
         boolean isAlreadyMember = activeMembers.stream()
-                .anyMatch(m -> m.getUserId().equals(currentUserId));
+                .anyMatch(m -> m.getProfileId().equals(currentUserId));
 
         Set<String> allMemberIds = activeMembers.stream()
-                .map(ConversationMember::getUserId).collect(Collectors.toSet());
+                .map(ConversationMember::getProfileId).collect(Collectors.toSet());
         Map<String, ChatUser> userCache = chatUserRepository.findAllById(allMemberIds).stream()
                 .collect(Collectors.toMap(ChatUser::getId, u -> u));
 
         String ownerUserId = activeMembers.stream()
                 .filter(m -> m.getRole() == MemberRole.OWNER)
-                .map(ConversationMember::getUserId)
+                .map(ConversationMember::getProfileId)
                 .findFirst().orElse(null);
         String createdByName = ownerUserId != null && userCache.containsKey(ownerUserId)
                 ? userCache.get(ownerUserId).getFullName() : null;
 
         String baseUrl = s3UtilV2.getS3BaseUrl();
         List<JoinGroupPreviewResponse.MemberPreview> memberPreviews = activeMembers.stream()
-                .map(ConversationMember::getUserId)
+                .map(ConversationMember::getProfileId)
                 .limit(5)
                 .map(userCache::get)
                 .filter(Objects::nonNull)
@@ -155,7 +155,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     @Override
     public PageResponse<List<JoinRequestResponse>> getJoinRequests(String conversationId, int page, int size) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
         helper.assertOwnerOrAdmin(actor);
@@ -177,6 +177,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
                             .id(req.getId())
                             .conversationId(req.getConversationId())
                             .userId(req.getUserId())
+                            .profileId(req.getUserId())
                             .fullName(user != null ? user.getFullName() : "Người dùng")
                             .avatar(user != null && user.getAvatar() != null ? baseUrl + user.getAvatar() : null)
                             .status(req.getStatus())
@@ -199,7 +200,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     @Override
     public ConversationResponse approveJoinRequest(String conversationId, String requestId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
         helper.assertOwnerOrAdmin(actor);
@@ -238,7 +239,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     @Override
     public void rejectJoinRequest(String conversationId, String requestId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
         helper.assertOwnerOrAdmin(actor);
@@ -270,7 +271,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     @Override
     public void cancelMyJoinRequest(String conversationId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
 
         JoinRequest joinRequest = joinRequestRepository
                 .findByConversationIdAndUserIdAndStatus(conversationId, currentUserId, JoinRequestStatus.PENDING)
@@ -286,7 +287,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     @Override
     public void updateJoinQuestion(String conversationId, String question) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
         helper.assertOwnerOrAdmin(actor);
@@ -332,7 +333,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
         Set<String> adminIds = conversation.getMembers().stream()
                 .filter(m -> helper.isActiveMember(m) && helper.resolveRole(m) != MemberRole.MEMBER)
-                .map(ConversationMember::getUserId)
+                .map(ConversationMember::getProfileId)
                 .collect(Collectors.toSet());
 
         var actorInfo = helper.fetchActorInfo(currentUserId);
@@ -355,7 +356,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         }
 
         ConversationMember existingMember = conversation.getMembers().stream()
-                .filter(m -> m.getUserId().equals(currentUserId))
+                .filter(m -> m.getProfileId().equals(currentUserId))
                 .findFirst().orElse(null);
 
         if (existingMember != null) {
@@ -368,7 +369,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
             existingMember.setAddedBy(null);
         } else {
             conversation.getMembers().add(
-                    ConversationMember.builder().userId(currentUserId).role(MemberRole.MEMBER).joinedAt(now)
+                    ConversationMember.builder().profileId(currentUserId).role(MemberRole.MEMBER).joinedAt(now)
                     .joinMethod(JoinMethod.JOIN_BY_LINK).build());
         }
 
@@ -390,7 +391,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     private ConversationResponse addMemberToConversation(Conversation conversation, String userId) {
         LocalDateTime now = LocalDateTime.now();
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
 
         // Clear self-block if approved via join request
         if (conversation.getSelfBlockedUserIds() != null) {
@@ -398,7 +399,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         }
 
         ConversationMember existingMember = conversation.getMembers().stream()
-                .filter(m -> m.getUserId().equals(userId))
+                .filter(m -> m.getProfileId().equals(userId))
                 .findFirst().orElse(null);
 
         if (existingMember != null) {
@@ -411,7 +412,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
             existingMember.setAddedBy(currentUserId);
         } else {
             conversation.getMembers().add(
-                    ConversationMember.builder().userId(userId).role(MemberRole.MEMBER).joinedAt(now)
+                    ConversationMember.builder().profileId(userId).role(MemberRole.MEMBER).joinedAt(now)
                     .joinMethod(JoinMethod.ADDED_BY_MEMBER).addedBy(currentUserId).build());
         }
 

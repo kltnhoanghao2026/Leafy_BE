@@ -6,6 +6,7 @@ import lombok.Builder;
 @Builder
 public record ConversationMemberResponse(
         String userId,
+        String profileId,
         String fullName,
         String avatar,
         String lastReadMessageId,

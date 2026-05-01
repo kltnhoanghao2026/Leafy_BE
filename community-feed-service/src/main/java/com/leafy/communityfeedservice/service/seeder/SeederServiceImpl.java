@@ -26,6 +26,8 @@ import com.leafy.communityfeedservice.model.enums.VoteTargetType;
 import com.leafy.communityfeedservice.model.enums.VoteType;
 import com.leafy.communityfeedservice.repository.CommentRepository;
 import com.leafy.communityfeedservice.repository.PostRepository;
+import com.leafy.communityfeedservice.repository.ProfileSummaryRepository;
+import com.leafy.communityfeedservice.model.ProfileSummary;
 import com.leafy.communityfeedservice.repository.VoteRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -59,12 +61,17 @@ public class SeederServiceImpl implements SeederService {
     PostRepository postRepository;
     CommentRepository commentRepository;
     VoteRepository voteRepository;
+    ProfileSummaryRepository profileSummaryRepository;
     Optional<OutboxEventPublisher> outboxEventPublisher;
     Optional<SearchServiceClient> searchServiceClient;
 
     @Override
     @Transactional
-    public SeederResponse reseedCommunityFeed() {
+    public SeederResponse reseedCommunityFeed(Integer postCount, Integer commentCount, Integer voteCount) {
+        int resolvedPostCount    = postCount    != null ? postCount    : seederProperties.getPostCount();
+        int resolvedCommentCount = commentCount != null ? commentCount : seederProperties.getCommentCount();
+        int resolvedVoteCount    = voteCount    != null ? voteCount    : seederProperties.getVoteCount();
+
         UserPrincipal currentUser = ServiceSecurityUtils.getCurrentUser();
 
         List<String> profileIds = fetchProfileIds(currentUser);
@@ -85,9 +92,9 @@ public class SeederServiceImpl implements SeederService {
         Random random = new Random(seederProperties.getRandomSeed());
         LocalDateTime now = LocalDateTime.now();
 
-        List<Post> posts = seedPosts(profileIds, random, now);
-        List<Comment> comments = seedComments(posts, profileIds, random);
-        List<Vote> votes = seedVotes(posts, comments, profileIds, random);
+        List<Post> posts = seedPosts(profileIds, random, now, resolvedPostCount);
+        List<Comment> comments = seedComments(posts, profileIds, random, resolvedCommentCount);
+        List<Vote> votes = seedVotes(posts, comments, profileIds, random, resolvedVoteCount);
 
         publishSeededPostEvents(posts);
 
@@ -103,6 +110,53 @@ public class SeederServiceImpl implements SeederService {
                 .seededCommentCount(comments.size())
                 .seededVoteCount(votes.size())
                 .sourceProfileCount(profileIds.size())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public SeederResponse syncProfileSummaries() {
+        log.info("Starting Profile Summary synchronization from profile-service");
+        List<ProfileSummary> summariesToSave = new ArrayList<>();
+        int page = 0;
+        boolean hasMore = true;
+
+        while (hasMore && page < seederProperties.getProfileMaxPages()) {
+            ExternalApiResponse<PagedResponse<ProfileSummaryResponse>> response = profileServiceClient.getActiveProfiles(
+                    page,
+                    seederProperties.getProfilePageSize(),
+                    "createdAt",
+                    "DESC");
+
+            if (response == null || response.getData() == null || response.getData().getContent() == null || response.getData().getContent().isEmpty()) {
+                break;
+            }
+
+            List<ProfileSummary> currentPageSummaries = response.getData().getContent().stream()
+                    .filter(res -> res.getId() != null && !res.getId().isBlank())
+                    .map(res -> ProfileSummary.builder()
+                            .id(res.getId())
+                            .fullName(res.getFullName())
+                            .avatar(res.getAvatar())
+                            .role(res.getRole())
+                            .isVerified(res.getIsVerified())
+                            .lastSyncedAt(LocalDateTime.now())
+                            .build())
+                    .toList();
+
+            summariesToSave.addAll(currentPageSummaries);
+
+            hasMore = page + 1 < response.getData().getTotalPages();
+            page++;
+        }
+
+        if (!summariesToSave.isEmpty()) {
+            profileSummaryRepository.saveAll(summariesToSave);
+            log.info("Successfully synced {} profile summaries", summariesToSave.size());
+        }
+
+        return SeederResponse.builder()
+                .seededProfileCount(summariesToSave.size())
                 .build();
     }
 
@@ -135,9 +189,9 @@ public class SeederServiceImpl implements SeederService {
         return new ArrayList<>(profileIds);
     }
 
-    private List<Post> seedPosts(List<String> profileIds, Random random, LocalDateTime now) {
-        List<Post> posts = new ArrayList<>(seederProperties.getPostCount());
-        for (int i = 0; i < seederProperties.getPostCount(); i++) {
+    private List<Post> seedPosts(List<String> profileIds, Random random, LocalDateTime now, int postCount) {
+        List<Post> posts = new ArrayList<>(postCount);
+        for (int i = 0; i < postCount; i++) {
             String authorId = pickRandomProfileId(profileIds, random);
             Post post = Post.builder()
                     .authorId(authorId)
@@ -164,8 +218,7 @@ public class SeederServiceImpl implements SeederService {
         return postRepository.saveAll(posts);
     }
 
-    private List<Comment> seedComments(List<Post> posts, List<String> profileIds, Random random) {
-        int totalCommentCount = seederProperties.getCommentCount();
+    private List<Comment> seedComments(List<Post> posts, List<String> profileIds, Random random, int totalCommentCount) {
         int rootCommentCount = (int) Math.round(totalCommentCount * 0.7);
 
         List<Comment> rootComments = new ArrayList<>(rootCommentCount);
@@ -232,13 +285,13 @@ public class SeederServiceImpl implements SeederService {
         return allComments;
     }
 
-    private List<Vote> seedVotes(List<Post> posts, List<Comment> comments, List<String> profileIds, Random random) {
-        List<Vote> votes = new ArrayList<>(seederProperties.getVoteCount());
-        Set<String> uniqueVoteKeys = new HashSet<>(seederProperties.getVoteCount() * 2);
+    private List<Vote> seedVotes(List<Post> posts, List<Comment> comments, List<String> profileIds, Random random, int voteCount) {
+        List<Vote> votes = new ArrayList<>(voteCount);
+        Set<String> uniqueVoteKeys = new HashSet<>(voteCount * 2);
 
-        int maxAttempts = seederProperties.getVoteCount() * 20;
+        int maxAttempts = voteCount * 20;
         int attempts = 0;
-        while (votes.size() < seederProperties.getVoteCount() && attempts < maxAttempts) {
+        while (votes.size() < voteCount && attempts < maxAttempts) {
             attempts++;
             boolean voteOnComment = !comments.isEmpty() && random.nextInt(100) < 40;
 

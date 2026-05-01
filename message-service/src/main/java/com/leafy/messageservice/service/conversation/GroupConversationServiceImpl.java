@@ -1,12 +1,10 @@
 package com.leafy.messageservice.service.conversation;
 
-import com.leafy.common.dto.ApiResponse;
 import com.leafy.messageservice.dto.response.PageResponse;
 import com.leafy.messageservice.model.enums.SystemActionType;
 
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
-import com.leafy.common.model.kafka.EventType;
 import com.leafy.common.publisher.OutboxEventPublisher;
 
 
@@ -43,7 +41,6 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 
 import java.text.Normalizer;
@@ -71,7 +68,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse createGroupConversation(GroupConversationCreateRequest request) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
 
         String groupName = (request.name() == null || request.name().isBlank()) ? null : request.name().trim();
         String avatarUrl = request.avatar();
@@ -102,14 +99,14 @@ public class GroupConversationServiceImpl implements GroupConversationService {
         // Add all requested members directly (no friend-only restriction at group creation)
         Set<ConversationMember> members = new HashSet<>();
         members.add(ConversationMember.builder()
-                .userId(currentUserId).role(MemberRole.OWNER).joinedAt(now)
+                .profileId(currentUserId).role(MemberRole.OWNER).joinedAt(now)
                 .joinMethod(JoinMethod.ADDED_BY_MEMBER).addedBy(currentUserId).build());
         memberIds.forEach(id -> members.add(
-                ConversationMember.builder().userId(id).role(MemberRole.MEMBER).joinedAt(now)
+                ConversationMember.builder().profileId(id).role(MemberRole.MEMBER).joinedAt(now)
                         .joinMethod(JoinMethod.ADDED_BY_MEMBER).addedBy(currentUserId).build()));
 
         Map<String, Integer> unreadCounts = new HashMap<>();
-        members.forEach(m -> unreadCounts.put(m.getUserId(), 0));
+        members.forEach(m -> unreadCounts.put(m.getProfileId(), 0));
 
         GroupSettings settings = GroupSettings.builder().build();
 
@@ -146,7 +143,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse addMembersToGroup(String conversationId, List<String> memberIds) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         helper.assertMember(conversation, currentUserId);
 
@@ -214,9 +211,9 @@ public class GroupConversationServiceImpl implements GroupConversationService {
         if (requestedIds.isEmpty()) return helper.buildConversationResponseForCurrentUser(conversation, currentUserId);
 
         Map<String, ConversationMember> existingMembersById = conversation.getMembers().stream()
-                .collect(Collectors.toMap(ConversationMember::getUserId, m -> m, (a, b) -> a));
+                .collect(Collectors.toMap(ConversationMember::getProfileId, m -> m, (a, b) -> a));
         Set<String> existingActiveMemberIds = conversation.getMembers().stream()
-                .filter(helper::isActiveMember).map(ConversationMember::getUserId).collect(Collectors.toSet());
+                .filter(helper::isActiveMember).map(ConversationMember::getProfileId).collect(Collectors.toSet());
         requestedIds.removeAll(existingActiveMemberIds);
         if (requestedIds.isEmpty()) return helper.buildConversationResponseForCurrentUser(conversation, currentUserId);
 
@@ -237,7 +234,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
                 return;
             }
             conversation.getMembers().add(
-                    ConversationMember.builder().userId(id).role(MemberRole.MEMBER).joinedAt(now)
+                    ConversationMember.builder().profileId(id).role(MemberRole.MEMBER).joinedAt(now)
                             .joinMethod(JoinMethod.ADDED_BY_MEMBER).addedBy(currentUserId).build());
         });
 
@@ -276,7 +273,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse removeMemberFromGroup(String conversationId, String targetUserId, boolean blockFromGroup) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         helper.assertMember(conversation, currentUserId);
 
@@ -321,7 +318,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse promoteToAdmin(String conversationId, String targetUserId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
 
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
@@ -347,7 +344,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse demoteFromAdmin(String conversationId, String targetUserId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
 
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
@@ -371,7 +368,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse updateGroupName(String conversationId, String name) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         helper.assertMember(conversation, currentUserId);
         helper.assertSettingAllowed(conversation, currentUserId, GroupSettings::isMemberCanChangeInfo);
@@ -402,7 +399,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
     private String fetchCurrentDynamicName(Conversation conversation, String currentUserId) {
         Set<String> memberIds = conversation.getMembers().stream()
                 .filter(helper::isActiveMember)
-                .map(ConversationMember::getUserId)
+                .map(ConversationMember::getProfileId)
                 .collect(Collectors.toSet());
         Map<String, ChatUser> userCache = chatUserRepository.findAllById(memberIds).stream()
                 .collect(Collectors.toMap(ChatUser::getId, u -> u));
@@ -411,7 +408,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse updateGroupAvatar(String conversationId, String avatarUrl) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         helper.assertMember(conversation, currentUserId);
         helper.assertSettingAllowed(conversation, currentUserId, GroupSettings::isMemberCanChangeInfo);
@@ -442,7 +439,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse updateGroupSettings(String conversationId, UpdateGroupSettingsRequest request) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
 
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
@@ -515,11 +512,11 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public void disbandGroup(String conversationId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
 
         boolean isOwner = conversation.getMembers().stream()
-                .anyMatch(m -> m.getUserId().equals(currentUserId)
+                .anyMatch(m -> m.getProfileId().equals(currentUserId)
                         && helper.isActiveMember(m) && m.getRole() == MemberRole.OWNER);
         if (!isOwner) throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
 
@@ -530,7 +527,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
         // Publish LEFT events for all active members
         conversation.getMembers().stream()
                 .filter(helper::isActiveMember)
-                .map(ConversationMember::getUserId)
+                .map(ConversationMember::getProfileId)
                 .forEach(memberId -> { /* publishGroupMemberEvent(...) */ });
 
         var actorInfo = helper.fetchActorInfo(currentUserId);
@@ -547,7 +544,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
         String transferTo = request.transferTo();
         boolean blockReJoin = request.blockReJoin();
 
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         helper.assertMember(conversation, currentUserId);
 
@@ -562,7 +559,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
             }
             ConversationMember target = helper.getMemberOrThrow(conversation, transferTo);
             if (!helper.isActiveMember(target)) throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
-            if (target.getUserId().equals(currentUserId)) throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+            if (target.getProfileId().equals(currentUserId)) throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
 
             currentMember.setRole(MemberRole.MEMBER);
             target.setRole(MemberRole.OWNER);
@@ -586,7 +583,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
         if (!silent) {
             Set<String> otherMemberIds = conversation.getMembers().stream()
                     .filter(helper::isActiveMember)
-                    .map(ConversationMember::getUserId)
+                    .map(ConversationMember::getProfileId)
                     .collect(Collectors.toSet());
             systemMessageService.sendSystemMessage(conversationId, currentUserId, actorInfo.name(), actorInfo.avatar(),
                     SystemActionType.LEAVE_GROUP, Map.of(), otherMemberIds);
@@ -597,7 +594,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
                         MemberRole role = helper.resolveRole(m);
                         return role == MemberRole.OWNER || role == MemberRole.ADMIN;
                     })
-                    .map(ConversationMember::getUserId).collect(Collectors.toSet());
+                    .map(ConversationMember::getProfileId).collect(Collectors.toSet());
             systemMessageService.sendSystemMessage(conversationId, currentUserId, actorInfo.name(), actorInfo.avatar(),
                     SystemActionType.LEAVE_GROUP, Map.of(), adminOwnerIds);
         }
@@ -622,7 +619,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public PageResponse<List<SearchMemberResponse>> searchMembersToAdd(String conversationId, String query, int page, int size) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Pageable pageable = PageRequest.of(page, size);
 
         final Set<String> memberIds = getActiveMemberIds(conversationId);
@@ -665,7 +662,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
                     ? u.getPhoneNumber() : null;
 
             return SearchMemberResponse.builder()
-                    .userId(u.getId()).fullName(u.getFullName())
+                    .userId(u.getId()).profileId(u.getId()).fullName(u.getFullName())
                     .avatar(u.getAvatar() != null ? baseUrl + u.getAvatar() : null)
                     .phoneNumber(phoneNumber)
                     .isAlreadyMember(memberIds.contains(u.getId())).build();
@@ -674,7 +671,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public PageResponse<List<GroupMemberListItemResponse>> getGroupMembers(String conversationId, String query, int page, int size) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         helper.assertMember(conversation, currentUserId);
 
@@ -690,12 +687,12 @@ public class GroupConversationServiceImpl implements GroupConversationService {
         commonStages.add(Aggregation.match(Criteria.where("members.active").ne(false)));
         commonStages.add(context -> new Document("$lookup", new Document()
                 .append("from", "chat_users")
-                .append("let", new Document("memberUserId", "$members.userId"))
+                .append("let", new Document("memberProfileId", "$members.profileId"))
                 .append("pipeline", List.of(
                         new Document("$match", new Document("$expr", new Document("$or", List.of(
-                                new Document("$eq", List.of("$_id", "$$memberUserId")),
+                                new Document("$eq", List.of("$_id", "$$memberProfileId")),
                                 new Document("$eq", List.of("$_id",
-                                        new Document("$convert", new Document("input", "$$memberUserId")
+                                        new Document("$convert", new Document("input", "$$memberProfileId")
                                                 .append("to", "objectId").append("onError", null).append("onNull", null))))
                         ))))))
                 .append("as", "user")));
@@ -716,7 +713,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
         Document addSortFieldsDoc = new Document("sortBucket", sortBucketExpr)
                 .append("nameSort", new Document("$toLower", new Document("$ifNull", List.of("$user.fullName", ""))));
         Document projectFieldsDoc = new Document()
-                .append("_id", 0).append("userId", "$members.userId")
+                .append("_id", 0).append("userId", "$members.profileId")
                 .append("fullName", new Document("$ifNull", List.of("$user.fullName", "Người dùng")))
                 .append("avatar", "$user.avatar").append("phoneNumber", "$user.phoneNumber")
                 .append("role", "$members.role").append("joinedAt", "$members.joinedAt")
@@ -762,7 +759,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
             String addedByName = addedById != null ? addedByNameMap.get(addedById) : null;
 
             return GroupMemberListItemResponse.builder()
-                    .userId(userId).fullName(fullName)
+                    .userId(userId).profileId(userId).fullName(fullName)
                     .avatar(avatar != null ? baseUrl + avatar : null)
                     .phoneNumber(phoneNumber).role(role)
                     .joinedAt(helper.toOffsetFromMongo(doc.get("joinedAt")))
@@ -778,7 +775,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public PageResponse<List<AdminMemberResponse>> getGroupAdmins(String conversationId, int page, int size) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         helper.assertMember(conversation, currentUserId);
 
@@ -792,12 +789,12 @@ public class GroupConversationServiceImpl implements GroupConversationService {
                 .and("members.role").in("OWNER", "ADMIN")));
         pipeline.add(context -> new Document("$lookup", new Document()
                 .append("from", "chat_users")
-                .append("let", new Document("memberUserId", "$members.userId"))
+                .append("let", new Document("memberProfileId", "$members.profileId"))
                 .append("pipeline", List.of(
                         new Document("$match", new Document("$expr", new Document("$or", List.of(
-                                new Document("$eq", List.of("$_id", "$$memberUserId")),
+                                new Document("$eq", List.of("$_id", "$$memberProfileId")),
                                 new Document("$eq", List.of("$_id",
-                                        new Document("$convert", new Document("input", "$$memberUserId")
+                                        new Document("$convert", new Document("input", "$$memberProfileId")
                                                 .append("to", "objectId").append("onError", null).append("onNull", null))))
                         ))))))
                 .append("as", "user")));
@@ -808,7 +805,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
         Document addSortFieldsDoc = new Document("sortBucket", sortBucketExpr)
                 .append("nameSort", new Document("$toLower", new Document("$ifNull", List.of("$user.fullName", ""))));
         Document projectFieldsDoc = new Document()
-                .append("_id", 0).append("userId", "$members.userId")
+                .append("_id", 0).append("userId", "$members.profileId")
                 .append("fullName", new Document("$ifNull", List.of("$user.fullName", "Người dùng")))
                 .append("avatar", "$user.avatar")
                 .append("role", "$members.role");
@@ -837,6 +834,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
             String roleRaw = doc.getString("role");
             return AdminMemberResponse.builder()
                     .userId(doc.getString("userId"))
+                    .profileId(doc.getString("userId"))
                     .fullName(doc.getString("fullName") != null ? doc.getString("fullName") : "Người dùng")
                     .avatar(avatar != null ? baseUrl + avatar : null)
                     .role(roleRaw != null ? MemberRole.valueOf(roleRaw) : MemberRole.ADMIN)
@@ -851,7 +849,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public PageResponse<List<AdminMemberResponse>> getAdminCandidates(String conversationId, String query, int page, int size) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
 
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
@@ -869,12 +867,12 @@ public class GroupConversationServiceImpl implements GroupConversationService {
                 .and("members.role").ne("OWNER")));
         pipeline.add(context -> new Document("$lookup", new Document()
                 .append("from", "chat_users")
-                .append("let", new Document("memberUserId", "$members.userId"))
+                .append("let", new Document("memberProfileId", "$members.profileId"))
                 .append("pipeline", List.of(
                         new Document("$match", new Document("$expr", new Document("$or", List.of(
-                                new Document("$eq", List.of("$_id", "$$memberUserId")),
+                                new Document("$eq", List.of("$_id", "$$memberProfileId")),
                                 new Document("$eq", List.of("$_id",
-                                        new Document("$convert", new Document("input", "$$memberUserId")
+                                        new Document("$convert", new Document("input", "$$memberProfileId")
                                                 .append("to", "objectId").append("onError", null).append("onNull", null))))
                         ))))))
                 .append("as", "user")));
@@ -893,7 +891,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
         Document addSortFieldsDoc = new Document("sortBucket", sortBucketExpr)
                 .append("nameSort", new Document("$toLower", new Document("$ifNull", List.of("$user.fullName", ""))));
         Document projectFieldsDoc = new Document()
-                .append("_id", 0).append("userId", "$members.userId")
+                .append("_id", 0).append("userId", "$members.profileId")
                 .append("fullName", new Document("$ifNull", List.of("$user.fullName", "Người dùng")))
                 .append("avatar", "$user.avatar")
                 .append("role", "$members.role");
@@ -922,6 +920,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
             String roleRaw = doc.getString("role");
             return AdminMemberResponse.builder()
                     .userId(doc.getString("userId"))
+                    .profileId(doc.getString("userId"))
                     .fullName(doc.getString("fullName") != null ? doc.getString("fullName") : "Người dùng")
                     .avatar(avatar != null ? baseUrl + avatar : null)
                     .role(roleRaw != null ? MemberRole.valueOf(roleRaw) : MemberRole.MEMBER)
@@ -936,7 +935,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse transferOwnership(String conversationId, String targetUserId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
 
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
@@ -965,7 +964,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public String generateJoinLink(String conversationId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
         helper.assertOwnerOrAdmin(actor);
@@ -980,7 +979,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public String refreshJoinLink(String conversationId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
         helper.assertOwnerOrAdmin(actor);
@@ -1032,7 +1031,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
                 .filter(c -> {
                     Set<String> activeMemberIds = c.getMembers().stream()
                             .filter(helper::isActiveMember)
-                            .map(ConversationMember::getUserId)
+                            .map(ConversationMember::getProfileId)
                             .collect(Collectors.toSet());
                     return activeMemberIds.equals(allMemberIds);
                 })
@@ -1044,7 +1043,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
         return conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED))
                 .getMembers().stream().filter(helper::isActiveMember)
-                .map(ConversationMember::getUserId).collect(Collectors.toSet());
+                .map(ConversationMember::getProfileId).collect(Collectors.toSet());
     }
 
     private Set<String> getBlockedUserIds(Conversation conversation) {
@@ -1053,7 +1052,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse blockMemberFromGroup(String conversationId, String targetUserId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
 
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
@@ -1102,7 +1101,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public ConversationResponse unblockMemberFromGroup(String conversationId, String targetUserId) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
 
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
@@ -1121,7 +1120,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public PageResponse<List<SearchMemberResponse>> getBlockedMembers(String conversationId, int page, int size) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
 
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
@@ -1138,7 +1137,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
         List<SearchMemberResponse> all = blockedUsers.stream()
                 .map(u -> SearchMemberResponse.builder()
-                        .userId(u.getId()).fullName(u.getFullName())
+                        .userId(u.getId()).profileId(u.getId()).fullName(u.getFullName())
                         .avatar(u.getAvatar() != null ? baseUrl + u.getAvatar() : null)
                         .isAlreadyMember(false).build())
                 .sorted(Comparator.comparing(r -> r.fullName() != null ? r.fullName() : ""))
@@ -1157,7 +1156,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public PageResponse<List<SearchMemberResponse>> getBlockCandidates(String conversationId, String query, int page, int size) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
         Conversation conversation = helper.findGroupConversation(conversationId);
 
         ConversationMember actor = helper.getMemberOrThrow(conversation, currentUserId);
@@ -1230,6 +1229,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
             String avatar = doc.getString("avatar");
             return SearchMemberResponse.builder()
                     .userId(doc.getString("userId"))
+                    .profileId(doc.getString("userId"))
                     .fullName(doc.getString("fullName") != null ? doc.getString("fullName") : "Người dùng")
                     .avatar(avatar != null ? baseUrl + avatar : null)
                     .isAlreadyMember(false)
@@ -1244,7 +1244,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
     @Override
     public PageResponse<List<ConversationResponse>> getMyGroupConversations(String query, String sort, String filter, int page, int size) {
-        String currentUserId = helper.getSecurityUtil().getCurrentUserId();
+        String currentUserId = helper.getSecurityUtil().getCurrentProfileId();
 
         Criteria memberMatch = Criteria.where("userId").is(currentUserId).and("active").ne(false);
         if ("owner".equals(filter)) {
@@ -1278,7 +1278,7 @@ public class GroupConversationServiceImpl implements GroupConversationService {
 
         Set<String> allUserIds = new HashSet<>();
         conversations.forEach(room -> {
-            room.getMembers().forEach(m -> allUserIds.add(m.getUserId()));
+            room.getMembers().forEach(m -> allUserIds.add(m.getProfileId()));
             if (room.getLastMessage() != null && room.getLastMessage().getSenderId() != null) {
                 allUserIds.add(room.getLastMessage().getSenderId());
             }

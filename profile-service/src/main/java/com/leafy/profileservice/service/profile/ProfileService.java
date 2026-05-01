@@ -203,4 +203,13 @@ public interface ProfileService {
      * @return the updated profile response
      */
     ProfileResponse verifyProfile(String profileId);
+
+    /**
+     * Enrich a single ProfileResponse with isFollowing / hasPendingConsultRequest
+     * relative to the given currentUserId. Mutates the response in-place.
+     *
+     * @param profile       the profile response to enrich
+     * @param currentUserId the user ID of the viewer
+     */
+    void enrichSingleWithConnectionStatus(ProfileResponse profile, String currentUserId);
 }

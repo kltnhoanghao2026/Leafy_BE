@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ConversationMember {
-    String userId;
+    String profileId;
     String lastReadMessageId;
     MemberRole role;
     LocalDateTime joinedAt;

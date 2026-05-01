@@ -3,7 +3,6 @@ package com.leafy.messageservice.service.conversation;
 import com.leafy.common.enums.Status;
 import com.leafy.common.utils.PhoneUtil;
 import com.leafy.common.utils.S3UtilV2;
-import com.leafy.common.utils.S3UtilV2;
 import com.leafy.common.utils.SecurityUtil;
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
@@ -80,7 +79,7 @@ public class ConversationHelper {
 
     public void assertMember(Conversation room, String userId) {
         boolean isMember = room.getMembers().stream()
-                .anyMatch(m -> m.getUserId().equals(userId) && isActiveMember(m));
+                .anyMatch(m -> m.getProfileId().equals(userId) && isActiveMember(m));
         if (!isMember) {
             throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
         }
@@ -88,7 +87,7 @@ public class ConversationHelper {
 
     public ConversationMember getMemberOrThrow(Conversation room, String userId) {
         return room.getMembers().stream()
-                .filter(m -> m.getUserId().equals(userId) && isActiveMember(m))
+                .filter(m -> m.getProfileId().equals(userId) && isActiveMember(m))
                 .findFirst()
                 .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
     }
@@ -134,7 +133,7 @@ public class ConversationHelper {
     public ConversationResponse buildConversationResponseForCurrentUser(Conversation room, String currentUserId) {
         Set<String> allUserIds = room.getMembers().stream()
                 .filter(this::isActiveMember)
-                .map(ConversationMember::getUserId)
+                .map(ConversationMember::getProfileId)
                 .collect(Collectors.toSet());
 
         if (room.getLastMessage() != null && room.getLastMessage().getSenderId() != null) {
@@ -150,7 +149,7 @@ public class ConversationHelper {
         if (!room.isGroup()) {
             String partnerId = room.getMembers().stream()
                     .filter(this::isActiveMember)
-                    .map(ConversationMember::getUserId)
+                    .map(ConversationMember::getProfileId)
                     .filter(uid -> !uid.equals(currentUserId))
                     .findFirst()
                     .orElse(currentUserId);
@@ -200,11 +199,11 @@ public class ConversationHelper {
                 ? (room.getMembers().stream()
                 .filter(m -> {
                     if (!isActiveMember(m)) return false;
-                    if (m.getUserId().equals(currentUserId)) return false;
-                    ChatUser memberInfo = userCache.get(m.getUserId());
+                    if (m.getProfileId().equals(currentUserId)) return false;
+                    ChatUser memberInfo = userCache.get(m.getProfileId());
                     return memberInfo == null || !currentUserId.equals(memberInfo.getAccountId());
                 })
-                .map(m -> userCache.get(m.getUserId()))
+                .map(m -> userCache.get(m.getProfileId()))
                 .filter(Objects::nonNull)
                 .anyMatch(u -> u.getStatus() == Status.ONLINE) ? Status.ONLINE : Status.OFFLINE)
                 : (isFriend ? partner.getStatus() : null);
@@ -262,7 +261,7 @@ public class ConversationHelper {
     public void broadcastConversationUpdate(Conversation room) {
         Set<String> userIds = room.getMembers().stream()
                 .filter(this::isActiveMember)
-                .map(ConversationMember::getUserId)
+                .map(ConversationMember::getProfileId)
                 .collect(Collectors.toSet());
 
         Map<String, ChatUser> userCache = chatUserRepository.findAllById(userIds).stream()
@@ -277,14 +276,14 @@ public class ConversationHelper {
 
         for (ConversationMember member : room.getMembers()) {
             if (!isActiveMember(member)) continue;
-            String viewerId = member.getUserId();
+            String viewerId = member.getProfileId();
             boolean viewerCanSee = canViewerSeeStatus(viewerId, userCache);
 
             ChatUser partner = null;
             if (!room.isGroup()) {
                 String partnerId = room.getMembers().stream()
                         .filter(this::isActiveMember)
-                        .map(ConversationMember::getUserId)
+                        .map(ConversationMember::getProfileId)
                         .filter(uid -> !uid.equals(viewerId))
                         .findFirst()
                         .orElse(viewerId);
@@ -295,10 +294,27 @@ public class ConversationHelper {
                     room, partner, viewerId, userCache, baseUrl, viewerCanSee, null, pendingJoinRequestCount
             );
 
+            // Use accountId as SocketEvent targetUserId — the socket-service registers
+            // WebSocket connections under accountId (JWT sub), not profileId.
+            String targetAccountId = resolveAccountId(viewerId, userCache);
             kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
-                    new SocketEvent(SocketEventType.CONVERSATION, viewerId, "/queue/conversations", payload));
+                    new SocketEvent(SocketEventType.CONVERSATION, targetAccountId, "/queue/conversations", payload));
         }
     }
+
+    /**
+     * Resolve the accountId for a given profileId using the userCache.
+     * Falls back to the profileId itself if the ChatUser record is absent or has no accountId.
+     * This is required because the socket-service routes WebSocket messages by accountId (JWT sub).
+     */
+    public String resolveAccountId(String profileId, Map<String, ChatUser> userCache) {
+        ChatUser user = userCache.get(profileId);
+        if (user != null && user.getAccountId() != null && !user.getAccountId().isBlank()) {
+            return user.getAccountId();
+        }
+        return profileId; // fallback – should not happen in healthy data
+    }
+
 
     public ChatUser resolvePartner(String partnerId, String currentUserId, Map<String, ChatUser> userCache) {
         if (partnerId.equals(currentUserId)) {
@@ -321,10 +337,10 @@ public class ConversationHelper {
                 .filter(this::isActiveMember)
                 .filter(m -> {
                     if (room.getMembers().size() <= 2) return true;
-                    return !m.getUserId().equals(currentUserId);
+                    return !m.getProfileId().equals(currentUserId);
                 })
                 .map(m -> {
-                    ChatUser u = userCache.get(m.getUserId());
+                    ChatUser u = userCache.get(m.getProfileId());
                     return u != null ? u.getFullName() : "Người dùng";
                 })
                 .filter(name -> name != null && !name.isBlank())
@@ -363,10 +379,11 @@ public class ConversationHelper {
                             return r == MemberRole.OWNER ? 0 : (r == MemberRole.ADMIN ? 1 : 2);
                         }))
                 .map(m -> {
-                    ChatUser memberInfo = userCache.get(m.getUserId());
+                    ChatUser memberInfo = userCache.get(m.getProfileId());
 
                     return ConversationMemberResponse.builder()
-                            .userId(m.getUserId())
+                            .userId(m.getProfileId())
+                            .profileId(m.getProfileId())   // userId now stores profileId
                             .fullName(memberInfo != null ? memberInfo.getFullName() : "Người dùng")
                             .avatar(memberInfo != null ? s3UtilV2.getFullUrl(memberInfo.getAvatar()) : null)
                             .lastReadMessageId(m.getLastReadMessageId())

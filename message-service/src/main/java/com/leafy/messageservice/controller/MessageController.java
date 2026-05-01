@@ -4,10 +4,8 @@ import com.leafy.common.dto.ApiResponse;
 import com.leafy.messageservice.dto.response.PageResponse;
 import com.leafy.messageservice.dto.request.MessageSendRequest;
 import com.leafy.messageservice.dto.request.MessageEditRequest;
-import com.leafy.messageservice.dto.request.ReactionRequest;
 import com.leafy.messageservice.dto.response.MessageResponse;
 import com.leafy.messageservice.dto.response.CursorPageResponse;
-import com.leafy.messageservice.dto.response.MessageSeenResponse;
 import com.leafy.messageservice.service.message.MessageService;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,6 +66,17 @@ public class MessageController {
                 messageService.findMediaMessages(conversationId, types, page, size)));
     }
 
+    @GetMapping("/conversations/{conversationId}/files")
+    @Operation(summary = "Get file attachments (type=FILE) for a conversation, paginated")
+    public ResponseEntity<ApiResponse<PageResponse<List<MessageResponse>>>> getFileMessages(
+            @PathVariable String conversationId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                messageService.findMediaMessages(conversationId, List.of("FILE"), page, size)));
+    }
+
+
     @PatchMapping("/messages/{messageId}/revoke")
     @Operation(summary = "Revoke a message (sender only)")
     public ResponseEntity<ApiResponse<Void>> revokeMessage(@PathVariable String messageId) {
@@ -100,28 +109,4 @@ public class MessageController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @PostMapping("/messages/{messageId}/reactions")
-    @Operation(summary = "Toggle reaction on a message (add if not present, remove if already reacted)")
-    public ResponseEntity<ApiResponse<Void>> toggleReaction(
-            @PathVariable String messageId,
-            @Valid @RequestBody ReactionRequest request) {
-        messageService.toggleReaction(messageId, request.emoji());
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
-
-    @DeleteMapping("/messages/{messageId}/reactions/me")
-    @Operation(summary = "Remove all reactions of current user from a message")
-    public ResponseEntity<ApiResponse<Void>> removeAllMyReactions(@PathVariable String messageId) {
-        messageService.removeAllMyReactions(messageId);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
-
-    @GetMapping("/conversations/{conversationId}/messages/{messageId}/seen-members")
-    @Operation(summary = "Get members who have seen a message in a group conversation")
-    public ResponseEntity<ApiResponse<List<MessageSeenResponse>>> getSeenMembers(
-            @PathVariable String conversationId,
-            @PathVariable String messageId) {
-        return ResponseEntity.ok(ApiResponse.success(
-                messageService.getSeenMembers(conversationId, messageId)));
-    }
-}
+}

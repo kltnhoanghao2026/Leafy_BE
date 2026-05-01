@@ -68,12 +68,12 @@ public class ProfileEventConsumer {
     )
     public void handleProfileDeleted(ProfileEvent event) {
         log.info("[Kafka] ProfileDeleted received: profileId={}, userId={}", event.getProfileId(), event.getUserId());
-        if (event.getUserId() == null) {
-            log.warn("[Kafka] ProfileDeleted event missing userId — cannot remove ChatUser. profileId={}", event.getProfileId());
+        if (event.getProfileId() == null) {
+            log.warn("[Kafka] ProfileDeleted event missing profileId — cannot remove ChatUser. userId={}", event.getUserId());
             return;
         }
-        chatUserRepository.deleteById(event.getUserId());
-        log.info("[Kafka] ChatUser removed for userId={}", event.getUserId());
+        chatUserRepository.deleteById(event.getProfileId());
+        log.info("[Kafka] ChatUser removed for profileId={}", event.getProfileId());
     }
 
     // ──────────────────────────── Helpers ────────────────────────────
@@ -85,14 +85,15 @@ public class ProfileEventConsumer {
      * that they are not inadvertently reset.
      */
     private void upsertChatUser(ProfileEvent event) {
-        if (event.getUserId() == null) {
-            log.warn("[Kafka] ProfileEvent missing userId — cannot upsert ChatUser. profileId={}", event.getProfileId());
+        if (event.getProfileId() == null) {
+            log.warn("[Kafka] ProfileEvent missing profileId — cannot upsert ChatUser. userId={}", event.getUserId());
             return;
         }
 
-        ChatUser chatUser = chatUserRepository.findById(event.getUserId())
+        ChatUser chatUser = chatUserRepository.findById(event.getProfileId())
                 .orElse(ChatUser.builder()
-                        .id(event.getUserId())
+                        .id(event.getProfileId())
+                        .accountId(event.getUserId())
                         .build());
 
         chatUser.setFullName(event.getFullName());
@@ -100,6 +101,6 @@ public class ProfileEventConsumer {
         chatUser.setLastUpdatedAt(LocalDateTime.now());
 
         chatUserRepository.save(chatUser);
-        log.info("[Kafka] ChatUser upserted: userId={}, fullName={}", event.getUserId(), event.getFullName());
+        log.info("[Kafka] ChatUser upserted: profileId={}, fullName={}", event.getProfileId(), event.getFullName());
     }
 }

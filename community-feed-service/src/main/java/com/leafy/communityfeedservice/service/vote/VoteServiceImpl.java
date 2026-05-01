@@ -8,20 +8,28 @@ import com.leafy.common.publisher.OutboxEventPublisher;
 import com.leafy.common.utils.ServiceSecurityUtils;
 import com.leafy.communityfeedservice.dto.response.VoteResponse;
 import com.leafy.communityfeedservice.mapper.VoteMapper;
+import com.leafy.communityfeedservice.model.ProfileSummary;
 import com.leafy.communityfeedservice.model.Vote;
 import com.leafy.communityfeedservice.model.enums.VoteTargetType;
 import com.leafy.communityfeedservice.model.enums.VoteType;
+import com.leafy.communityfeedservice.repository.ProfileSummaryRepository;
 import com.leafy.communityfeedservice.repository.VoteRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +40,7 @@ public class VoteServiceImpl implements VoteService {
     VoteRepository voteRepository;
     OutboxEventPublisher outboxEventPublisher;
     VoteMapper voteMapper;
+    ProfileSummaryRepository profileSummaryRepository;
 
     @Override
     @Transactional
@@ -69,9 +78,29 @@ public class VoteServiceImpl implements VoteService {
 
     @Override
     public Page<VoteResponse> getVotesByPostAndType(String postId, VoteType voteType, Pageable pageable) {
-        return voteRepository
-                .findByTargetIdAndTargetTypeAndTypeAndActiveTrue(postId, VoteTargetType.POST, voteType, pageable)
-                .map(voteMapper::toResponse);
+        Page<Vote> votePage = voteRepository
+                .findByTargetIdAndTargetTypeAndTypeAndActiveTrue(postId, VoteTargetType.POST, voteType, pageable);
+
+        List<VoteResponse> responses = votePage.getContent().stream()
+                .map(voteMapper::toResponse)
+                .collect(Collectors.toList());
+
+        // Batch-fetch author profiles and enrich — same pattern as PostServiceImpl
+        List<String> authorIds = responses.stream()
+                .map(VoteResponse::getAuthorId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (!authorIds.isEmpty()) {
+            Map<String, ProfileSummary> profileMap = profileSummaryRepository
+                    .findAllByIdIn(new ArrayList<>(authorIds)).stream()
+                    .collect(Collectors.toMap(ProfileSummary::getId, Function.identity()));
+
+            responses.forEach(r -> r.setAuthorInfo(profileMap.get(r.getAuthorId())));
+        }
+
+        return new PageImpl<>(responses, pageable, votePage.getTotalElements());
     }
 
     private void publishVoteEvent(Vote vote, EventType eventType) {
@@ -86,3 +115,4 @@ public class VoteServiceImpl implements VoteService {
         outboxEventPublisher.saveAndPublish(vote.getId(), "VOTE", eventType, eventPayload);
     }
 }
+

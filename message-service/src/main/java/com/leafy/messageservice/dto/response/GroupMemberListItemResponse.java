@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 @Builder
 public record GroupMemberListItemResponse(
         String userId,
+        String profileId,
         String fullName,
         String avatar,
         String phoneNumber,

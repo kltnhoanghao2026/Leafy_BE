@@ -8,8 +8,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -41,7 +43,7 @@ public class ProfileSyncController {
                 .build()));
     }
 
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping({"/profiles/reset", "/internal/search/profiles/reset"})
     public ResponseEntity<ApiResponse<ProfileSyncBulkResponse>> resetProfileIndex() {
         profileIndexSync.resetIndex();
@@ -52,10 +54,10 @@ public class ProfileSyncController {
                 .build()));
     }
 
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping({"/profiles/reindex-all", "/internal/search/profiles/reindex-all"})
     public ResponseEntity<ApiResponse<ProfileSyncBulkResponse>> reindexAllProfiles(
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "500") int size) {
+            @RequestParam(defaultValue = "500") int size) {
         int indexedCount = profileIndexSync.reindexAll(size);
         log.info("Full profile reindex completed: indexedCount={}", indexedCount);
 

@@ -1,7 +1,6 @@
 package com.leafy.messageservice.service.message;
 
 import com.leafy.common.utils.S3UtilV2;
-import com.leafy.common.utils.S3UtilV2;
 import com.leafy.common.utils.SecurityUtil;
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
@@ -22,7 +21,6 @@ import com.leafy.messageservice.repository.ConversationRepository;
 import com.leafy.messageservice.repository.MessageRepository;
 import com.leafy.messageservice.repository.ChatUserRepository;
 import com.leafy.messageservice.service.conversation.ConversationService;
-import com.leafy.messageservice.dto.request.AttachmentRequest;
 import com.leafy.messageservice.dto.request.MessageEditRequest;
 import com.leafy.messageservice.dto.request.MessageSendRequest;
 
@@ -36,7 +34,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import com.leafy.messageservice.dto.response.PageResponse;
-import com.leafy.messageservice.dto.response.MessageResponse;
 import com.leafy.messageservice.mapper.MessageMapper;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -80,14 +77,14 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public PageResponse<List<MessageResponse>> findChatMessages(String conversationId, int page, int size) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
 
         // Kiểm tra quyền: user phải là thành viên của phòng chat
         Conversation room = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
         assertConversationMember(room, currentUserId);
         ConversationMember currentMember = room.getMembers().stream()
-            .filter(m -> m.getUserId().equals(currentUserId))
+            .filter(m -> m.getProfileId().equals(currentUserId))
             .findFirst().orElse(null);
         boolean isActive = currentMember != null && isActiveMember(currentMember);
 
@@ -120,7 +117,7 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public PageResponse<List<MessageResponse>> findMediaMessages(String conversationId, List<String> types, int page, int size) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
 
         Conversation room = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
@@ -158,7 +155,7 @@ public class MessageServiceImpl implements MessageService {
     public CursorPageResponse<MessageResponse> findChatMessagesV2(
             String conversationId, String cursor, int limit, String direction, String aroundMessageId) {
         
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
         Conversation room = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
         assertConversationMember(room, currentUserId);
@@ -253,7 +250,7 @@ public class MessageServiceImpl implements MessageService {
         List<Criteria> securityCriteria = new ArrayList<>();
         
         ConversationMember currentMember = room.getMembers().stream()
-                .filter(m -> m.getUserId().equals(currentUserId))
+                .filter(m -> m.getProfileId().equals(currentUserId))
                 .findFirst().orElse(null);
         boolean isActive = currentMember != null && isActiveMember(currentMember);
 
@@ -304,17 +301,23 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public void sendMessage(String conversationId, MessageSendRequest request) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
 
         // 1. Tìm phòng chat bằng ObjectId hoặc lazy creation
         Conversation room;
+        boolean isNewConversation = false;
 
         if (conversationId != null) {
             room = conversationRepository.findById(conversationId)
                     .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
         } else if (request.recipientId() != null) {
             // Luồng Lazy Creation cho người lạ/chat mới
+            // Kiểm tra xem conversation đã tồn tại chưa trước khi tạo mới
+            boolean alreadyExisted = conversationRepository
+                    .findDirectConversation(currentUserId, request.recipientId())
+                    .isPresent();
             room = conversationService.getOrCreateDirectConversation(currentUserId, request.recipientId());
+            isNewConversation = !alreadyExisted;
         } else {
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
@@ -373,8 +376,8 @@ public class MessageServiceImpl implements MessageService {
         Update update = new Update().set("lastMessage", lastInfo);
         room.getMembers().stream()
             .filter(this::isActiveMember)
-                .filter(m -> !m.getUserId().equals(currentUserId))
-                .forEach(m -> update.inc("unreadCounts." + m.getUserId(), 1));
+                .filter(m -> !m.getProfileId().equals(currentUserId))
+                .forEach(m -> update.inc("unreadCounts." + m.getProfileId(), 1));
 
         Conversation updatedRoom = mongoTemplate.findAndModify(
                 query, update,
@@ -387,6 +390,14 @@ public class MessageServiceImpl implements MessageService {
         String baseUrl = s3UtilV2.getS3BaseUrl();
         Conversation finalRoom = updatedRoom != null ? updatedRoom : room;
 
+        // Build userCache for accountId resolution
+        Set<String> memberProfileIds = finalRoom.getMembers().stream()
+                .filter(this::isActiveMember)
+                .map(ConversationMember::getProfileId)
+                .collect(Collectors.toSet());
+        Map<String, ChatUser> memberCache = chatUserRepository.findAllById(memberProfileIds).stream()
+                .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
         List<ChatNotification> notifPrototypes = new ArrayList<>(
                 List.of(messageMapper.mapToChatNotification(message, baseUrl, 0)));
         enrichNotifications(notifPrototypes);
@@ -395,29 +406,33 @@ public class MessageServiceImpl implements MessageService {
         finalRoom.getMembers().stream()
             .filter(this::isActiveMember)
             .forEach(member -> {
-            boolean isFromMe = member.getUserId().equals(currentUserId);
-            Integer unreadCount = finalRoom.getUnreadCounts().getOrDefault(member.getUserId(), 0);
+            boolean isFromMe = member.getProfileId().equals(currentUserId);
+            Integer unreadCount = finalRoom.getUnreadCounts().getOrDefault(member.getProfileId(), 0);
 
             ChatNotification personalNotif = baseNotif.toBuilder()
                     .isFromMe(isFromMe)
                     .unreadCount(unreadCount)
                     .build();
 
+            String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), memberCache);
             kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
-                    new SocketEvent(SocketEventType.MESSAGE, member.getUserId(),
+                    new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
                             "/queue/messages", personalNotif));
                 });
 
-        // 7. Ingest vào AI system
-        log.info("[Kafka] Sending user message to 'message-created' for AI ingestion.");
-        // AI Event removed
+        // 7. Nếu là conversation mới, broadcast /queue/conversations cho cả 2 thành viên
+        // để recipient thấy ngay conversation trong sidebar mà không cần refresh
+        if (isNewConversation) {
+            log.info("[Chat] New direct conversation {} – broadcasting conversation update to all members.", finalRoom.getId());
+            conversationHelper.broadcastConversationUpdate(finalRoom);
+        }
     }
 
     // ─────────────────────────── Thu hồi / Xóa ───────────────────────────
 
     @Override
     public void revokeMessage(String messageId) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
 
@@ -447,7 +462,7 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public void editMessage(String messageId, MessageEditRequest request) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
 
@@ -477,6 +492,12 @@ public class MessageServiceImpl implements MessageService {
         // Broadcast the edit update
         Conversation conversation = conversationRepository.findById(message.getConversationId()).orElse(null);
         if (conversation != null) {
+            Set<String> editMemberIds = conversation.getMembers().stream()
+                    .filter(m -> !Boolean.FALSE.equals(m.getActive()))
+                    .map(ConversationMember::getProfileId).collect(Collectors.toSet());
+            Map<String, ChatUser> editCache = chatUserRepository.findAllById(editMemberIds).stream()
+                    .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
             for (ConversationMember member : conversation.getMembers()) {
                 if (Boolean.FALSE.equals(member.getActive())) continue;
 
@@ -486,8 +507,9 @@ public class MessageServiceImpl implements MessageService {
                 payload.put("messageId", messageId);
                 payload.put("content", request.content());
 
+                String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), editCache);
                 kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
-                        new SocketEvent(SocketEventType.MESSAGE, member.getUserId(),
+                        new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
                                 "/queue/status-updates", payload));
             }
         }
@@ -495,7 +517,7 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public void deleteMessageForMe(String messageId) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
         Query query = new Query(Criteria.where("id").is(messageId));
         Update update = new Update().addToSet("deletedBy", currentUserId);
         mongoTemplate.updateFirst(query, update, Message.class);
@@ -503,14 +525,14 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public void deleteGroupMemberMessage(String conversationId, String messageId) {
-        String currentUserId = securityUtil.getCurrentUserId();
+        String currentUserId = securityUtil.getCurrentProfileId();
 
         Conversation room = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
         if (!room.isGroup()) throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
 
         ConversationMember actor = room.getMembers().stream()
-                .filter(m -> m.getUserId().equals(currentUserId) && isActiveMember(m))
+                .filter(m -> m.getProfileId().equals(currentUserId) && isActiveMember(m))
                 .findFirst()
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_CONVERSATION_PARTICIPANT));
 
@@ -532,7 +554,7 @@ public class MessageServiceImpl implements MessageService {
 
         if (actorRole == MemberRole.ADMIN) {
             room.getMembers().stream()
-                    .filter(m -> m.getUserId().equals(message.getSenderId()))
+                    .filter(m -> m.getProfileId().equals(message.getSenderId()))
                     .findFirst()
                     .ifPresent(sender -> {
                         MemberRole senderRole = sender.getRole() != null ? sender.getRole() : MemberRole.MEMBER;
@@ -558,128 +580,9 @@ public class MessageServiceImpl implements MessageService {
         broadcastStatusChange(conversationId, messageId, MessageStatus.DELETED_BY_ADMIN, currentUserId);
     }
 
-    @Override
-    public void toggleReaction(String messageId, String emoji) {
-        String currentUserId = securityUtil.getCurrentUserId();
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        
-        Conversation room = conversationRepository.findById(message.getConversationId())
-                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
-        assertActiveMember(room, currentUserId);
 
 
-        Map<String, List<String>> reactions = message.getReactions();
-        if (reactions == null) {
-            reactions = new HashMap<>();
-        }
 
-        List<String> users = reactions.computeIfAbsent(emoji, k -> new ArrayList<>());
-        users.add(currentUserId);
-        message.setReactions(reactions);
-        messageRepository.save(message);
-
-        // Broadcast reaction update to all members
-        broadcastReactionUpdate(room, messageId, message.getReactions());
-    }
-
-    @Override
-    public void removeAllMyReactions(String messageId) {
-        String currentUserId = securityUtil.getCurrentUserId();
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        Conversation room = conversationRepository.findById(message.getConversationId())
-                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
-        assertActiveMember(room, currentUserId);
-
-        Map<String, List<String>> reactions = message.getReactions();
-        if (reactions == null || reactions.isEmpty()) return;
-
-        // Remove ALL occurrences of current user from every emoji list
-        reactions.entrySet().removeIf(entry -> {
-            entry.getValue().removeAll(List.of(currentUserId));
-            return entry.getValue().isEmpty();
-        });
-
-        message.setReactions(reactions.isEmpty() ? null : reactions);
-        messageRepository.save(message);
-
-        broadcastReactionUpdate(room, messageId, message.getReactions());
-    }
-
-    @Override
-    public List<MessageSeenResponse> getSeenMembers(String conversationId, String messageId) {
-        String currentUserId = securityUtil.getCurrentUserId();
-
-        Conversation room = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
-        assertConversationMember(room, currentUserId);
-
-        Message targetMessage = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        if (!targetMessage.getConversationId().equals(conversationId)) {
-            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        if (!targetMessage.getSenderId().equals(currentUserId)) {
-            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
-        }
-
-        // Collect lastReadMessageIds from active members (exclude sender of the target message)
-        List<ConversationMember> activeMembers = room.getMembers().stream()
-                .filter(this::isActiveMember)
-                .filter(m -> !m.getUserId().equals(targetMessage.getSenderId()))
-                .filter(m -> m.getLastReadMessageId() != null)
-                .toList();
-
-        if (activeMembers.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        // Batch-fetch all lastRead messages and filter those with createdAt >= targetMessage.createdAt
-        Set<String> lastReadIds = activeMembers.stream()
-                .map(ConversationMember::getLastReadMessageId)
-                .collect(Collectors.toSet());
-
-        Query query = new Query(
-                Criteria.where("id").in(lastReadIds)
-                        .and("createdAt").gte(targetMessage.getCreatedAt())
-        );
-        List<Message> seenMessages = mongoTemplate.find(query, Message.class);
-        Set<String> seenMessageIds = seenMessages.stream()
-                .map(Message::getId)
-                .collect(Collectors.toSet());
-
-        // Find members whose lastReadMessageId indicates they have seen the target message
-        List<String> seenUserIds = activeMembers.stream()
-                .filter(m -> seenMessageIds.contains(m.getLastReadMessageId()))
-                .map(ConversationMember::getUserId)
-                .toList();
-
-        if (seenUserIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        Map<String, ChatUser> userMap = chatUserRepository.findAllById(seenUserIds).stream()
-                .collect(Collectors.toMap(ChatUser::getId, u -> u));
-
-        String baseUrl = s3UtilV2.getS3BaseUrl();
-        return seenUserIds.stream()
-                .map(userId -> {
-                    ChatUser user = userMap.get(userId);
-                    return MessageSeenResponse.builder()
-                            .userId(userId)
-                            .fullName(user != null ? user.getFullName() : null)
-                            .avatar(user != null && user.getAvatar() != null
-                                    ? baseUrl + user.getAvatar()
-                                    : null)
-                            .build();
-                })
-                .collect(Collectors.toList());
-    }
 
     // ─────────────────────────── Private helpers ───────────────────────────
 
@@ -692,10 +595,10 @@ public class MessageServiceImpl implements MessageService {
         // 1. Kiểm tra quyền membership
         Conversation room = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
-        
+
         boolean isMember = room.getMembers().stream()
-                .anyMatch(m -> m.getUserId().equals(userId) && isActiveMember(m));
-        
+                .anyMatch(m -> m.getProfileId().equals(userId) && isActiveMember(m));
+
         if (!isMember) {
             throw new AppException(ErrorCode.NOT_CONVERSATION_PARTICIPANT);
         }
@@ -715,7 +618,7 @@ public class MessageServiceImpl implements MessageService {
 
     private void assertConversationMember(Conversation room, String userId) {
         boolean isMember = room.getMembers().stream()
-                .anyMatch(m -> m.getUserId().equals(userId));
+                .anyMatch(m -> m.getProfileId().equals(userId));
         if (!isMember) {
             throw new AppException(ErrorCode.NOT_CONVERSATION_PARTICIPANT);
         }
@@ -723,7 +626,7 @@ public class MessageServiceImpl implements MessageService {
 
     private void assertActiveMember(Conversation room, String userId) {
         boolean isMember = room.getMembers().stream()
-                .anyMatch(m -> m.getUserId().equals(userId) && isActiveMember(m));
+                .anyMatch(m -> m.getProfileId().equals(userId) && isActiveMember(m));
         if (!isMember) {
             throw new AppException(ErrorCode.NOT_CONVERSATION_PARTICIPANT);
         }
@@ -813,6 +716,12 @@ public class MessageServiceImpl implements MessageService {
         Conversation conversation = conversationRepository.findById(conversationId).orElse(null);
         if (conversation == null) return;
 
+        Set<String> statusMemberIds = conversation.getMembers().stream()
+                .filter(m -> !Boolean.FALSE.equals(m.getActive()))
+                .map(ConversationMember::getProfileId).collect(Collectors.toSet());
+        Map<String, ChatUser> statusCache = chatUserRepository.findAllById(statusMemberIds).stream()
+                .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
         for (ConversationMember member : conversation.getMembers()) {
             if (Boolean.FALSE.equals(member.getActive())) continue;
 
@@ -825,26 +734,14 @@ public class MessageServiceImpl implements MessageService {
                 payload.put("deletedByAdminId", deletedByAdminId);
             }
 
+            String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), statusCache);
             kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
-                    new SocketEvent(SocketEventType.MESSAGE, member.getUserId(),
+                    new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
                             "/queue/status-updates", payload));
         }
     }
 
-    private void broadcastReactionUpdate(Conversation room, String messageId, Map<String, List<String>> reactions) {
-        for (ConversationMember member : room.getMembers()) {
-            if (!isActiveMember(member)) continue;
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("type", "REACTION_UPDATE");
-            payload.put("conversationId", room.getId());
-            payload.put("messageId", messageId);
-            payload.put("reactions", reactions);
 
-            kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
-                    new SocketEvent(SocketEventType.MESSAGE, member.getUserId(),
-                            "/queue/reactions", payload));
-        }
-    }
 
     private LinkPreview buildJoinLinkPreview(String url, String token) {
         try {
@@ -859,13 +756,13 @@ public class MessageServiceImpl implements MessageService {
                     .collect(Collectors.toSet());
 
             Set<String> memberIds = activeMembers.stream()
-                    .map(ConversationMember::getUserId).collect(Collectors.toSet());
+                    .map(ConversationMember::getProfileId).collect(Collectors.toSet());
             Map<String, ChatUser> userCache = chatUserRepository.findAllById(memberIds).stream()
                     .collect(Collectors.toMap(ChatUser::getId, u -> u));
 
             String baseUrl = s3UtilV2.getS3BaseUrl();
             List<LinkPreview.MemberSnapshot> previews = activeMembers.stream()
-                    .map(ConversationMember::getUserId)
+                    .map(ConversationMember::getProfileId)
                     .limit(5)
                     .map(userCache::get)
                     .filter(Objects::nonNull)

@@ -444,4 +444,10 @@ public class ProfileServiceImpl implements ProfileService {
 
         return buildFullProfileResponse(savedProfile);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void enrichSingleWithConnectionStatus(ProfileResponse profile, String currentUserId) {
+        enrichWithConnectionStatus(List.of(profile), currentUserId);
+    }
 }

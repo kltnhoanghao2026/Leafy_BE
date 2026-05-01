@@ -11,6 +11,7 @@ public record JoinRequestResponse(
         String id,
         String conversationId,
         String userId,
+        String profileId,
         String fullName,
         String avatar,
         JoinRequestStatus status,

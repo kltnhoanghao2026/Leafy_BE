@@ -5,6 +5,10 @@ import com.leafy.profileservice.model.UserConnection;
 import com.leafy.profileservice.service.connection.UserConnectionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse;
+import com.leafy.profileservice.dto.response.profile.ProfileResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -72,9 +76,9 @@ public class UserConnectionController {
 
     @GetMapping("/experts/consult/pending")
     @PreAuthorize("@profileSecurityService.isExpert()")
-    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse>>> getPendingConsultations(
+    public ResponseEntity<ApiResponse<Page<ConsultationRequestResponse>>> getPendingConsultations(
             @RequestHeader("X-User-Id") String expertId,
-            org.springframework.data.domain.Pageable pageable) {
+            Pageable pageable) {
         log.info("GET /profiles/experts/consult/pending by expert: {}", expertId);
         var page = userConnectionService.getPendingConsultations(expertId, pageable);
         return ResponseEntity.ok(ApiResponse.success(page));
@@ -82,9 +86,9 @@ public class UserConnectionController {
 
     @GetMapping("/experts/consult/accepted")
     @PreAuthorize("@profileSecurityService.isExpert()")
-    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse>>> getAcceptedConsultations(
+    public ResponseEntity<ApiResponse<Page<ConsultationRequestResponse>>> getAcceptedConsultations(
             @RequestHeader("X-User-Id") String expertId,
-            org.springframework.data.domain.Pageable pageable) {
+            Pageable pageable) {
         log.info("GET /profiles/experts/consult/accepted by expert: {}", expertId);
         var page = userConnectionService.getAcceptedConsultations(expertId, pageable);
         return ResponseEntity.ok(ApiResponse.success(page));
@@ -106,5 +110,15 @@ public class UserConnectionController {
         log.info("GET /profiles/users/{}/followers", userId);
         List<String> followers = userConnectionService.getUserFollowers(userId);
         return ResponseEntity.ok(ApiResponse.success(followers));
+    }
+
+    @GetMapping("/users/{userId}/followers/profiles")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Page<ProfileResponse>>> getUserFollowerProfiles(
+            @PathVariable String userId,
+            Pageable pageable) {
+        log.info("GET /profiles/users/{}/followers/profiles", userId);
+        var page = userConnectionService.getUserFollowerProfiles(userId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(page));
     }
 }

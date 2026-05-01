@@ -23,6 +23,7 @@ import com.leafy.messageservice.service.conversation.GroupConversationService;
 import com.leafy.messageservice.service.conversation.GroupInviteService;
 import com.leafy.messageservice.service.message.PinService;
 import com.leafy.messageservice.service.conversation.JoinRequestService;
+import com.leafy.messageservice.service.sync.ChatUserSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -46,6 +47,7 @@ public class ConversationController {
     private final GroupInviteService groupInviteService;
     private final PinService pinService;
     private final JoinRequestService joinRequestService;
+    private final ChatUserSyncService chatUserSyncService;
 
     @GetMapping
     @Operation(summary = "Get conversations of current user (paginated)")
@@ -414,5 +416,27 @@ public class ConversationController {
     @Operation(summary = "Get pinned conversations for the current user")
     public ResponseEntity<ApiResponse<List<ConversationResponse>>> getPinnedConversations() {
         return ResponseEntity.ok(ApiResponse.success(conversationService.getPinnedConversations()));
+    }
+
+    // ─────────────────────────── Admin endpoints ───────────────────────────
+
+    /**
+     * Bulk sync the local ChatUser cache from profile-service.
+     * Iterates all profiles via cursor-based pagination and upserts each one
+     * into the {@code chat_users} collection keyed by {@code profileId}.
+     * <p>Must be called once after migrating ConversationMember identifiers to profileId.
+     */
+    @PostMapping("/admin/sync-chat-users")
+    @Operation(summary = "[Admin] Sync ChatUser cache from profile-service")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> syncChatUsers() {
+        ChatUserSyncService.SyncResult result = chatUserSyncService.syncAll();
+        Map<String, Object> body = Map.of(
+                "success",           result.success(),
+                "profilesFetched",   result.profilesFetched(),
+                "chatUsersUpserted", result.chatUsersUpserted(),
+                "errorMessage",      result.errorMessage() != null ? result.errorMessage() : ""
+        );
+        return ResponseEntity.ok(ApiResponse.success(body));
     }
 }

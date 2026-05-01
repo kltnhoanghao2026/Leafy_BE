@@ -2,6 +2,11 @@ package com.leafy.profileservice.service.connection;
 
 import com.leafy.profileservice.model.UserConnection;
 
+import com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse;
+import com.leafy.profileservice.dto.response.profile.ProfileResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.util.List;
 
 public interface UserConnectionService {
@@ -20,7 +25,9 @@ public interface UserConnectionService {
 
     List<String> getUserFollowers(String followingId);
 
-    org.springframework.data.domain.Page<com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse> getPendingConsultations(String expertId, org.springframework.data.domain.Pageable pageable);
+    Page<ConsultationRequestResponse> getPendingConsultations(String expertId, Pageable pageable);
 
-    org.springframework.data.domain.Page<com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse> getAcceptedConsultations(String expertId, org.springframework.data.domain.Pageable pageable);
+    Page<ConsultationRequestResponse> getAcceptedConsultations(String expertId, Pageable pageable);
+
+    Page<ProfileResponse> getUserFollowerProfiles(String followingId, Pageable pageable);
 }
