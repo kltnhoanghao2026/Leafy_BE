@@ -104,6 +104,12 @@
             <version>9.8.0</version>
             <scope>compile</scope>
         </dependency>
+
+        <!-- Spring Retry — provides RetryTemplate for FCM exponential backoff -->
+        <dependency>
+            <groupId>org.springframework.retry</groupId>
+            <artifactId>spring-retry</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

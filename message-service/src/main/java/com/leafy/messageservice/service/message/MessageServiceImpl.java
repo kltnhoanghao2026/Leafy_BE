@@ -407,7 +407,9 @@ public class MessageServiceImpl implements MessageService {
             .filter(this::isActiveMember)
             .forEach(member -> {
             boolean isFromMe = member.getProfileId().equals(currentUserId);
-            Integer unreadCount = finalRoom.getUnreadCounts().getOrDefault(member.getProfileId(), 0);
+            Integer unreadCount = finalRoom.getUnreadCounts() != null
+                    ? finalRoom.getUnreadCounts().getOrDefault(member.getProfileId(), 0)
+                    : 0;
 
             ChatNotification personalNotif = baseNotif.toBuilder()
                     .isFromMe(isFromMe)
@@ -416,6 +418,7 @@ public class MessageServiceImpl implements MessageService {
 
             String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), memberCache);
             kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
+                    targetAccountId,
                     new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
                             "/queue/messages", personalNotif));
                 });
@@ -509,6 +512,7 @@ public class MessageServiceImpl implements MessageService {
 
                 String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), editCache);
                 kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
+                        targetAccountId,
                         new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
                                 "/queue/status-updates", payload));
             }
@@ -736,6 +740,7 @@ public class MessageServiceImpl implements MessageService {
 
             String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), statusCache);
             kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
+                    targetAccountId,
                     new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
                             "/queue/status-updates", payload));
         }

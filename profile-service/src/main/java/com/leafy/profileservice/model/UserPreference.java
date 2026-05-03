@@ -91,11 +91,9 @@ public class UserPreference {
     public static class MessageSettings {
         // Quick response
         private boolean quickResponseEnable = false;
-
-        // Separate Priority and Other
-        private boolean separatePriorityAndOtherEnable = true;
-
-        // Other
+        // Inbox separation
+        private boolean separatePriorityAndOtherEnable = false;
+        // Typing indicator
         private boolean showTypingStatus = true;
     }
 
@@ -111,7 +109,7 @@ public class UserPreference {
         // Call
         private boolean notifyCall;
 
-        // Post
+        // Friend activity
         private boolean notifyNewPostFromFriend;
 
         // Dob

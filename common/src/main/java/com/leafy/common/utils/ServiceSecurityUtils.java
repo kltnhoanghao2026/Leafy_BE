@@ -16,35 +16,39 @@ public class ServiceSecurityUtils {
     /**
      * Get the current authenticated user's account ID from security context
      *
-     * @return the account ID of the authenticated user
-     * @throws ClassCastException if the principal is not a UserPrincipal
+     * @return the account ID of the authenticated user, or null if unauthenticated/anonymous
      */
     public static String getCurrentAccountId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-        return principal.getUserId();
+        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
+            return principal.getUserId();
+        }
+        return null;
     }
 
     /**
      * Get the current UserPrincipal from security context
      *
-     * @return the UserPrincipal of the authenticated user
-     * @throws ClassCastException if the principal is not a UserPrincipal
+     * @return the UserPrincipal of the authenticated user, or null if unauthenticated/anonymous
      */
     public static UserPrincipal getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return (UserPrincipal) authentication.getPrincipal();
+        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
+            return principal;
+        }
+        return null;
     }
 
     /**
      * Get the current authenticated user's profile ID from security context
      *
-     * @return the profile ID of the authenticated user
-     * @throws ClassCastException if the principal is not a UserPrincipal
+     * @return the profile ID of the authenticated user, or null if unauthenticated/anonymous
      */
     public static String getCurrentProfileId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-        return principal.getProfileId();
+        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
+            return principal.getProfileId();
+        }
+        return null;
     }
 }

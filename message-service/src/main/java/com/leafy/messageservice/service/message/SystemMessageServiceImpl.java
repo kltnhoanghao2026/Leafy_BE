@@ -163,6 +163,7 @@ public class SystemMessageServiceImpl implements SystemMessageService {
 
                 String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), sysCache);
                 kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
+                        targetAccountId,
                         new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
                                 "/queue/messages", notification));
             });

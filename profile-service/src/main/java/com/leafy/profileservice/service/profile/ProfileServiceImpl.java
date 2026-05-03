@@ -270,16 +270,29 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private void enrichWithConnectionStatus(List<ProfileResponse> profiles, String currentUserId) {
-        List<String> followingUserIds = profiles.stream()
-                .map(ProfileResponse::getUserId)
+        // Resolve JWT userId → profileId for connection lookup (UserConnection now stores profileIds)
+        String currentProfileId = profileRepository.findByUserId(currentUserId)
+                .map(Profile::getId)
+                .orElse(null);
+        if (currentProfileId == null) {
+            profiles.forEach(p -> {
+                p.setIsFollowing(false);
+                p.setHasPendingConsultRequest(false);
+            });
+            return;
+        }
+
+        List<String> targetProfileIds = profiles.stream()
+                .map(ProfileResponse::getId)
                 .collect(Collectors.toList());
-                
-        List<UserConnection> connections = userConnectionRepository.findAllByFollowerIdAndFollowingIdIn(currentUserId, followingUserIds);
+
+        List<UserConnection> connections = userConnectionRepository
+                .findAllByFollowerIdAndFollowingIdIn(currentProfileId, targetProfileIds);
         Map<String, UserConnection> connectionMap = connections.stream()
                 .collect(Collectors.toMap(UserConnection::getFollowingId, c -> c));
-                
+
         for (ProfileResponse profile : profiles) {
-            UserConnection conn = connectionMap.get(profile.getUserId());
+            UserConnection conn = connectionMap.get(profile.getId());
             if (conn != null) {
                 profile.setIsFollowing(conn.getIsFollowing() != null && conn.getIsFollowing());
                 profile.setHasPendingConsultRequest(conn.getConsultationStatus() == ConsultationStatus.PENDING);
@@ -449,5 +462,13 @@ public class ProfileServiceImpl implements ProfileService {
     @Transactional(readOnly = true)
     public void enrichSingleWithConnectionStatus(ProfileResponse profile, String currentUserId) {
         enrichWithConnectionStatus(List.of(profile), currentUserId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getProfileIdByUserId(String userId) {
+        return profileRepository.findByUserId(userId)
+                .map(Profile::getId)
+                .orElse(null);
     }
 }

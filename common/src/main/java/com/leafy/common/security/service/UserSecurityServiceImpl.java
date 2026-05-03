@@ -15,7 +15,7 @@ public class UserSecurityServiceImpl implements UserSecurityService {
     public boolean isCurrentUser(String userId) {
         try {
             String currentUserId = ServiceSecurityUtils.getCurrentAccountId();
-            boolean isCurrentUser = currentUserId.equals(userId);
+            boolean isCurrentUser = userId != null && userId.equals(currentUserId);
             log.debug("Checking if current user ({}) matches target user ({}): {}",
                     currentUserId, userId, isCurrentUser);
             return isCurrentUser;

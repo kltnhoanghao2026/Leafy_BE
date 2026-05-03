@@ -151,10 +151,21 @@ spring:
                     fallbackUri: forward:/fallback/file-service
 
             # Notification Service Routes
+            - id: notification-service-admin-sync
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/notifications/admin/sync-notification-users
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/notification-service
+
             - id: notification-service
               uri: lb://notification-service
               predicates:
-                - Path=/api/push-tokens/**,/api/mailing/**
+                - Path=/api/notifications/**,/api/push-tokens/**,/api/mailing/**
               filters:
                 - StripPrefix=1
                 - name: CircuitBreaker
@@ -375,7 +386,7 @@ spring:
             - id: messages-service
               uri: lb://message-service
               predicates:
-                - Path=/api/messages/**, /api/conversations/**
+                - Path=/api/messages/**, /api/conversations/**, /api/v2/conversations/**
               filters:
                 - StripPrefix=1
                 - name: CircuitBreaker

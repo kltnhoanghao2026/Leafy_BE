@@ -24,10 +24,11 @@ spring:
       client-id: socket-service-consumer
       auto-offset-reset: latest
       max-poll-records: 100
-      properties:
-        spring.json.use.type.headers: true
-        spring.json.trusted.packages: "*"
-        spring.json.type.mapping: "SocketEvent:com.leafy.common.dto.client.socketservice.SocketEvent"
+      # notification-service publishes plain JSON strings (StringSerializer) with no
+      # Spring type headers, so we must use StringDeserializer and deserialize manually
+      # inside SocketEventConsumer – same pattern as RawNotificationConsumer.
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
       concurrency: 3
       ack-mode: batch

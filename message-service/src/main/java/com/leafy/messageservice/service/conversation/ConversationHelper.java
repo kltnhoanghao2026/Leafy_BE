@@ -1,6 +1,6 @@
 package com.leafy.messageservice.service.conversation;
 
-import com.leafy.common.enums.Status;
+
 import com.leafy.common.utils.PhoneUtil;
 import com.leafy.common.utils.S3UtilV2;
 import com.leafy.common.utils.SecurityUtil;
@@ -193,21 +193,6 @@ public class ConversationHelper {
                 ? s3UtilV2.getFullUrl(room.getAvatar())
                 : (partner != null ? s3UtilV2.getFullUrl(partner.getAvatar()) : null);
 
-        boolean isFriend = !room.isGroup() && "ACCEPTED".equals(friendshipStatus);
-
-        Status displayStatus = room.isGroup()
-                ? (room.getMembers().stream()
-                .filter(m -> {
-                    if (!isActiveMember(m)) return false;
-                    if (m.getProfileId().equals(currentUserId)) return false;
-                    ChatUser memberInfo = userCache.get(m.getProfileId());
-                    return memberInfo == null || !currentUserId.equals(memberInfo.getAccountId());
-                })
-                .map(m -> userCache.get(m.getProfileId()))
-                .filter(Objects::nonNull)
-                .anyMatch(u -> u.getStatus() == Status.ONLINE) ? Status.ONLINE : Status.OFFLINE)
-                : (isFriend ? partner.getStatus() : null);
-
         ChatUser currentUser = userCache.get(currentUserId);
         Boolean isPinned = false;
         if (currentUser != null && currentUser.getPinnedConversations() != null) {
@@ -219,8 +204,6 @@ public class ConversationHelper {
                 .recipientId(room.isGroup() ? null : (partner != null ? partner.getId() : null))
                 .name(displayName)
                 .avatar(displayAvatar)
-                .status(displayStatus)
-                .lastSeenAt(isFriend && partner != null ? toOffset(partner.getLastUpdatedAt()) : null)
                 .friendshipStatus(friendshipStatus)
                 .isGroup(room.isGroup())
                 .isDisbanded(room.isDisbanded())
@@ -298,6 +281,7 @@ public class ConversationHelper {
             // WebSocket connections under accountId (JWT sub), not profileId.
             String targetAccountId = resolveAccountId(viewerId, userCache);
             kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
+                    targetAccountId,
                     new SocketEvent(SocketEventType.CONVERSATION, targetAccountId, "/queue/conversations", payload));
         }
     }

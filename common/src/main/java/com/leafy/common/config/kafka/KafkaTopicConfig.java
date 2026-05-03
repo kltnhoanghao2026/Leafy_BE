@@ -41,6 +41,11 @@ public class KafkaTopicConfig {
         return createTopic(topicProperties.getSocketEvents().getSocketEvents());
     }
 
+    @Bean
+    public NewTopic notificationRawTopic() {
+        return createTopic(topicProperties.getNotificationEvents().getRaw());
+    }
+
     private NewTopic createTopic(String topicName) {
         log.info("Creating Kafka topic: {}", topicName);
         return TopicBuilder.name(topicName)

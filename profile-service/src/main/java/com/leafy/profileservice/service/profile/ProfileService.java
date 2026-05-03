@@ -205,6 +205,15 @@ public interface ProfileService {
     ProfileResponse verifyProfile(String profileId);
 
     /**
+     * Resolve a userId (from auth-service / JWT subject) to its profile ID.
+     * Lightweight — does not fetch auth-service or certificate data.
+     *
+     * @param userId the auth userId
+     * @return the profile ID, or {@code null} if no profile exists for this userId
+     */
+    String getProfileIdByUserId(String userId);
+
+    /**
      * Enrich a single ProfileResponse with isFollowing / hasPendingConsultRequest
      * relative to the given currentUserId. Mutates the response in-place.
      *

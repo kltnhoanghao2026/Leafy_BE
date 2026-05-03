@@ -157,9 +157,7 @@ public class UserPreferenceRepository {
     public boolean updateMessageSettings(String userId, UserPreference.MessageSettings settings) {
         Query query = new Query(Criteria.where("userId").is(userId));
         Update update = new Update()
-                .set("userPreference.messageSettings.quickResponseEnable", settings.isQuickResponseEnable())
-                .set("userPreference.messageSettings.separatePriorityAndOtherEnable", settings.isSeparatePriorityAndOtherEnable())
-                .set("userPreference.messageSettings.showTypingStatus", settings.isShowTypingStatus());
+                .set("userPreference.messageSettings.quickResponseEnable", settings.isQuickResponseEnable());
         
         UpdateResult result = mongoTemplate.updateFirst(query, update, COLLECTION_NAME);
         return result.getModifiedCount() > 0;
