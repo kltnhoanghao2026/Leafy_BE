@@ -109,7 +109,7 @@ public class AlertRuleBootstrapServiceImpl implements AlertRuleBootstrapService 
         return new AlertRuleBootstrapResult(createdCount, List.copyOf(warnings));
     }
 
-    private boolean ruleExists(UUID ownerUserId, CollectorAlertRuleRequest request) {
+    private boolean ruleExists(String ownerUserId, CollectorAlertRuleRequest request) {
         int page = 0;
         CollectorPagedResponse<CollectorAlertRuleResponse> response;
 
@@ -150,6 +150,6 @@ public class AlertRuleBootstrapServiceImpl implements AlertRuleBootstrapService 
             && Objects.equals(item.enabled(), request.enabled());
     }
 
-    private record RuleSeedPlan(UUID ownerUserId, CollectorAlertRuleRequest request) {
+    private record RuleSeedPlan(String ownerUserId, CollectorAlertRuleRequest request) {
     }
 }

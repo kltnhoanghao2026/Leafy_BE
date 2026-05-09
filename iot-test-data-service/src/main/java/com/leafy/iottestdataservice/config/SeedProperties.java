@@ -1,10 +1,7 @@
 package com.leafy.iottestdataservice.config;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -15,15 +12,38 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class SeedProperties {
 
     private final Collector collector = new Collector();
+    private final Profile profile = new Profile();
+    private final Farm farm = new Farm();
+    private final AuthHeaders authHeaders = new AuthHeaders();
     private final Mqtt mqtt = new Mqtt();
     private final Scenario scenario = new Scenario();
     private final Environment environment = new Environment();
-    private final Defaults defaults = new Defaults();
 
     @Getter
     @Setter
     public static class Collector {
         private String baseUrl = "http://localhost:8080";
+    }
+
+    @Getter
+    @Setter
+    public static class Profile {
+        private String baseUrl = "http://localhost:8087";
+        private int pageSize = 50;
+    }
+
+    @Getter
+    @Setter
+    public static class Farm {
+        private String baseUrl = "http://localhost:8083";
+    }
+
+    @Getter
+    @Setter
+    public static class AuthHeaders {
+        private String userId = "iot-test-data-service";
+        private String email = "iot-test-data-service@leafy.local";
+        private String roles = "ADMIN";
     }
 
     @Getter
@@ -53,21 +73,5 @@ public class SeedProperties {
     @Setter
     public static class Environment {
         private List<String> allowedProfiles = List.of("local", "dev", "staging");
-    }
-
-    @Getter
-    @Setter
-    public static class Defaults {
-        private List<UUID> userIds = defaultIds("seed-user-", 3);
-        private List<UUID> farmPlotIds = defaultIds("seed-plot-", 3);
-        private List<UUID> zoneIds = defaultIds("seed-zone-", 8);
-
-        private static List<UUID> defaultIds(String prefix, int count) {
-            List<UUID> values = new ArrayList<>(count);
-            for (int index = 1; index <= count; index++) {
-                values.add(UUID.nameUUIDFromBytes((prefix + index).getBytes(StandardCharsets.UTF_8)));
-            }
-            return values;
-        }
     }
 }

@@ -32,9 +32,9 @@ class DeviceBootstrapServiceImplTest {
 
     @Test
     void bootstrapDeviceProvisionsClaimsAndPushesConfigWhenDeviceDoesNotExist() {
-        UUID ownerUserId = UUID.randomUUID();
-        UUID farmPlotId = UUID.randomUUID();
-        UUID zoneId = UUID.randomUUID();
+        String ownerUserId = "user-1";
+        String farmPlotId = "plot-1";
+        String zoneId = "zone-1";
         UUID deviceId = UUID.randomUUID();
         CollectorDeviceResponse claimedDevice = new CollectorDeviceResponse(
             deviceId,
@@ -52,7 +52,7 @@ class DeviceBootstrapServiceImplTest {
             Instant.now()
         );
 
-        when(collectorInventoryService.findAnyDevice("demo-device-01")).thenReturn(Optional.empty());
+        when(collectorInventoryService.findOwnedDevice(ownerUserId, "demo-device-01")).thenReturn(Optional.empty());
         when(iotCollectorClient.provisionDevice(new CollectorProvisionDeviceRequest("demo-device-01", "DEMO-001", "Demo Device", "ESP32")))
             .thenReturn(claimedDevice);
         when(iotCollectorClient.generateClaimCode(deviceId))

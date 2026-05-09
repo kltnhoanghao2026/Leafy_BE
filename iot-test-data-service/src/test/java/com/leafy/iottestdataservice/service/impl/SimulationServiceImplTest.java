@@ -57,9 +57,9 @@ class SimulationServiceImplTest {
             true,
             "ONLINE",
             "CLAIMED",
-            UUID.randomUUID(),
-            UUID.randomUUID(),
-            UUID.randomUUID(),
+            "user-1",
+            "plot-1",
+            "zone-1",
             Instant.now()
         );
         when(collectorInventoryService.findDevices(device.ownerUserId(), null, null)).thenReturn(List.of(device));
@@ -102,9 +102,9 @@ class SimulationServiceImplTest {
             true,
             "ONLINE",
             "CLAIMED",
-            UUID.randomUUID(),
-            UUID.randomUUID(),
-            UUID.randomUUID(),
+            "user-1",
+            "plot-1",
+            "zone-1",
             Instant.now()
         );
         when(collectorInventoryService.findDevices(device.ownerUserId(), null, null)).thenReturn(List.of(device));

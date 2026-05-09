@@ -5,8 +5,8 @@ import java.util.UUID;
 public record CollectorAlertRuleRequest(
     UUID sensorTypeId,
     UUID deviceId,
-    UUID zoneId,
-    UUID farmPlotId,
+    String zoneId,
+    String farmPlotId,
     Double minThreshold,
     Double maxThreshold,
     String severity,

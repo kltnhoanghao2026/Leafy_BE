@@ -17,7 +17,7 @@ public interface IotCollectorClient {
 
     CollectorGenerateClaimCodeResponse generateClaimCode(UUID deviceId);
 
-    CollectorDeviceResponse claimDevice(UUID currentUserId, CollectorClaimDeviceRequest request);
+    CollectorDeviceResponse claimDevice(String currentUserId, CollectorClaimDeviceRequest request);
 
     CollectorDeviceConfigResponse getDeviceConfig(UUID deviceId);
 
@@ -25,14 +25,14 @@ public interface IotCollectorClient {
 
     CollectorDeviceConfigResponse pushDeviceConfig(UUID deviceId);
 
-    CollectorAlertRuleResponse createAlertRule(UUID currentUserId, CollectorAlertRuleRequest request);
+    CollectorAlertRuleResponse createAlertRule(String currentUserId, CollectorAlertRuleRequest request);
 
     CollectorPagedResponse<CollectorAlertRuleResponse> getAlertRules(
-        UUID currentUserId,
+        String currentUserId,
         UUID sensorTypeId,
         UUID deviceId,
-        UUID zoneId,
-        UUID farmPlotId,
+        String zoneId,
+        String farmPlotId,
         Boolean enabled,
         int page,
         int size,
@@ -41,15 +41,15 @@ public interface IotCollectorClient {
     );
 
     CollectorPagedResponse<CollectorDeviceResponse> getMyDevices(
-        UUID currentUserId,
+        String currentUserId,
         int page,
         int size,
         String sortBy,
         String sortDir,
         String status,
         String provisioningStatus,
-        UUID zoneId,
-        UUID farmPlotId,
+        String zoneId,
+        String farmPlotId,
         String keyword
     );
 }

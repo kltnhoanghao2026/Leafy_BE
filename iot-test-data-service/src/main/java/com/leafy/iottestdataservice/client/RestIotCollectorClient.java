@@ -43,10 +43,10 @@ public class RestIotCollectorClient implements IotCollectorClient {
     }
 
     @Override
-    public CollectorDeviceResponse claimDevice(UUID currentUserId, CollectorClaimDeviceRequest request) {
+    public CollectorDeviceResponse claimDevice(String currentUserId, CollectorClaimDeviceRequest request) {
         return restClient.post()
             .uri("/iot/devices/claim")
-            .header(USER_ID_HEADER, currentUserId.toString())
+            .header(USER_ID_HEADER, currentUserId)
             .contentType(MediaType.APPLICATION_JSON)
             .body(request)
             .retrieve()
@@ -80,10 +80,10 @@ public class RestIotCollectorClient implements IotCollectorClient {
     }
 
     @Override
-    public CollectorAlertRuleResponse createAlertRule(UUID currentUserId, CollectorAlertRuleRequest request) {
+    public CollectorAlertRuleResponse createAlertRule(String currentUserId, CollectorAlertRuleRequest request) {
         return restClient.post()
             .uri("/iot/alert-rules")
-            .header(USER_ID_HEADER, currentUserId.toString())
+            .header(USER_ID_HEADER, currentUserId)
             .contentType(MediaType.APPLICATION_JSON)
             .body(request)
             .retrieve()
@@ -92,11 +92,11 @@ public class RestIotCollectorClient implements IotCollectorClient {
 
     @Override
     public CollectorPagedResponse<CollectorAlertRuleResponse> getAlertRules(
-        UUID currentUserId,
+        String currentUserId,
         UUID sensorTypeId,
         UUID deviceId,
-        UUID zoneId,
-        UUID farmPlotId,
+        String zoneId,
+        String farmPlotId,
         Boolean enabled,
         int page,
         int size,
@@ -115,22 +115,22 @@ public class RestIotCollectorClient implements IotCollectorClient {
                 .queryParam("sortBy", sortBy)
                 .queryParam("sortDir", sortDir)
                 .build())
-            .header(USER_ID_HEADER, currentUserId.toString())
+            .header(USER_ID_HEADER, currentUserId)
             .retrieve()
             .body(new ParameterizedTypeReference<CollectorPagedResponse<CollectorAlertRuleResponse>>() {});
     }
 
     @Override
     public CollectorPagedResponse<CollectorDeviceResponse> getMyDevices(
-        UUID currentUserId,
+        String currentUserId,
         int page,
         int size,
         String sortBy,
         String sortDir,
         String status,
         String provisioningStatus,
-        UUID zoneId,
-        UUID farmPlotId,
+        String zoneId,
+        String farmPlotId,
         String keyword
     ) {
         return restClient.get()
@@ -145,7 +145,7 @@ public class RestIotCollectorClient implements IotCollectorClient {
                 .queryParamIfPresent("farmPlotId", java.util.Optional.ofNullable(farmPlotId))
                 .queryParamIfPresent("keyword", java.util.Optional.ofNullable(keyword))
                 .build())
-            .header(USER_ID_HEADER, currentUserId.toString())
+            .header(USER_ID_HEADER, currentUserId)
             .retrieve()
             .body(new ParameterizedTypeReference<CollectorPagedResponse<CollectorDeviceResponse>>() {});
     }

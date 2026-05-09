@@ -1,10 +1,9 @@
 package com.leafy.iottestdataservice.dto;
 
 import java.util.List;
-import java.util.UUID;
 
 public record SimulationStartRequest(
-    UUID userId,
+    String userId,
     List<String> deviceUids,
     Integer telemetryIntervalSeconds,
     Integer statusIntervalSeconds,

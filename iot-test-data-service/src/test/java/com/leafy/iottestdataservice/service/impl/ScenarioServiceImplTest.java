@@ -49,9 +49,9 @@ class ScenarioServiceImplTest {
             true,
             "ONLINE",
             "CLAIMED",
-            UUID.randomUUID(),
-            UUID.randomUUID(),
-            UUID.randomUUID(),
+            "user-1",
+            "plot-1",
+            "zone-1",
             Instant.now()
         );
         when(collectorInventoryService.findAnyDevice("scenario-device-01")).thenReturn(Optional.of(device));
@@ -87,9 +87,9 @@ class ScenarioServiceImplTest {
             true,
             "ONLINE",
             "CLAIMED",
-            UUID.randomUUID(),
-            UUID.randomUUID(),
-            UUID.randomUUID(),
+            "user-1",
+            "plot-1",
+            "zone-1",
             Instant.now()
         );
         when(collectorInventoryService.findAnyDevice("scenario-device-02")).thenReturn(Optional.of(device));

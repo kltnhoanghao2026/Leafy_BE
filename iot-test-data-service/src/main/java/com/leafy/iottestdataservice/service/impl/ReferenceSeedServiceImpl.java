@@ -1,14 +1,18 @@
 package com.leafy.iottestdataservice.service.impl;
 
-import com.leafy.iottestdataservice.config.SeedProperties;
+import com.leafy.iottestdataservice.dto.BootstrapRequest;
 import com.leafy.iottestdataservice.model.ReferenceSeedResult;
+import com.leafy.iottestdataservice.model.SeedTarget;
 import com.leafy.iottestdataservice.repository.ReferenceSeedRepository;
 import com.leafy.iottestdataservice.service.ReferenceSeedService;
+import com.leafy.iottestdataservice.service.SeedTargetResolver;
 import com.leafy.iottestdataservice.util.DeterministicIdFactory;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,40 +28,56 @@ public class ReferenceSeedServiceImpl implements ReferenceSeedService {
         new SensorTypeSeed("LIGHT_INTENSITY", "Light Intensity", "lux", 0d, 1200d, "Illuminance measured at canopy level.")
     );
 
-    private final SeedProperties seedProperties;
     private final ReferenceSeedRepository referenceSeedRepository;
+    private final SeedTargetResolver seedTargetResolver;
 
     @Override
     public ReferenceSeedResult seedMinimalReferenceData() {
-        return seedReferenceData(1, 1, 2);
+        return seedMinimalReferenceData(null);
+    }
+
+    @Override
+    public ReferenceSeedResult seedMinimalReferenceData(BootstrapRequest request) {
+        return seedReferenceData(request, 2);
     }
 
     @Override
     public ReferenceSeedResult seedFullReferenceData() {
-        return seedReferenceData(3, 2, 6);
+        return seedFullReferenceData(null);
     }
 
-    private ReferenceSeedResult seedReferenceData(int userCount, int farmPlotCount, int zoneCount) {
-        List<UUID> userIds = take(seedProperties.getDefaults().getUserIds(), userCount);
-        List<UUID> farmPlotIds = take(seedProperties.getDefaults().getFarmPlotIds(), farmPlotCount);
-        List<UUID> zoneIds = take(seedProperties.getDefaults().getZoneIds(), zoneCount);
+    @Override
+    public ReferenceSeedResult seedFullReferenceData(BootstrapRequest request) {
+        return seedReferenceData(request, 6);
+    }
+
+    private ReferenceSeedResult seedReferenceData(BootstrapRequest request, int targetCount) {
+        List<SeedTarget> targets = seedTargetResolver.resolveTargets(request, targetCount);
+        Set<String> userIds = new LinkedHashSet<>();
+        Set<String> farmPlotIds = new LinkedHashSet<>();
+        Set<String> zoneIds = new LinkedHashSet<>();
+        for (SeedTarget target : targets) {
+            userIds.add(target.ownerUserId());
+            farmPlotIds.add(target.farmPlotId());
+            zoneIds.add(target.zoneId());
+        }
 
         int usersSeeded = 0;
-        for (UUID userId : userIds) {
+        for (String userId : userIds) {
             if (referenceSeedRepository.ensureUser(userId)) {
                 usersSeeded++;
             }
         }
 
         int farmPlotsSeeded = 0;
-        for (UUID farmPlotId : farmPlotIds) {
+        for (String farmPlotId : farmPlotIds) {
             if (referenceSeedRepository.ensureFarmPlot(farmPlotId)) {
                 farmPlotsSeeded++;
             }
         }
 
         int zonesSeeded = 0;
-        for (UUID zoneId : zoneIds) {
+        for (String zoneId : zoneIds) {
             if (referenceSeedRepository.ensureZone(zoneId)) {
                 zonesSeeded++;
             }
@@ -79,9 +99,7 @@ public class ReferenceSeedServiceImpl implements ReferenceSeedService {
         }
 
         return new ReferenceSeedResult(
-            List.copyOf(userIds),
-            List.copyOf(farmPlotIds),
-            List.copyOf(zoneIds),
+            List.copyOf(targets),
             Map.copyOf(sensorTypeIds),
             usersSeeded,
             farmPlotsSeeded,
@@ -106,13 +124,6 @@ public class ReferenceSeedServiceImpl implements ReferenceSeedService {
             referenceSeedRepository.findSensorTypeIdByCode(sensorType.code()).orElse(sensorTypeId),
             inserted
         );
-    }
-
-    private List<UUID> take(List<UUID> values, int count) {
-        if (values.size() < count) {
-            throw new IllegalStateException("Not enough default IDs configured for requested seed count " + count);
-        }
-        return List.copyOf(values.subList(0, count));
     }
 
     private record SensorTypeSeed(

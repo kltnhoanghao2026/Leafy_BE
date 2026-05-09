@@ -2,7 +2,10 @@ package com.leafy.iottestdataservice.repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,17 +51,17 @@ public class JdbcReferenceSeedRepository implements ReferenceSeedRepository {
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     @Override
-    public boolean ensureUser(UUID userId) {
+    public boolean ensureUser(String userId) {
         return insertIdOnly(INSERT_USER_SQL, userId);
     }
 
     @Override
-    public boolean ensureFarmPlot(UUID farmPlotId) {
+    public boolean ensureFarmPlot(String farmPlotId) {
         return insertIdOnly(INSERT_FARM_PLOT_SQL, farmPlotId);
     }
 
     @Override
-    public boolean ensureZone(UUID zoneId) {
+    public boolean ensureZone(String zoneId) {
         return insertIdOnly(INSERT_ZONE_SQL, zoneId);
     }
 
@@ -86,11 +89,15 @@ public class JdbcReferenceSeedRepository implements ReferenceSeedRepository {
             .addValue("minDefault", minDefault)
             .addValue("maxDefault", maxDefault)
             .addValue("description", description)
-            .addValue("createdAt", createdAt);
+            .addValue(
+                "createdAt",
+                OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC),
+                Types.TIMESTAMP_WITH_TIMEZONE
+            );
         return jdbcTemplate.update(INSERT_SENSOR_TYPE_SQL, parameters) > 0;
     }
 
-    private boolean insertIdOnly(String sql, UUID id) {
+    private boolean insertIdOnly(String sql, String id) {
         return jdbcTemplate.update(sql, Map.of("id", id)) > 0;
     }
 

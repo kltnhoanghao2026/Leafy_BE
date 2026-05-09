@@ -7,6 +7,7 @@ import com.leafy.iottestdataservice.dto.BootstrapRequest;
 import com.leafy.iottestdataservice.model.AlertRuleBootstrapResult;
 import com.leafy.iottestdataservice.model.BootstrappedDevice;
 import com.leafy.iottestdataservice.model.ReferenceSeedResult;
+import com.leafy.iottestdataservice.model.SeedTarget;
 import com.leafy.iottestdataservice.service.AlertRuleBootstrapService;
 import com.leafy.iottestdataservice.service.DeviceBootstrapService;
 import com.leafy.iottestdataservice.service.ReferenceSeedService;
@@ -41,9 +42,10 @@ class SeedBootstrapServiceImplTest {
     void bootstrapMinimalProvisionsAndClaimsExpectedDevices() {
         SeedProperties properties = new SeedProperties();
         ReferenceSeedResult references = new ReferenceSeedResult(
-            List.of(UUID.randomUUID()),
-            List.of(UUID.randomUUID()),
-            List.of(UUID.randomUUID(), UUID.randomUUID()),
+            List.of(
+                new SeedTarget("user-1", "profile-1", "plot-1", "zone-1"),
+                new SeedTarget("user-1", "profile-1", "plot-1", "zone-2")
+            ),
             Map.of(
                 "AIR_TEMP", UUID.randomUUID(),
                 "AIR_HUMIDITY", UUID.randomUUID(),
@@ -55,7 +57,7 @@ class SeedBootstrapServiceImplTest {
             2,
             4
         );
-        when(referenceSeedService.seedMinimalReferenceData()).thenReturn(references);
+        when(referenceSeedService.seedMinimalReferenceData(any())).thenReturn(references);
         when(deviceBootstrapService.bootstrapDevice(any(), any(), any(), any(), any(), any(), any()))
             .thenAnswer(invocation -> bootstrappedDevice(
                 invocation.getArgument(0),
@@ -81,9 +83,14 @@ class SeedBootstrapServiceImplTest {
     void bootstrapFullOrchestratesMultipleResources() {
         SeedProperties properties = new SeedProperties();
         ReferenceSeedResult references = new ReferenceSeedResult(
-            List.of(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()),
-            List.of(UUID.randomUUID(), UUID.randomUUID()),
-            List.of(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()),
+            List.of(
+                new SeedTarget("user-1", "profile-1", "plot-1", "zone-1"),
+                new SeedTarget("user-2", "profile-2", "plot-2", "zone-2"),
+                new SeedTarget("user-1", "profile-1", "plot-1", "zone-3"),
+                new SeedTarget("user-2", "profile-2", "plot-2", "zone-4"),
+                new SeedTarget("user-1", "profile-1", "plot-1", "zone-5"),
+                new SeedTarget("user-2", "profile-2", "plot-2", "zone-6")
+            ),
             Map.of(
                 "AIR_TEMP", UUID.randomUUID(),
                 "AIR_HUMIDITY", UUID.randomUUID(),
@@ -95,7 +102,7 @@ class SeedBootstrapServiceImplTest {
             6,
             4
         );
-        when(referenceSeedService.seedFullReferenceData()).thenReturn(references);
+        when(referenceSeedService.seedFullReferenceData(any())).thenReturn(references);
         when(deviceBootstrapService.bootstrapDevice(any(), any(), any(), any(), any(), any(), any()))
             .thenAnswer(invocation -> bootstrappedDevice(
                 invocation.getArgument(0),
@@ -117,7 +124,7 @@ class SeedBootstrapServiceImplTest {
         verify(deviceBootstrapService, times(6)).bootstrapDevice(any(), any(), any(), any(), any(), any(), any());
     }
 
-    private BootstrappedDevice bootstrappedDevice(UUID ownerUserId, UUID farmPlotId, UUID zoneId, boolean provisioned, boolean claimed) {
+    private BootstrappedDevice bootstrappedDevice(String ownerUserId, String farmPlotId, String zoneId, boolean provisioned, boolean claimed) {
         return new BootstrappedDevice(
             ownerUserId,
             farmPlotId,
