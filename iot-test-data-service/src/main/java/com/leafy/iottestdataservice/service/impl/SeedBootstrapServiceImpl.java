@@ -6,13 +6,13 @@ import com.leafy.iottestdataservice.dto.BootstrapResponse;
 import com.leafy.iottestdataservice.model.AlertRuleBootstrapResult;
 import com.leafy.iottestdataservice.model.BootstrappedDevice;
 import com.leafy.iottestdataservice.model.ReferenceSeedResult;
+import com.leafy.iottestdataservice.model.SeedTarget;
 import com.leafy.iottestdataservice.service.AlertRuleBootstrapService;
 import com.leafy.iottestdataservice.service.DeviceBootstrapService;
 import com.leafy.iottestdataservice.service.ReferenceSeedService;
 import com.leafy.iottestdataservice.service.SeedBootstrapService;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,7 +29,7 @@ public class SeedBootstrapServiceImpl implements SeedBootstrapService {
 
     @Override
     public BootstrapResponse bootstrapMinimal(BootstrapRequest request) {
-        ReferenceSeedResult references = referenceSeedService.seedMinimalReferenceData();
+        ReferenceSeedResult references = referenceSeedService.seedMinimalReferenceData(request);
         List<String> warnings = new ArrayList<>();
         List<BootstrappedDevice> devices = bootstrapDevices(buildMinimalPlans(references), warnings);
         AlertRuleBootstrapResult rules = alertRuleBootstrapService.bootstrapMinimalRules(references.sensorTypeIds(), devices);
@@ -62,7 +62,7 @@ public class SeedBootstrapServiceImpl implements SeedBootstrapService {
 
     @Override
     public BootstrapResponse bootstrapFull(BootstrapRequest request) {
-        ReferenceSeedResult references = referenceSeedService.seedFullReferenceData();
+        ReferenceSeedResult references = referenceSeedService.seedFullReferenceData(request);
         List<String> warnings = new ArrayList<>();
         List<BootstrappedDevice> devices = bootstrapDevices(buildFullPlans(references), warnings);
         AlertRuleBootstrapResult rules = alertRuleBootstrapService.bootstrapFullRules(references.sensorTypeIds(), devices);
@@ -116,42 +116,30 @@ public class SeedBootstrapServiceImpl implements SeedBootstrapService {
     }
 
     private List<DevicePlan> buildMinimalPlans(ReferenceSeedResult references) {
-        UUID ownerUserId = references.userIds().getFirst();
-        UUID farmPlotId = references.farmPlotIds().getFirst();
-        return List.of(
-            new DevicePlan(
-                ownerUserId,
-                farmPlotId,
-                references.zoneIds().get(0),
-                buildDeviceUid("minimal", 1),
-                "MIN-001",
-                "Minimal Zone 1 Sensor Hub",
+        List<DevicePlan> plans = new ArrayList<>();
+        for (int index = 0; index < references.targets().size(); index++) {
+            SeedTarget target = references.targets().get(index);
+            plans.add(new DevicePlan(
+                target.ownerUserId(),
+                target.farmPlotId(),
+                target.zoneId(),
+                buildDeviceUid("minimal", index + 1),
+                "MIN-" + String.format("%03d", index + 1),
+                "Minimal Zone " + (index + 1) + " Sensor Hub",
                 "ESP32"
-            ),
-            new DevicePlan(
-                ownerUserId,
-                farmPlotId,
-                references.zoneIds().get(1),
-                buildDeviceUid("minimal", 2),
-                "MIN-002",
-                "Minimal Zone 2 Sensor Hub",
-                "ESP32"
-            )
-        );
+            ));
+        }
+        return List.copyOf(plans);
     }
 
     private List<DevicePlan> buildFullPlans(ReferenceSeedResult references) {
         List<DevicePlan> plans = new ArrayList<>();
-        List<UUID> userIds = references.userIds();
-        List<UUID> farmPlotIds = references.farmPlotIds();
-
-        for (int index = 0; index < references.zoneIds().size(); index++) {
-            UUID ownerUserId = userIds.get(index % Math.min(2, userIds.size()));
-            UUID farmPlotId = farmPlotIds.get(index % farmPlotIds.size());
+        for (int index = 0; index < references.targets().size(); index++) {
+            SeedTarget target = references.targets().get(index);
             plans.add(new DevicePlan(
-                ownerUserId,
-                farmPlotId,
-                references.zoneIds().get(index),
+                target.ownerUserId(),
+                target.farmPlotId(),
+                target.zoneId(),
                 buildDeviceUid("full", index + 1),
                 "FULL-" + String.format("%03d", index + 1),
                 "Full Demo Zone " + (index + 1) + " Sensor Hub",
@@ -167,9 +155,9 @@ public class SeedBootstrapServiceImpl implements SeedBootstrapService {
     }
 
     private record DevicePlan(
-        UUID ownerUserId,
-        UUID farmPlotId,
-        UUID zoneId,
+        String ownerUserId,
+        String farmPlotId,
+        String zoneId,
         String deviceUid,
         String deviceCode,
         String deviceName,

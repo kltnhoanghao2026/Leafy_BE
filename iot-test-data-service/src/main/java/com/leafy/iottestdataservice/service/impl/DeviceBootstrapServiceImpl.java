@@ -28,15 +28,15 @@ public class DeviceBootstrapServiceImpl implements DeviceBootstrapService {
 
     @Override
     public BootstrappedDevice bootstrapDevice(
-        UUID ownerUserId,
-        UUID farmPlotId,
-        UUID zoneId,
+        String ownerUserId,
+        String farmPlotId,
+        String zoneId,
         String deviceUid,
         String deviceCode,
         String deviceName,
         String deviceType
     ) {
-        CollectorDeviceResponse existingDevice = collectorInventoryService.findAnyDevice(deviceUid).orElse(null);
+        CollectorDeviceResponse existingDevice = collectorInventoryService.findOwnedDevice(ownerUserId, deviceUid).orElse(null);
         boolean provisioned = false;
         boolean claimed = false;
 
@@ -56,9 +56,9 @@ public class DeviceBootstrapServiceImpl implements DeviceBootstrapService {
     }
 
     private CollectorDeviceResponse provisionAndClaim(
-        UUID ownerUserId,
-        UUID farmPlotId,
-        UUID zoneId,
+        String ownerUserId,
+        String farmPlotId,
+        String zoneId,
         String deviceUid,
         String deviceCode,
         String deviceName,
@@ -91,7 +91,7 @@ public class DeviceBootstrapServiceImpl implements DeviceBootstrapService {
             && Objects.equals(currentConfig.alertEnabled(), DESIRED_CONFIG.alertEnabled());
     }
 
-    private void validateExistingOwnership(CollectorDeviceResponse existingDevice, UUID ownerUserId, UUID farmPlotId, UUID zoneId) {
+    private void validateExistingOwnership(CollectorDeviceResponse existingDevice, String ownerUserId, String farmPlotId, String zoneId) {
         if (!ownerUserId.equals(existingDevice.ownerUserId())) {
             throw new IllegalStateException(
                 "Device " + existingDevice.deviceUid() + " already belongs to owner " + existingDevice.ownerUserId()

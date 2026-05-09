@@ -1,11 +1,9 @@
 package com.leafy.iottestdataservice.dto;
 
-import java.util.UUID;
-
 public record HistorySeedRequest(
-    UUID userId,
-    UUID farmPlotId,
-    UUID zoneId,
+    String userId,
+    String farmPlotId,
+    String zoneId,
     Integer days,
     Integer readingsPerHour,
     Boolean includeAnomalies

@@ -5,9 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public record ReferenceSeedResult(
-    List<UUID> userIds,
-    List<UUID> farmPlotIds,
-    List<UUID> zoneIds,
+    List<SeedTarget> targets,
     Map<String, UUID> sensorTypeIds,
     int usersSeeded,
     int farmPlotsSeeded,

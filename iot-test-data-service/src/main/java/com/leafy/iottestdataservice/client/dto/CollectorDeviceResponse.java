@@ -13,9 +13,9 @@ public record CollectorDeviceResponse(
     Boolean isActive,
     String status,
     String provisioningStatus,
-    UUID ownerUserId,
-    UUID farmPlotId,
-    UUID zoneId,
+    String ownerUserId,
+    String farmPlotId,
+    String zoneId,
     Instant lastSeenAt
 ) {
 }

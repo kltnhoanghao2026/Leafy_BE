@@ -15,6 +15,15 @@ server:
 seed:
   collector:
     base-url: ${SEED_COLLECTOR_BASE_URL:http://localhost:8091}
+  profile:
+    base-url: ${SEED_PROFILE_BASE_URL:http://localhost:8087}
+    page-size: ${SEED_PROFILE_PAGE_SIZE:50}
+  farm:
+    base-url: ${SEED_FARM_BASE_URL:http://localhost:8083}
+  auth-headers:
+    user-id: ${SEED_AUTH_HEADER_USER_ID:iot-test-data-service}
+    email: ${SEED_AUTH_HEADER_EMAIL:iot-test-data-service@leafy.local}
+    roles: ${SEED_AUTH_HEADER_ROLES:ADMIN}
   mqtt:
     url: ${SEED_MQTT_URL:tcp://localhost:1883}
     username: ${SEED_MQTT_USERNAME:}

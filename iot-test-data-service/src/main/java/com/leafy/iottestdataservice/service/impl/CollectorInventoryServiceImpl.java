@@ -3,8 +3,8 @@ package com.leafy.iottestdataservice.service.impl;
 import com.leafy.iottestdataservice.client.IotCollectorClient;
 import com.leafy.iottestdataservice.client.dto.CollectorDeviceResponse;
 import com.leafy.iottestdataservice.client.dto.CollectorPagedResponse;
-import com.leafy.iottestdataservice.config.SeedProperties;
 import com.leafy.iottestdataservice.service.CollectorInventoryService;
+import com.leafy.iottestdataservice.service.SeedTargetResolver;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,26 +20,33 @@ public class CollectorInventoryServiceImpl implements CollectorInventoryService 
 
     private static final int PAGE_SIZE = 100;
 
-    private final SeedProperties seedProperties;
     private final IotCollectorClient iotCollectorClient;
+    private final SeedTargetResolver seedTargetResolver;
 
     @Override
-    public List<CollectorDeviceResponse> findDevices(UUID userId, UUID farmPlotId, UUID zoneId) {
+    public List<CollectorDeviceResponse> findDevices(String userId, String farmPlotId, String zoneId) {
         if (userId != null) {
             return listDevicesForUser(userId, farmPlotId, zoneId, null);
         }
 
         Map<UUID, CollectorDeviceResponse> devicesById = new LinkedHashMap<>();
-        for (UUID defaultUserId : seedProperties.getDefaults().getUserIds()) {
-            for (CollectorDeviceResponse device : listDevicesForUser(defaultUserId, farmPlotId, zoneId, null)) {
-                devicesById.putIfAbsent(device.id(), device);
-            }
+        try {
+            seedTargetResolver.resolveTargets(null, 100).stream()
+                .map(com.leafy.iottestdataservice.model.SeedTarget::ownerUserId)
+                .distinct()
+                .forEach(ownerUserId -> {
+                    for (CollectorDeviceResponse device : listDevicesForUser(ownerUserId, farmPlotId, zoneId, null)) {
+                        devicesById.putIfAbsent(device.id(), device);
+                    }
+                });
+        } catch (IllegalStateException ignored) {
+            return List.of();
         }
         return List.copyOf(devicesById.values());
     }
 
     @Override
-    public Optional<CollectorDeviceResponse> findOwnedDevice(UUID userId, String deviceUid) {
+    public Optional<CollectorDeviceResponse> findOwnedDevice(String userId, String deviceUid) {
         return listDevicesForUser(userId, null, null, deviceUid).stream()
             .filter(device -> deviceUid.equalsIgnoreCase(device.deviceUid()))
             .findFirst();
@@ -47,16 +54,12 @@ public class CollectorInventoryServiceImpl implements CollectorInventoryService 
 
     @Override
     public Optional<CollectorDeviceResponse> findAnyDevice(String deviceUid) {
-        for (UUID userId : seedProperties.getDefaults().getUserIds()) {
-            Optional<CollectorDeviceResponse> match = findOwnedDevice(userId, deviceUid);
-            if (match.isPresent()) {
-                return match;
-            }
-        }
-        return Optional.empty();
+        return findDevices(null, null, null).stream()
+            .filter(device -> deviceUid.equalsIgnoreCase(device.deviceUid()))
+            .findFirst();
     }
 
-    private List<CollectorDeviceResponse> listDevicesForUser(UUID userId, UUID farmPlotId, UUID zoneId, String keyword) {
+    private List<CollectorDeviceResponse> listDevicesForUser(String userId, String farmPlotId, String zoneId, String keyword) {
         List<CollectorDeviceResponse> devices = new ArrayList<>();
         int page = 0;
         CollectorPagedResponse<CollectorDeviceResponse> response;

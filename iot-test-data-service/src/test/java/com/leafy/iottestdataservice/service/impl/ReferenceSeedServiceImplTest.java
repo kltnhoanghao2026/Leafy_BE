@@ -1,7 +1,8 @@
 package com.leafy.iottestdataservice.service.impl;
 
-import com.leafy.iottestdataservice.config.SeedProperties;
+import com.leafy.iottestdataservice.model.SeedTarget;
 import com.leafy.iottestdataservice.repository.ReferenceSeedRepository;
+import java.util.List;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,9 +18,14 @@ class ReferenceSeedServiceImplTest {
 
     @Test
     void seedMinimalReferenceDataIsIdempotent() {
-        SeedProperties properties = new SeedProperties();
         InMemoryReferenceSeedRepository repository = new InMemoryReferenceSeedRepository();
-        ReferenceSeedServiceImpl service = new ReferenceSeedServiceImpl(properties, repository);
+        ReferenceSeedServiceImpl service = new ReferenceSeedServiceImpl(
+            repository,
+            (request, maxTargets) -> List.of(
+                new SeedTarget("user-1", "profile-1", "plot-1", "zone-1"),
+                new SeedTarget("user-1", "profile-1", "plot-1", "zone-2")
+            ).subList(0, Math.min(maxTargets, 2))
+        );
 
         var first = service.seedMinimalReferenceData();
         var second = service.seedMinimalReferenceData();
@@ -35,23 +41,23 @@ class ReferenceSeedServiceImplTest {
     }
 
     private static final class InMemoryReferenceSeedRepository implements ReferenceSeedRepository {
-        private final Set<UUID> users = new HashSet<>();
-        private final Set<UUID> farmPlots = new HashSet<>();
-        private final Set<UUID> zones = new HashSet<>();
+        private final Set<String> users = new HashSet<>();
+        private final Set<String> farmPlots = new HashSet<>();
+        private final Set<String> zones = new HashSet<>();
         private final Map<String, UUID> sensorTypes = new HashMap<>();
 
         @Override
-        public boolean ensureUser(UUID userId) {
+        public boolean ensureUser(String userId) {
             return users.add(userId);
         }
 
         @Override
-        public boolean ensureFarmPlot(UUID farmPlotId) {
+        public boolean ensureFarmPlot(String farmPlotId) {
             return farmPlots.add(farmPlotId);
         }
 
         @Override
-        public boolean ensureZone(UUID zoneId) {
+        public boolean ensureZone(String zoneId) {
             return zones.add(zoneId);
         }
 

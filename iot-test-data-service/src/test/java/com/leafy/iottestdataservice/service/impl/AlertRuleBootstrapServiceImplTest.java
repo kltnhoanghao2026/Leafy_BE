@@ -29,10 +29,10 @@ class AlertRuleBootstrapServiceImplTest {
 
     @Test
     void bootstrapMinimalRulesCreatesMissingRulesThroughCollectorClient() {
-        UUID ownerUserId = UUID.randomUUID();
-        UUID farmPlotId = UUID.randomUUID();
-        UUID zoneOne = UUID.randomUUID();
-        UUID zoneTwo = UUID.randomUUID();
+        String ownerUserId = "user-1";
+        String farmPlotId = "plot-1";
+        String zoneOne = "zone-1";
+        String zoneTwo = "zone-2";
         BootstrappedDevice firstDevice = new BootstrappedDevice(
             ownerUserId,
             farmPlotId,
@@ -71,9 +71,9 @@ class AlertRuleBootstrapServiceImplTest {
 
     @Test
     void bootstrapMinimalRulesSkipsExistingRules() {
-        UUID ownerUserId = UUID.randomUUID();
-        UUID farmPlotId = UUID.randomUUID();
-        UUID zoneId = UUID.randomUUID();
+        String ownerUserId = "user-1";
+        String farmPlotId = "plot-1";
+        String zoneId = "zone-1";
         UUID sensorTypeId = UUID.randomUUID();
         BootstrappedDevice device = new BootstrappedDevice(
             ownerUserId,

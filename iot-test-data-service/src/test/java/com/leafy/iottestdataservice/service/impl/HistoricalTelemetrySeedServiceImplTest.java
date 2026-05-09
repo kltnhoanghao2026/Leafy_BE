@@ -44,9 +44,9 @@ class HistoricalTelemetrySeedServiceImplTest {
             true,
             "ONLINE",
             "CLAIMED",
-            UUID.randomUUID(),
-            UUID.randomUUID(),
-            UUID.randomUUID(),
+            "user-1",
+            "plot-1",
+            "zone-1",
             Instant.now()
         );
         when(collectorInventoryService.findDevices(null, null, null)).thenReturn(List.of(device));

@@ -6,11 +6,11 @@ import java.util.UUID;
 
 public interface ReferenceSeedRepository {
 
-    boolean ensureUser(UUID userId);
+    boolean ensureUser(String userId);
 
-    boolean ensureFarmPlot(UUID farmPlotId);
+    boolean ensureFarmPlot(String farmPlotId);
 
-    boolean ensureZone(UUID zoneId);
+    boolean ensureZone(String zoneId);
 
     Optional<UUID> findSensorTypeIdByCode(String code);
 
