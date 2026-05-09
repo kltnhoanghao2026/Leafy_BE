@@ -26,6 +26,9 @@ import java.util.List;
  * Internal REST Controller for Profile management
  * Handles service-to-service profile operations, not exposed through the API gateway
  */
+import com.leafy.profileservice.service.connection.UserConnectionService;
+import com.leafy.profileservice.service.profile.ProfileService;
+
 @RestController
 @RequestMapping("/internal/profiles")
 @RequiredArgsConstructor
@@ -33,6 +36,8 @@ import java.util.List;
 public class InternalProfileController {
 
     private final ProfileService profileService;
+    private final UserConnectionService userConnectionService;
+
 
     /**
      * Create a minimal profile for a newly registered user
@@ -75,5 +80,14 @@ public class InternalProfileController {
                 .build();
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/users/{userId}/following-users")
+    public ResponseEntity<ApiResponse<List<String>>> getFollowingUsers(@PathVariable String userId) {
+        // userId from caller — resolve to profileId since UserConnection now stores profileIds
+        String profileId = profileService.getProfileIdByUserId(userId);
+        return ResponseEntity.ok(ApiResponse.success(
+                userConnectionService.getFollowingUsers(profileId != null ? profileId : userId)
+        ));
     }
 }

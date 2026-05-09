@@ -16,4 +16,8 @@ import lombok.experimental.FieldDefaults;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ProfileSummaryResponse {
     String id;
+    String fullName;
+    String avatar;
+    String role;
+    Boolean isVerified;
 }

@@ -16,6 +16,8 @@ public class KafkaTopicProperties {
     private NotificationEvents notificationEvents = new NotificationEvents();
     private CommunityEvents communityEvents = new CommunityEvents();
     private ProfileEvents profileEvents = new ProfileEvents();
+    private SocketEvents socketEvents = new SocketEvents();
+    private SystemEvents systemEvents = new SystemEvents();
 
     @Getter
     @Setter
@@ -36,14 +38,20 @@ public class KafkaTopicProperties {
 
     @Getter
     @Setter
-    public static class NotificationEvents {
+    public static class SocketEvents {
+        private String socketEvents = "socket.events";
+    }
 
+    @Getter
+    @Setter
+    public static class NotificationEvents {
+        private String raw = "notification.raw";
     }
 
     @Getter
     @Setter
     public static class SystemEvents {
-
+        private String planApplied = "system.plan.applied";
     }
 
     @Getter
@@ -62,5 +70,7 @@ public class KafkaTopicProperties {
     public static class ProfileEvents {
         private String created = "profile.created";
         private String updated = "profile.updated";
+        private String deleted = "profile.deleted";
+        private String connectionUpdated = "profile.connection.updated";
     }
 }

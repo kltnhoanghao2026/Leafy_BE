@@ -6,16 +6,21 @@ import com.leafy.plantmanagementservice.client.FarmServiceClient;
 import com.leafy.plantmanagementservice.client.dto.ExternalApiResponse;
 import com.leafy.plantmanagementservice.client.dto.FarmPlotSummary;
 import com.leafy.plantmanagementservice.client.dto.FarmZoneSummary;
+import com.leafy.plantmanagementservice.client.dto.PagedResponse;
 import com.leafy.plantmanagementservice.config.SeederProperties;
 import com.leafy.plantmanagementservice.dto.response.seeder.PlantSeederResponse;
 import com.leafy.plantmanagementservice.model.Plant;
 import com.leafy.plantmanagementservice.model.PlantEvent;
 import com.leafy.plantmanagementservice.model.Species;
+import com.leafy.plantmanagementservice.model.Plan;
 import com.leafy.plantmanagementservice.model.enums.EventType;
 import com.leafy.plantmanagementservice.model.enums.PlantStatus;
+import com.leafy.plantmanagementservice.model.enums.TreatmentStatus;
 import com.leafy.plantmanagementservice.repository.PlantEventRepository;
 import com.leafy.plantmanagementservice.repository.PlantRepository;
+import com.leafy.plantmanagementservice.repository.PlantRepository;
 import com.leafy.plantmanagementservice.repository.SpeciesRepository;
+import com.leafy.plantmanagementservice.repository.PlanRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -40,6 +45,7 @@ public class SeederServiceImpl implements SeederService {
     SpeciesRepository speciesRepository;
     PlantRepository plantRepository;
     PlantEventRepository plantEventRepository;
+    PlanRepository planRepository;
     FarmServiceClient farmServiceClient;
     SeederProperties seederProperties;
 
@@ -103,13 +109,10 @@ public class SeederServiceImpl implements SeederService {
         int effectiveEventsPerPlant = eventsPerPlant != null ? eventsPerPlant : seederProperties.getEventsPerPlant();
 
         UserPrincipal currentUser = ServiceSecurityUtils.getCurrentUser();
-        String roleHeader = currentUser.getAuthorities().stream()
-                .map(a -> a.getAuthority())
-                .collect(Collectors.joining(","));
 
         // Fetch farm data for referential integrity
-        List<FarmPlotSummary> farmPlots = fetchFarmPlots(currentUser, roleHeader);
-        List<FarmZoneSummary> farmZones = fetchFarmZones(currentUser, roleHeader);
+        List<FarmPlotSummary> farmPlots = fetchFarmPlots();
+        List<FarmZoneSummary> farmZones = fetchFarmZones();
 
         log.info("Plant seeder: {} farmPlots, {} farmZones available. Seeding {} species, {} plants, {} events/plant",
                 farmPlots.size(), farmZones.size(), effectiveSpeciesCount, effectivePlantCount, effectiveEventsPerPlant);
@@ -138,27 +141,65 @@ public class SeederServiceImpl implements SeederService {
         // --- Plants (wipe + reseed) ---
         long deletedPlantCount = plantRepository.count();
         long deletedEventCount = plantEventRepository.count();   // capture before deleting
+        long deletedPlanCount = planRepository.count();
         plantEventRepository.deleteAll();       // events must go first
+        planRepository.deleteAll();
         plantRepository.deleteAll();
 
-        List<Plant> seededPlants = seedPlants(
-                effectivePlantCount, speciesIds, farmPlotIds, zonesByPlot, random);
+        Map<String, List<FarmPlotSummary>> plotsByOwner = farmPlots.stream()
+                .filter(p -> p.getOwnerProfileId() != null)
+                .collect(Collectors.groupingBy(FarmPlotSummary::getOwnerProfileId));
 
-        // --- PlantEvents (wipe + reseed) ---
-        List<PlantEvent> seededEvents = seedEvents(seededPlants, farmPlotIds, zonesByPlot,
-                effectiveEventsPerPlant, random);
+        List<Plant> allSeededPlants = new ArrayList<>();
+        List<PlantEvent> allSeededEvents = new ArrayList<>();
+        List<Plan> allSeededPlans = new ArrayList<>();
+
+        int userIndex = 0;
+        int eventSeqIndex = 0;
+
+        if (plotsByOwner.isEmpty()) {
+            log.warn("No active farmPlots found with owner profiles. Planting globally without farmPlotId assignment.");
+            List<String> emptyPlots = List.of();
+            List<Plant> seededPlants = seedPlants(
+                    effectivePlantCount, speciesIds, emptyPlots, zonesByPlot, random, 0);
+            List<PlantEvent> seededEvents = seedEvents(seededPlants, emptyPlots, zonesByPlot,
+                    effectiveEventsPerPlant, random, 0);
+            List<Plan> seededPlans = seedPlans(seededEvents, currentUser);
+            allSeededPlants.addAll(seededPlants);
+            allSeededEvents.addAll(seededEvents);
+            allSeededPlans.addAll(seededPlans);
+        } else {
+            for (Map.Entry<String, List<FarmPlotSummary>> entry : plotsByOwner.entrySet()) {
+                List<String> userPlotIds = entry.getValue().stream().map(FarmPlotSummary::getId).toList();
+
+                List<Plant> seededPlants = seedPlants(
+                        effectivePlantCount, speciesIds, userPlotIds, zonesByPlot, random, userIndex * effectivePlantCount);
+                
+                List<PlantEvent> seededEvents = seedEvents(seededPlants, userPlotIds, zonesByPlot,
+                        effectiveEventsPerPlant, random, eventSeqIndex);
+                List<Plan> seededPlans = seedPlans(seededEvents, currentUser);
+
+                eventSeqIndex += seededEvents.size();
+                allSeededPlants.addAll(seededPlants);
+                allSeededEvents.addAll(seededEvents);
+                allSeededPlans.addAll(seededPlans);
+                userIndex++;
+            }
+        }
 
         log.info("Plant seeder complete: species={}, plants={}, events={}",
-                speciesIds.size(), seededPlants.size(), seededEvents.size());
+                speciesIds.size(), allSeededPlants.size(), allSeededEvents.size());
 
         return PlantSeederResponse.builder()
                 .seededSpeciesCount(speciesCounts[0])
                 .createdSpeciesCount(speciesCounts[1])
                 .updatedSpeciesCount(speciesCounts[2])
                 .deletedPlantCount(deletedPlantCount)
-                .seededPlantCount(seededPlants.size())
+                .seededPlantCount(allSeededPlants.size())
                 .deletedEventCount(deletedEventCount)
-                .seededEventCount(seededEvents.size())
+                .seededEventCount(allSeededEvents.size())
+                .deletedPlanCount(deletedPlanCount)
+                .seededPlanCount(allSeededPlans.size())
                 .sourceFarmPlotCount(farmPlots.size())
                 .sourceFarmZoneCount(farmZones.size())
                 .build();
@@ -240,7 +281,7 @@ public class SeederServiceImpl implements SeederService {
     // -------------------------------------------------------------------------
 
     private List<Plant> seedPlants(int count, List<String> speciesIds, List<String> farmPlotIds,
-                                   Map<String, List<String>> zonesByPlot, Random random) {
+                                   Map<String, List<String>> zonesByPlot, Random random, int startIndex) {
         if (farmPlotIds.isEmpty()) {
             log.warn("No active farmPlots found. Planting {} plants without farmPlotId assignment.", count);
         }
@@ -249,36 +290,37 @@ public class SeederServiceImpl implements SeederService {
         LocalDateTime now = LocalDateTime.now();
 
         for (int i = 0; i < count; i++) {
-            PlantStatus status = plantStatusForIndex(i);
-            String sourceType = SOURCE_TYPES[i % SOURCE_TYPES.length];
-            String speciesId = speciesIds.isEmpty() ? null : speciesIds.get(i % speciesIds.size());
+            int globalIndex = startIndex + i;
+            PlantStatus status = plantStatusForIndex(globalIndex);
+            String sourceType = SOURCE_TYPES[globalIndex % SOURCE_TYPES.length];
+            String speciesId = speciesIds.isEmpty() ? null : speciesIds.get(globalIndex % speciesIds.size());
             String farmPlotId = farmPlotIds.isEmpty() ? null : farmPlotIds.get(i % farmPlotIds.size());
 
             // 70% of plants get a zone assignment
             String farmZoneId = null;
-            if (farmPlotId != null && i % 10 < 7) {
+            if (farmPlotId != null && globalIndex % 10 < 7) {
                 List<String> zones = zonesByPlot.get(farmPlotId);
                 if (zones != null && !zones.isEmpty()) {
                     farmZoneId = zones.get(i % zones.size());
                 }
             }
 
-            LocalDateTime plantingDate = now.minusDays(180 + (long) (i * 7));
-            LocalDateTime germinationDate = (i % 2 == 0) ? plantingDate.plusDays(7 + (i % 10)) : null;
+            LocalDateTime plantingDate = now.minusDays(180 + (long) (globalIndex * 7));
+            LocalDateTime germinationDate = (globalIndex % 2 == 0) ? plantingDate.plusDays(7 + (globalIndex % 10)) : null;
             LocalDateTime actualHarvestDate = null;
             Double totalYieldKg = null;
 
             if (status == PlantStatus.ARCHIVED) {
-                actualHarvestDate = plantingDate.plusDays(90 + (long) (i % 30) * 3);
-                totalYieldKg = 0.5 + (i % 20) * 0.25;
+                actualHarvestDate = plantingDate.plusDays(90 + (long) (globalIndex % 30) * 3);
+                totalYieldKg = 0.5 + (globalIndex % 20) * 0.25;
             }
 
             Plant plant = Plant.builder()
-                    .plantNumber(String.format("PLT-%06d", i + 1))
+                    .plantNumber(String.format("PLT-%06d", globalIndex + 1))
                     .plantStatus(status)
-                    .nickName(buildPlantNickname(i))
-                    .tagCode(String.format("TAG-%04d", i + 1))
-                    .batchNumber(buildBatchNumber(i, now))
+                    .nickName(buildPlantNickname(globalIndex))
+                    .tagCode(String.format("TAG-%04d", globalIndex + 1))
+                    .batchNumber(buildBatchNumber(globalIndex, now))
                     .motherPlantId(null)        // filled in second pass below
                     .plantingDate(plantingDate)
                     .germinationDate(germinationDate)
@@ -342,15 +384,16 @@ public class SeederServiceImpl implements SeederService {
 
     private List<PlantEvent> seedEvents(List<Plant> plants, List<String> farmPlotIds,
                                         Map<String, List<String>> zonesByPlot,
-                                        int eventsPerPlant, Random random) {
+                                        int eventsPerPlant, Random random, int startSeqIndex) {
         List<PlantEvent> events = new ArrayList<>();
         LocalDate today = LocalDate.now();
+        int currentSeq = startSeqIndex;
 
         // Guarantee all 12 EventType values are covered: first 12 plants each cover one type
         for (int i = 0; i < Math.min(plants.size(), ALL_EVENT_TYPES.length); i++) {
             Plant plant = plants.get(i);
             EventType forcedType = ALL_EVENT_TYPES[i];
-            events.add(buildEvent(plant, forcedType, i, today, random));
+            events.add(buildEvent(plant, forcedType, currentSeq++, today, random));
         }
 
         // Remaining events per plant (random types)
@@ -358,8 +401,8 @@ public class SeederServiceImpl implements SeederService {
             Plant plant = plants.get(i);
             int extraEvents = (i < ALL_EVENT_TYPES.length) ? eventsPerPlant - 1 : eventsPerPlant;
             for (int e = 0; e < extraEvents; e++) {
-                EventType type = ALL_EVENT_TYPES[(i * eventsPerPlant + e) % ALL_EVENT_TYPES.length];
-                events.add(buildEvent(plant, type, i * eventsPerPlant + e + ALL_EVENT_TYPES.length, today, random));
+                EventType type = ALL_EVENT_TYPES[currentSeq % ALL_EVENT_TYPES.length];
+                events.add(buildEvent(plant, type, currentSeq++, today, random));
             }
         }
 
@@ -382,8 +425,9 @@ public class SeederServiceImpl implements SeederService {
                 + " event #" + (seqIndex + 1);
 
         // ~20% of events have a sourcePlanId (simulating RAG-generated plans)
+        // Must be a valid 24-character hex string because Plan uses @MongoId(FieldType.OBJECT_ID)
         String sourcePlanId = (seqIndex % 5 == 0)
-                ? "PLAN-SEED-" + String.format("%04d", seqIndex + 1)
+                ? String.format("5eed0000000000000000%04x", seqIndex + 1)
                 : null;
 
         PlantEvent.PlantEventBuilder builder = PlantEvent.builder()
@@ -418,20 +462,62 @@ public class SeederServiceImpl implements SeederService {
         return event;
     }
 
+    private List<Plan> seedPlans(List<PlantEvent> events, UserPrincipal currentUser) {
+        Map<String, List<PlantEvent>> eventsByPlan = events.stream()
+                .filter(e -> e.getSourcePlanId() != null)
+                .collect(Collectors.groupingBy(PlantEvent::getSourcePlanId));
+
+        List<Plan> plans = new ArrayList<>();
+        int i = 0;
+        for (Map.Entry<String, List<PlantEvent>> entry : eventsByPlan.entrySet()) {
+            String planId = entry.getKey();
+            List<PlantEvent> planEvents = entry.getValue();
+            PlantEvent firstEvent = planEvents.get(0);
+
+            TreatmentStatus status = TreatmentStatus.ACTIVE;
+            if (i % 3 == 0) status = TreatmentStatus.COMPLETED;
+            else if (i % 3 == 1) status = TreatmentStatus.PENDING;
+
+            Plan plan = Plan.builder()
+                    .id(planId)
+                    .userId(currentUser != null ? currentUser.getUserId() : null)
+                    .ragPlanId("rag-" + planId)
+                    .planName("Kế hoạch " + (i % 2 == 0 ? "trị gỉ sắt" : "trị khô cành") + " - " + firstEvent.getPlantId())
+                    .question("Cách xử lý bệnh cho cây " + firstEvent.getPlantId())
+                    .source("RAG-SEEDER")
+                    .plantId(firstEvent.getPlantId())
+                    .farmPlotId(firstEvent.getFarmPlotId())
+                    .farmZoneId(firstEvent.getFarmZoneId())
+                    .diseaseName(i % 2 == 0 ? "Bệnh gỉ sắt (Leaf Rust)" : "Bệnh khô cành (Twig Blight)")
+                    .confidenceScore(0.85 + (i % 10) * 0.01)
+                    .severityLevel(i % 2 == 0 ? "HIGH" : "MEDIUM")
+                    .urgency(i % 2 == 0 ? "IMMEDIATE" : "NORMAL")
+                    .requiredInputs(List.of("Thuốc trị nấm (Fungicide)", "Bình phun 16L"))
+                    .safetyWarnings(List.of("Đeo găng tay và khẩu trang khi phun", "Cách ly 14 ngày trước thu hoạch"))
+                    .successIndicators("Vết bệnh cũ khô lại, lá non mới ra không có đốm vàng")
+                    .estimatedCost((150 + (i % 5) * 50) + ",000 VND")
+                    .plantEventIds(planEvents.stream().map(PlantEvent::getId).toList())
+                    .status(status)
+                    .build();
+
+            plan.setActive(true);
+            plans.add(plan);
+            i++;
+        }
+        return planRepository.saveAll(plans);
+    }
+
     // -------------------------------------------------------------------------
     // Farm data fetching via Feign
     // -------------------------------------------------------------------------
 
-    private List<FarmPlotSummary> fetchFarmPlots(UserPrincipal currentUser, String roleHeader) {
+    private List<FarmPlotSummary> fetchFarmPlots() {
         try {
-            ExternalApiResponse<List<FarmPlotSummary>> response = farmServiceClient.getAllActiveFarmPlots(
-                    currentUser.getUserId(),
-                    currentUser.getEmail(),
-                    roleHeader,
-                    currentUser.getProfileId());
+            ExternalApiResponse<PagedResponse<FarmPlotSummary>> response =
+                    farmServiceClient.getAllActiveFarmPlots(1000);
 
-            if (response != null && response.getData() != null) {
-                return response.getData().stream()
+            if (response != null && response.getData() != null && response.getData().getContent() != null) {
+                return response.getData().getContent().stream()
                         .filter(p -> p.getId() != null && !p.getId().isBlank())
                         .toList();
             }
@@ -441,16 +527,13 @@ public class SeederServiceImpl implements SeederService {
         return List.of();
     }
 
-    private List<FarmZoneSummary> fetchFarmZones(UserPrincipal currentUser, String roleHeader) {
+    private List<FarmZoneSummary> fetchFarmZones() {
         try {
-            ExternalApiResponse<List<FarmZoneSummary>> response = farmServiceClient.getAllActiveFarmZones(
-                    currentUser.getUserId(),
-                    currentUser.getEmail(),
-                    roleHeader,
-                    currentUser.getProfileId());
+            ExternalApiResponse<PagedResponse<FarmZoneSummary>> response =
+                    farmServiceClient.getAllActiveFarmZones(1000);
 
-            if (response != null && response.getData() != null) {
-                return response.getData().stream()
+            if (response != null && response.getData() != null && response.getData().getContent() != null) {
+                return response.getData().getContent().stream()
                         .filter(z -> z.getId() != null && !z.getId().isBlank())
                         .toList();
             }

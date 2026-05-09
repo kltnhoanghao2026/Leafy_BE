@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ProfileEvent {
     private String profileId;
+    private String userId;       // Auth service UUID — used as ChatUser._id in message-service
     private String fullName;
     private String avatar;
     private String role;

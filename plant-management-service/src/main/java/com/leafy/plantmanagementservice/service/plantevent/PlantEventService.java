@@ -33,7 +33,7 @@ public interface PlantEventService {
 
     Page<PlantEventResponse> getEventsByFarmZoneId(String farmZoneId, Pageable pageable);
 
-    List<PlantEventResponse> getEventsForCalendar(String farmPlotId, String farmZoneId, String plantId,
+    List<PlantEventResponse> getEventsForCalendar(String profileId, String farmPlotId, String farmZoneId, String plantId,
                                                    LocalDate startDate, LocalDate endDate);
 
     Page<PlantEventResponse> getAllEvents(EventType eventType, Boolean planned, String farmPlotId, String farmZoneId, Pageable pageable);

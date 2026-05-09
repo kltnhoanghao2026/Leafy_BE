@@ -2,6 +2,10 @@ package com.leafy.plantmanagementservice.service.plant;
 
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
+import com.leafy.common.security.UserPrincipal;
+import com.leafy.plantmanagementservice.client.FarmServiceClient;
+import com.leafy.plantmanagementservice.client.dto.ExternalApiResponse;
+import com.leafy.plantmanagementservice.client.dto.FarmPlotSummary;
 import com.leafy.plantmanagementservice.dto.request.plant.PlantCreateRequest;
 import com.leafy.plantmanagementservice.dto.request.plant.PlantUpdateRequest;
 import com.leafy.plantmanagementservice.dto.response.plant.PlantResponse;
@@ -18,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -27,6 +33,7 @@ public class PlantServiceImpl implements PlantService {
 
     private final PlantRepository plantRepository;
     private final PlantMapper plantMapper;
+    private final FarmServiceClient farmServiceClient;
 
     @Override
     @Transactional
@@ -68,15 +75,68 @@ public class PlantServiceImpl implements PlantService {
     }
 
     @Override
-    public Page<PlantResponse> getAllPlants(PlantStatus status, Pageable pageable) {
-        log.info("Fetching all plants with pagination, status={}", status);
-        if (status != null) {
-            return plantRepository.findByPlantStatus(status, pageable)
-                    .map(plantMapper::toResponse);
-        }
-        return plantRepository.findAll(pageable)
+    public Page<PlantResponse> getAllPlants(String search, String farmPlotId, String farmZoneId, String speciesId, PlantStatus status, Pageable pageable) {
+        log.info("Fetching all plants with filters: search={}, farmPlotId={}, farmZoneId={}, speciesId={}, status={}", search, farmPlotId, farmZoneId, speciesId, status);
+        return plantRepository.findPlantsByFilters(search, farmPlotId, farmZoneId, speciesId, status, pageable)
                 .map(plantMapper::toResponse);
     }
+
+    @Override
+    public Page<PlantResponse> getMyPlants(String search, String farmPlotId, String farmZoneId, String speciesId, PlantStatus status, Pageable pageable) {
+        UserPrincipal currentUser = com.leafy.common.utils.ServiceSecurityUtils.getCurrentUser();
+        String profileId = currentUser.getProfileId();
+        String userId    = currentUser.getUserId();
+
+        // Guard: profileId must be present. It is embedded in the JWT by the auth-service
+        // when the access token is generated. An empty profileId means the token was issued
+        // before the profile was created, or the JWT is stale. The user must re-login.
+        if (!org.springframework.util.StringUtils.hasText(profileId)) {
+            log.warn("getMyPlants: profileId is blank for userId={}. " +
+                     "The JWT may be stale (issued before profile creation). " +
+                     "Ask the user to log out and log back in.", userId);
+            return org.springframework.data.domain.Page.empty(pageable);
+        }
+
+        // ── Resolve the user's farm plots ─────────────────────────────────────
+        List<String> userFarmPlotIds = Collections.emptyList();
+        try {
+            ExternalApiResponse<List<FarmPlotSummary>> response =
+                    farmServiceClient.getPlotsByOwner(profileId);
+            if (response != null && response.getData() != null) {
+                userFarmPlotIds = response.getData().stream()
+                        .filter(p -> p.getId() != null && !p.getId().isBlank())
+                        .map(FarmPlotSummary::getId)
+                        .toList();
+            }
+        } catch (Exception e) {
+            log.warn("Could not resolve farm plots for user={}: {}", userId, e.getMessage());
+        }
+
+        // ── Resolve all farm zone IDs within those plots ───────────────────────
+        List<String> userFarmZoneIds = new java.util.ArrayList<>();
+        for (String plotId : userFarmPlotIds) {
+            try {
+                ExternalApiResponse<List<com.leafy.plantmanagementservice.client.dto.FarmZoneSummary>> zoneResponse =
+                        farmServiceClient.getZonesByPlot(plotId);
+                if (zoneResponse != null && zoneResponse.getData() != null) {
+                    zoneResponse.getData().stream()
+                            .filter(z -> z.getId() != null && !z.getId().isBlank())
+                            .map(com.leafy.plantmanagementservice.client.dto.FarmZoneSummary::getId)
+                            .forEach(userFarmZoneIds::add);
+                }
+            } catch (Exception e) {
+                log.warn("Could not resolve zones for plot={}: {}", plotId, e.getMessage());
+            }
+        }
+
+        log.info("getMyPlants: userId={}, profileId={}, plots={}, zones={}, search={}, farmPlotId={}, farmZoneId={}, speciesId={}, status={}",
+                userId, profileId, userFarmPlotIds.size(), userFarmZoneIds.size(),
+                search, farmPlotId, farmZoneId, speciesId, status);
+
+        return plantRepository.findMyPlants(userFarmPlotIds, userFarmZoneIds, search, farmPlotId, farmZoneId, speciesId, status, pageable)
+                .map(plantMapper::toResponse);
+    }
+
 
     @Override
     public Page<PlantResponse> getPlantsBySpeciesId(String speciesId, Pageable pageable) {

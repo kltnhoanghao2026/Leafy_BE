@@ -44,4 +44,14 @@ public interface S3Service {
      */
     Mono<String> generatePresignedUrl(String s3Key, int expirationMinutes);
 
+    /**
+     * Generate presigned URL for file upload
+     *
+     * @param filename          the original filename
+     * @param contentType       the content type
+     * @param expirationMinutes expiration time in minutes
+     * @return Mono containing the presigned upload URL and generated S3 key
+     */
+    Mono<com.leafy.fileservice.dto.response.PresignedUploadResponse> generatePresignedUploadUrl(String filename, String contentType, int expirationMinutes);
+
 }

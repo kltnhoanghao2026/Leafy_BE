@@ -20,9 +20,18 @@ import com.leafy.profileservice.mapper.ProfileMapper;
 import com.leafy.profileservice.model.Certificate;
 import com.leafy.profileservice.model.Profile;
 import com.leafy.profileservice.model.enums.CertificateStatus;
+import com.leafy.profileservice.client.SearchClient;
+import com.leafy.profileservice.client.dto.SpringPageDto;
+import com.leafy.profileservice.repository.UserConnectionRepository;
+import com.leafy.profileservice.model.UserConnection;
+import com.leafy.profileservice.model.enums.ConsultationStatus;
 import com.leafy.profileservice.repository.ApprovalRequestRepository;
 import com.leafy.profileservice.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageImpl;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +57,8 @@ public class ProfileServiceImpl implements ProfileService {
     private final CertificateMapper certificateMapper;
     private final AuthClient authClient;
     private final OutboxEventPublisher outboxEventPublisher;
+    private final SearchClient searchClient;
+    private final UserConnectionRepository userConnectionRepository;
 
     @Override
     public ProfileResponse createProfile(ProfileCreateRequest request) {
@@ -212,9 +223,91 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<ProfileResponse> searchExpertsEnriched(
+            String searchTerm, String specialty, int page, int size,
+            String sortBy, String sortDir, String currentUserId) {
+        log.info("Searching experts enriched: searchTerm={}, specialty={}, currentUserId={}", searchTerm, specialty, currentUserId);
+        
+        ApiResponse<SpringPageDto<ProfileResponse>> apiResponse = searchClient.searchProfiles(
+                searchTerm, ProfileRole.EXPERT.name(), true, specialty, page, size, sortBy, sortDir);
+                
+        if (apiResponse == null || apiResponse.data() == null) {
+            return Page.empty();
+        }
+        
+        SpringPageDto<ProfileResponse> pageDto = apiResponse.data();
+        List<ProfileResponse> content = pageDto.getContent();
+        
+        if (currentUserId != null && !content.isEmpty()) {
+            enrichWithConnectionStatus(content, currentUserId);
+        }
+        
+        PageRequest pageRequest = PageRequest.of(pageDto.getNumber(), pageDto.getSize() > 0 ? pageDto.getSize() : size);
+        return new PageImpl<>(content, pageRequest, pageDto.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProfileResponse> getExpertsEnriched(
+            String searchTerm, int page, int size,
+            String sortBy, String sortDir, String currentUserId) {
+        log.info("Getting experts enriched: searchTerm={}, currentUserId={}", searchTerm, currentUserId);
+        
+        org.springframework.data.domain.Sort sort = sortDir.equalsIgnoreCase("ASC")
+                ? org.springframework.data.domain.Sort.by(sortBy).ascending()
+                : org.springframework.data.domain.Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<Profile> profiles = profileRepository.findProfilesFiltered(searchTerm, ProfileRole.EXPERT, true, true, pageable);
+        List<ProfileResponse> content = profiles.stream().map(this::buildFullProfileResponse).collect(Collectors.toList());
+        
+        if (currentUserId != null && !content.isEmpty()) {
+            enrichWithConnectionStatus(content, currentUserId);
+        }
+        
+        return new PageImpl<>(content, pageable, profiles.getTotalElements());
+    }
+
+    private void enrichWithConnectionStatus(List<ProfileResponse> profiles, String currentUserId) {
+        // Resolve JWT userId → profileId for connection lookup (UserConnection now stores profileIds)
+        String currentProfileId = profileRepository.findByUserId(currentUserId)
+                .map(Profile::getId)
+                .orElse(null);
+        if (currentProfileId == null) {
+            profiles.forEach(p -> {
+                p.setIsFollowing(false);
+                p.setHasPendingConsultRequest(false);
+            });
+            return;
+        }
+
+        List<String> targetProfileIds = profiles.stream()
+                .map(ProfileResponse::getId)
+                .collect(Collectors.toList());
+
+        List<UserConnection> connections = userConnectionRepository
+                .findAllByFollowerIdAndFollowingIdIn(currentProfileId, targetProfileIds);
+        Map<String, UserConnection> connectionMap = connections.stream()
+                .collect(Collectors.toMap(UserConnection::getFollowingId, c -> c));
+
+        for (ProfileResponse profile : profiles) {
+            UserConnection conn = connectionMap.get(profile.getId());
+            if (conn != null) {
+                profile.setIsFollowing(conn.getIsFollowing() != null && conn.getIsFollowing());
+                profile.setHasPendingConsultRequest(conn.getConsultationStatus() == ConsultationStatus.PENDING);
+            } else {
+                profile.setIsFollowing(false);
+                profile.setHasPendingConsultRequest(false);
+            }
+        }
+    }
+
+    @Override
     public void deleteProfile(String profileId) {
         log.info("Deleting profile with ID: {}", profileId);
         Profile profile = getProfileEntityById(profileId);
+        publishProfileEvent(profile, EventType.PROFILE_DELETED);
         profileRepository.delete(profile);
         // 5. Delete associated approval requests
         approvalRequestRepository.deleteByProfileId(profileId);
@@ -227,6 +320,7 @@ public class ProfileServiceImpl implements ProfileService {
         Profile profile = profileRepository.findByUserId(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.ACC_ACCOUNT_NOT_FOUND));
 
+        publishProfileEvent(profile, EventType.PROFILE_DELETED);
         profileRepository.delete(profile);
 
         // Delete associated approval requests
@@ -342,6 +436,7 @@ public class ProfileServiceImpl implements ProfileService {
     private void publishProfileEvent(Profile profile, EventType eventType) {
         ProfileEvent event = ProfileEvent.builder()
                 .profileId(profile.getId())
+                .userId(profile.getUserId())
                 .fullName(profile.getFullName())
                 .avatar(profile.getAvatar())
                 .role(profile.getRole() != null ? profile.getRole().name() : null)
@@ -361,5 +456,19 @@ public class ProfileServiceImpl implements ProfileService {
         log.info("Profile marked as verified successfully.");
 
         return buildFullProfileResponse(savedProfile);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void enrichSingleWithConnectionStatus(ProfileResponse profile, String currentUserId) {
+        enrichWithConnectionStatus(List.of(profile), currentUserId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getProfileIdByUserId(String userId) {
+        return profileRepository.findByUserId(userId)
+                .map(Profile::getId)
+                .orElse(null);
     }
 }

@@ -21,4 +21,10 @@ public interface ProfileSecurityService {
      */
     boolean isCurrentUser(String userId);
 
+    /**
+     * Check if the current authenticated user has the EXPERT role in their profile.
+     *
+     * @return true if current user is an EXPERT, false otherwise
+     */
+    boolean isExpert();
 }

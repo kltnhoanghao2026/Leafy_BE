@@ -71,6 +71,6 @@ public class PlantEvent extends BaseModel {
     String estimatedCost;
 
     // ── Source Tracking ───────────────────────────────────────────────────────
-    /** ID of the TreatmentPlan (MongoDB) that generated this event, if any. */
+    /** ID of the Plan (MongoDB) that generated this event, if any. */
     String sourcePlanId;
 }

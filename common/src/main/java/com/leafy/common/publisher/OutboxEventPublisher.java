@@ -7,6 +7,7 @@ import com.leafy.common.event.community.VoteEvent;
 import com.leafy.common.event.post.PostDeletedEvent;
 import com.leafy.common.event.post.PostUpsertEvent;
 import com.leafy.common.event.profile.ProfileEvent;
+import com.leafy.common.event.profile.UserConnectionEvent;
 import com.leafy.common.model.kafka.EventType;
 import com.leafy.common.model.kafka.OutboxEvent;
 import com.leafy.common.repository.OutboxEventRepository;
@@ -136,6 +137,8 @@ public class OutboxEventPublisher {
             case VOTE_DELETED -> kafkaTopicProperties.getCommunityEvents().getVoteDeleted();
             case PROFILE_CREATED -> kafkaTopicProperties.getProfileEvents().getCreated();
             case PROFILE_UPDATED -> kafkaTopicProperties.getProfileEvents().getUpdated();
+            case PROFILE_DELETED -> kafkaTopicProperties.getProfileEvents().getDeleted();
+            case PROFILE_CONNECTION_UPDATED -> kafkaTopicProperties.getProfileEvents().getConnectionUpdated();
         };
     }
 
@@ -147,7 +150,8 @@ public class OutboxEventPublisher {
             case POST_DELETED -> PostDeletedEvent.class;
             case COMMENT_CREATED, COMMENT_DELETED -> CommentEvent.class;
             case VOTE_CREATED, VOTE_DELETED -> VoteEvent.class;
-            case PROFILE_CREATED, PROFILE_UPDATED -> ProfileEvent.class;
+            case PROFILE_CREATED, PROFILE_UPDATED, PROFILE_DELETED -> ProfileEvent.class;
+            case PROFILE_CONNECTION_UPDATED -> UserConnectionEvent.class;
         };
     }
 }

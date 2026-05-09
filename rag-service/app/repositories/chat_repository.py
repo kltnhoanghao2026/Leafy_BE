@@ -1,9 +1,9 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from app.models.treatment_plan_doc import TreatmentPlanDoc
+from app.models.plan_doc import PlanDoc
 from app.repositories.conversation_repository import get_conversation_repository
-from app.repositories.treatment_plan_repository import get_treatment_plan_repository
+from app.repositories.plan_repository import get_plan_repository
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class ChatRepository:
             return "documents"
         return None
 
-    def persist_treatment_plan_if_any(
+    def persist_plan_if_any(
         self,
         final_state: Dict[str, Any],
         *,
@@ -87,7 +87,7 @@ class ChatRepository:
             if plan_source:
                 generated_plan = {**generated_plan, "source": plan_source}
 
-            doc = TreatmentPlanDoc(
+            doc = PlanDoc(
                 userId=user_id,
                 question=question,
                 plantId=generated_plan.get("plantId"),
@@ -99,10 +99,10 @@ class ChatRepository:
                 source_documents=source_documents or None,
                 web_search_results=web_search_results or None,
             )
-            repo = get_treatment_plan_repository()
+            repo = get_plan_repository()
             saved_plan_id = repo.save_plan(doc.model_dump(mode="json"))
             logger.info(
-                "TreatmentPlan persisted - planId=%s, userId=%s, source=%s, docs=%d, web=%d",
+                "Plan persisted - planId=%s, userId=%s, source=%s, docs=%d, web=%d",
                 saved_plan_id,
                 user_id,
                 plan_source,
@@ -112,7 +112,7 @@ class ChatRepository:
             return saved_plan_id
         except Exception as e:
             # Save errors are logged but NEVER propagate to the caller
-            logger.error("Failed to persist TreatmentPlan: %s", e, exc_info=True)
+            logger.error("Failed to persist Plan: %s", e, exc_info=True)
             return None
 
     def _build_pipeline_state(
@@ -144,7 +144,7 @@ class ChatRepository:
             "documentsCount": len(documents),
             "webResultsCount": len(web_results),
             "savedPlanId": saved_plan_id,
-            "treatmentPlan": generated_plan if isinstance(generated_plan, dict) else None,
+            "plan": generated_plan if isinstance(generated_plan, dict) else None,
         }
 
     def persist_conversation_turn(

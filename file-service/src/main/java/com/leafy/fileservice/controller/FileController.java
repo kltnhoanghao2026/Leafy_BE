@@ -155,6 +155,34 @@ public class FileController {
         }
 
         /**
+         * Generate presigned URL for file upload to S3
+         *
+         * @param filename          the original filename
+         * @param contentType       the content type (default: application/octet-stream)
+         * @param expirationMinutes expiration time in minutes (default: 60)
+         * @return Mono containing the presigned upload URL and S3 key
+         */
+        @GetMapping("/presigned-upload-url")
+        public Mono<ResponseEntity<ApiResponse<com.leafy.fileservice.dto.response.PresignedUploadResponse>>> generatePresignedUploadUrl(
+                        @RequestParam String filename,
+                        @RequestParam(defaultValue = "application/octet-stream") String contentType,
+                        @RequestParam(defaultValue = "60") int expirationMinutes) {
+                log.info("GET /files/presigned-upload-url - Generating presigned URL for upload: {}", filename);
+
+                return s3Service.generatePresignedUploadUrl(filename, contentType, expirationMinutes)
+                                .map(response -> {
+                                        log.info("Presigned upload URL generated for filename={}", filename);
+                                        return ResponseEntity.ok(ApiResponse.success(response));
+                                })
+                                .onErrorResume(error -> {
+                                        log.error("Error generating presigned upload URL: {}", error.getMessage(), error);
+                                        return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                                        .body(ApiResponse.error(9999,
+                                                                        "Failed to generate presigned upload URL", null)));
+                                });
+        }
+
+        /**
          * Create file metadata record
          *
          * @param request the file upload request

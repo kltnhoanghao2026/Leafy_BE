@@ -27,4 +27,5 @@ public class PlantResponse {
     Double totalYieldKg;
     String speciesId;
     String farmPlotId;
+    String farmZoneId;
 }

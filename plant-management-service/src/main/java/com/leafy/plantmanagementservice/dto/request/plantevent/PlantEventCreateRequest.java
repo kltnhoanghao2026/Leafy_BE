@@ -49,7 +49,7 @@ public class PlantEventCreateRequest {
     String estimatedCost;
 
     /**
-     * Optional: link to the RAG-generated TreatmentPlan that produced this event.
+     * Optional: link to the RAG-generated Plan that produced this event.
      */
     String sourcePlanId;
 }

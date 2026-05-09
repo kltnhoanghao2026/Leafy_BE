@@ -1,0 +1,417 @@
+package com.leafy.messageservice.service.conversation;
+
+import com.leafy.common.utils.S3UtilV2;
+import com.leafy.common.utils.SecurityUtil;
+import com.leafy.common.exception.AppException;
+import com.leafy.common.exception.ErrorCode;
+import com.leafy.messageservice.dto.response.*;
+
+import com.leafy.messageservice.model.ChatUser;
+import com.leafy.messageservice.model.Conversation;
+import com.leafy.messageservice.model.ConversationMember;
+import com.leafy.messageservice.model.LastMessageInfo;
+import com.leafy.messageservice.model.Message;
+import com.leafy.messageservice.repository.ConversationRepository;
+import com.leafy.messageservice.repository.ChatUserRepository;
+
+import com.leafy.messageservice.model.enums.MemberRole;
+import com.leafy.common.dto.client.socketservice.SocketEvent;
+import com.leafy.common.enums.SocketEventType;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import com.leafy.messageservice.dto.response.PageResponse;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import com.mongodb.client.result.UpdateResult;
+
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class ConversationServiceImpl implements ConversationService {
+
+    private final ConversationRepository conversationRepository;
+    private final ChatUserRepository chatUserRepository;
+    private final SecurityUtil securityUtil;
+    private final ApplicationEventPublisher eventPublisher;
+    private final MongoTemplate mongoTemplate;
+    // private final FriendServiceClient friendServiceClient;
+    private final ConversationHelper helper;
+    private final S3UtilV2 s3UtilV2;
+
+    // ─────────────────────────── Core: Tạo / Lấy phòng chat ───────────────────────────
+
+    @Override
+    public Conversation getOrCreateDirectConversation(String userA, String userB) {
+        return conversationRepository.findDirectConversation(userA, userB)
+                .orElseGet(() -> {
+                    LocalDateTime now = LocalDateTime.now();
+                    String uniqueKey = (userA.compareTo(userB) < 0) ? userA + "_" + userB : userB + "_" + userA;
+                    Conversation newRoom = Conversation.builder()
+                            .uniqueKey(uniqueKey)
+                            .members(new HashSet<>(Arrays.asList(
+                                    ConversationMember.builder()
+                                            .profileId(userA).role(MemberRole.OWNER).joinedAt(now).build(),
+                                    ConversationMember.builder()
+                                            .profileId(userB).role(MemberRole.MEMBER).joinedAt(now).build()
+                            )))
+                            .lastMessage(LastMessageInfo.builder().timestamp(now).build())
+                            .build();
+                    log.info("[Conversation] Creating new direct conversation between {} and {}", userA, userB);
+                    return conversationRepository.save(newRoom);
+                });
+    }
+
+    @Override
+    public ConversationResponse getOrCreateConversationForUser(String partnerId) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+        Conversation room = getOrCreateDirectConversation(currentUserId, partnerId);
+
+        Set<String> userIds = new HashSet<>();
+        userIds.add(currentUserId);
+        userIds.add(partnerId);
+        room.getMembers().forEach(m -> userIds.add(m.getProfileId()));
+
+        Map<String, ChatUser> userCache = chatUserRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
+        ChatUser cachedPartner = userCache.get(partnerId);
+        if (cachedPartner == null || cachedPartner.getFullName() == null || cachedPartner.getFullName().isBlank()) {
+            if (!partnerId.equals(currentUserId) && !partnerId.equals("ai-assistant-001")) {
+                // eventPublisher.publishEvent(new Object(partnerId));
+            }
+        }
+
+        ChatUser partner = helper.resolvePartner(partnerId, currentUserId, userCache);
+        boolean viewerCanSee = helper.canViewerSeeStatus(currentUserId, userCache);
+        String baseUrl = s3UtilV2.getS3BaseUrl();
+
+        String friendshipStatus = null;
+        try {
+            com.leafy.common.dto.ApiResponse<Map<String, String>> response = null; // friendServiceClient...
+            if (response != null && response.data() != null) {
+                friendshipStatus = response.data().get(partnerId);
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch friendship status for user {}", partnerId, e);
+        }
+
+        return helper.buildConversationResponse(room, partner, currentUserId, userCache, baseUrl, viewerCanSee, friendshipStatus);
+    }
+
+    // ─────────────────────────── Query: Danh sách phòng chat ───────────────────────────
+
+    @Override
+    public PageResponse<List<ConversationResponse>> getUserConversations(int page, int size) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "lastMessage.timestamp"));
+        Page<Conversation> roomsPage = conversationRepository.findAllByMembersProfileId(currentUserId, pageable);
+        log.info("[Conversation] Fetched page {} of conversations for user {} with {} rooms",
+                page, currentUserId, roomsPage.getTotalElements());
+        if (roomsPage.isEmpty()) {
+            return PageResponse.empty(pageable);
+        }
+
+        Set<String> allUserIds = new HashSet<>();
+        allUserIds.add(currentUserId);
+        roomsPage.getContent().forEach(room -> {
+            room.getMembers().forEach(m -> allUserIds.add(m.getProfileId()));
+            if (room.getLastMessage() != null && room.getLastMessage().getSenderId() != null) {
+                allUserIds.add(room.getLastMessage().getSenderId());
+            }
+        });
+
+        Map<String, ChatUser> userCache = chatUserRepository.findAllById(allUserIds).stream()
+                .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
+        Map<String, String> tempMap;
+        try {
+            com.leafy.common.dto.ApiResponse<Map<String, String>> response = null; // friendServiceClient...
+            tempMap = (response != null && response.data() != null) ? response.data() : Collections.emptyMap();
+        } catch (Exception e) {
+            log.error("Failed to fetch batch friendship statuses", e);
+            tempMap = Collections.emptyMap();
+        }
+        final Map<String, String> friendshipStatusMap = tempMap;
+
+        boolean viewerCanSee = helper.canViewerSeeStatus(currentUserId, userCache);
+        String baseUrl = s3UtilV2.getS3BaseUrl();
+
+        return PageResponse.fromPage(roomsPage, room -> {
+            String partnerId = room.getMembers().stream()
+                    .filter(helper::isActiveMember)
+                    .map(ConversationMember::getProfileId)
+                    .filter(uid -> !uid.equals(currentUserId))
+                    .findFirst()
+                    .orElse(currentUserId);
+
+            ChatUser cachedPartner = userCache.get(partnerId);
+            boolean partnerMissingProfile = cachedPartner == null
+                || cachedPartner.getFullName() == null
+                || cachedPartner.getFullName().isBlank();
+
+            if (partnerMissingProfile && !partnerId.equals(currentUserId)
+                    && !partnerId.equals("ai-assistant-001")) {
+                // eventPublisher.publishEvent(new Object(partnerId));
+            }
+
+            ChatUser partner = helper.resolvePartner(partnerId, currentUserId, userCache);
+            String friendshipStatus = friendshipStatusMap.get(partnerId);
+            return helper.buildConversationResponse(room, partner, currentUserId, userCache, baseUrl, viewerCanSee, friendshipStatus);
+        });
+    }
+
+    // ─────────────────────────── Đánh dấu đã đọc ───────────────────────────
+
+    @Override
+    public void markAsRead(String conversationId, String lastReadMessageId) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+
+        Conversation room = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
+
+        boolean isMember = room.getMembers().stream()
+                .anyMatch(m -> m.getProfileId().equals(currentUserId));
+        if (!isMember) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        String finalReadId = (lastReadMessageId != null && !lastReadMessageId.isBlank())
+                ? lastReadMessageId
+                : (room.getLastMessage() != null ? room.getLastMessage().getMessageId() : null);
+
+        Query query = new Query(Criteria.where("id").is(conversationId)
+                .and("members.profileId").is(currentUserId));
+        Update update = new Update().set("unreadCounts." + currentUserId, 0);
+        if (finalReadId != null) {
+            update.set("members.$.lastReadMessageId", finalReadId);
+        }
+
+        UpdateResult result = mongoTemplate.updateFirst(query, update, Conversation.class);
+
+        if (result.getModifiedCount() > 0) {
+            broadcastReadReceipt(room, currentUserId, finalReadId);
+        }
+    }
+
+    @Override
+    public UnreadAnchorResponse getUnreadAnchor(String conversationId) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+
+        Conversation room = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
+
+        ConversationMember currentMember = room.getMembers().stream()
+                .filter(m -> m.getProfileId().equals(currentUserId))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
+
+        // Former/inactive members have no meaningful unread anchor
+        if (!helper.isActiveMember(currentMember)) {
+            return UnreadAnchorResponse.builder()
+                    .firstUnreadMessageId(null)
+                    .unreadCount(0)
+                    .build();
+        }
+
+        // Mirror the same visibility rules as findChatMessages
+        LocalDateTime memberJoinedAt = currentMember.getJoinedAt() != null
+                ? currentMember.getJoinedAt()
+                : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime deletedBefore = room.getDeletedBefore() != null
+                ? room.getDeletedBefore().getOrDefault(currentUserId, LocalDateTime.of(1970, 1, 1, 0, 0))
+                : LocalDateTime.of(1970, 1, 1, 0, 0);
+
+        String lastReadMessageId = currentMember.getLastReadMessageId();
+
+        // Determine anchor and count by querying actual messages —
+        // do NOT rely on unreadCounts cache, which may already be zeroed by markAsRead
+        if (lastReadMessageId == null) {
+            // Never read — oldest visible message is the anchor, count all visible messages
+            Criteria base = buildMessageVisibilityCriteria(conversationId, currentUserId, memberJoinedAt, deletedBefore);
+            Query firstQ = new Query(base).with(Sort.by(Sort.Direction.ASC, "createdAt")).limit(1);
+            Message firstMsg = mongoTemplate.findOne(firstQ, Message.class);
+            long count = mongoTemplate.count(new Query(base), Message.class);
+            return UnreadAnchorResponse.builder()
+                    .firstUnreadMessageId(firstMsg != null ? firstMsg.getId() : null)
+                    .unreadCount((int) count)
+                    .build();
+        }
+
+        Message lastReadMsg = mongoTemplate.findById(lastReadMessageId, Message.class);
+        if (lastReadMsg == null) {
+            return UnreadAnchorResponse.builder()
+                    .firstUnreadMessageId(null)
+                    .unreadCount(0)
+                    .build();
+        }
+
+        // First visible message strictly after lastReadMsg, respecting all visibility rules
+        Criteria afterLastRead = new Criteria().andOperator(
+                buildMessageVisibilityCriteria(conversationId, currentUserId, memberJoinedAt, deletedBefore),
+                Criteria.where("createdAt").gt(lastReadMsg.getCreatedAt())
+        );
+        Query afterQ = new Query(afterLastRead);
+        long count = mongoTemplate.count(afterQ, Message.class);
+        if (count == 0) {
+            return UnreadAnchorResponse.builder()
+                    .firstUnreadMessageId(null)
+                    .unreadCount(0)
+                    .build();
+        }
+        Message firstUnread = mongoTemplate.findOne(
+                new Query(afterLastRead).with(Sort.by(Sort.Direction.ASC, "createdAt")).limit(1),
+                Message.class);
+
+        return UnreadAnchorResponse.builder()
+                .firstUnreadMessageId(firstUnread != null ? firstUnread.getId() : null)
+                .unreadCount((int) count)
+                .build();
+    }
+
+    private Criteria buildMessageVisibilityCriteria(
+            String conversationId, String userId,
+            LocalDateTime memberJoinedAt, LocalDateTime deletedBefore) {
+        return new Criteria().andOperator(
+                Criteria.where("conversationId").is(conversationId),
+                Criteria.where("senderId").ne(userId),
+                Criteria.where("deletedBy").ne(userId),
+                Criteria.where("createdAt").gt(deletedBefore),
+                new Criteria().orOperator(
+                        Criteria.where("visibleTo").exists(false),
+                        Criteria.where("visibleTo").is(null),
+                        Criteria.where("visibleTo").size(0),
+                        Criteria.where("visibleTo").is(userId)
+                ),
+                new Criteria().orOperator(
+                        Criteria.where("type").ne("SYSTEM"),
+                        Criteria.where("createdAt").gte(memberJoinedAt)
+                )
+        );
+    }
+
+    @Override
+    public void deleteConversationForMe(String conversationId) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
+
+        conversation.getMembers().stream()
+                .filter(m -> m.getProfileId().equals(currentUserId))
+                .findFirst()
+                .ifPresent(member -> {
+                    member.setActive(false);
+                    member.setRemovedAt(LocalDateTime.now());
+                });
+
+        if (conversation.getDeletedBefore() == null) {
+            conversation.setDeletedBefore(new HashMap<>());
+        }
+        conversation.getDeletedBefore().put(currentUserId, LocalDateTime.now());
+
+        if (conversation.getUnreadCounts() != null) {
+            conversation.getUnreadCounts().remove(currentUserId);
+        }
+
+        conversationRepository.save(conversation);
+        log.info("[Conversation] User {} deleted conversation {}", currentUserId, conversationId);
+    }
+
+    // ─────────────────────────── Private helpers ───────────────────────────
+
+    private void broadcastReadReceipt(Conversation room, String currentUserId, String lastReadMessageId) {
+        List<ConversationMember> otherMembers = room.getMembers().stream()
+                .filter(helper::isActiveMember)
+                .filter(m -> !m.getProfileId().equals(currentUserId))
+                .toList();
+
+        if (otherMembers.isEmpty()) return;
+
+        // Resolve accountIds for WS routing (socket-service registers connections by accountId / JWT sub)
+        Set<String> memberProfileIds = otherMembers.stream()
+                .map(ConversationMember::getProfileId).collect(Collectors.toSet());
+        Map<String, ChatUser> receiptCache = helper.getChatUserRepository().findAllById(memberProfileIds).stream()
+                .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
+        otherMembers.forEach(m -> {
+            String targetAccountId = helper.resolveAccountId(m.getProfileId(), receiptCache);
+            helper.getKafkaTemplate().send(helper.getKafkaTopicProperties().getSocketEvents().getSocketEvents(),
+                    new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
+                            "/queue/read-receipts",
+                            ReadReceiptNotification.builder()
+                                    .conversationId(room.getId())
+                                    .userId(currentUserId)
+                                    .lastReadMessageId(lastReadMessageId)
+                                    .build()));
+        });
+    }
+
+    @Override
+    public Set<String> getConversationMemberIds(String conversationId) {
+        return conversationRepository.findById(conversationId)
+                .map(conv -> conv.getMembers().stream()
+                        .filter(helper::isActiveMember)
+                        .map(m -> m.getProfileId())
+                        .collect(java.util.stream.Collectors.toSet()))
+                .orElse(java.util.Collections.emptySet());
+    }
+
+    @Override
+    public void pinConversation(String conversationId) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+        ChatUser user = chatUserRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
+        if (user.getPinnedConversations() == null) {
+            user.setPinnedConversations(new java.util.ArrayList<>());
+        }
+        if (!user.getPinnedConversations().contains(conversationId)) {
+            if (user.getPinnedConversations().size() >= 5) {
+                throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+            }
+            user.getPinnedConversations().add(conversationId);
+            chatUserRepository.save(user);
+        }
+    }
+
+    @Override
+    public void unpinConversation(String conversationId) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+        ChatUser user = chatUserRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
+        if (user.getPinnedConversations() != null && user.getPinnedConversations().contains(conversationId)) {
+            user.getPinnedConversations().remove(conversationId);
+            chatUserRepository.save(user);
+        }
+    }
+
+    @Override
+    public List<ConversationResponse> getPinnedConversations() {
+        String currentUserId = securityUtil.getCurrentProfileId();
+        ChatUser user = chatUserRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.SYS_UNCATEGORIZED));
+        if (user.getPinnedConversations() == null || user.getPinnedConversations().isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+        
+        List<Conversation> rooms = new java.util.ArrayList<>();
+        conversationRepository.findAllById(user.getPinnedConversations()).forEach(rooms::add);
+        
+        return rooms.stream()
+                .map(room -> helper.buildConversationResponseForCurrentUser(room, currentUserId))
+                .collect(java.util.stream.Collectors.toList());
+    }
+}
+

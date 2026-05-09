@@ -26,18 +26,21 @@ public class FeignErrorDecoder implements ErrorDecoder {
                 log.error("Feign error: {} - Response body is null, status: {}", methodKey, response.status());
                 return new AppException(ErrorCode.SYS_UNCATEGORIZED);
             }
-            
+
             try (InputStream bodyIs = response.body().asInputStream()) {
                 ApiResponse<?> apiResponse = objectMapper.readValue(bodyIs, ApiResponse.class);
                 ErrorCode errorCode = ErrorCode.fromCode(apiResponse.code());
-                log.error("Feign error: {} - {}", errorCode.getCode(), errorCode.getMessageKey());
-                return new AppException(errorCode);
+                // Preserve the raw downstream message as the detail so callers see the real error
+                String detail = apiResponse.message();
+                log.error("Feign error [{}] from {}: {}", errorCode.getCode(), methodKey,
+                        detail != null ? detail : errorCode.getMessageKey());
+                return new AppException(errorCode, detail);
             }
         } catch (IOException e) {
-            log.error("Error decoding feign response", e);
+            log.error("Error decoding feign response from {}: {}", methodKey, e.getMessage());
             return new AppException(ErrorCode.SYS_UNCATEGORIZED);
         } catch (Exception e) {
-            log.error("Unknown error decoding feign response", e);
+            log.error("Unknown error decoding feign response from {}: {}", methodKey, e.getMessage());
             return new AppException(ErrorCode.SYS_UNCATEGORIZED);
         }
     }

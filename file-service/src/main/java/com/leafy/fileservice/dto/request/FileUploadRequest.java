@@ -28,6 +28,5 @@ public class FileUploadRequest {
     @Min(value = 0, message = "File size must be greater than or equal to 0")
     long fileSize;
 
-    @NotBlank(message = "Uploaded by user ID is required")
     String uploadedBy;
 }

@@ -3,17 +3,10 @@ package com.leafy.searchservice.listener;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leafy.common.event.profile.ProfileEvent;
 import com.leafy.common.model.kafka.EventType;
-import com.leafy.searchservice.client.AuthUserClient;
-import com.leafy.searchservice.client.ProfileClient;
-import com.leafy.searchservice.client.dto.AuthUserResponse;
-import com.leafy.searchservice.client.dto.ProfileServiceProfileResponse;
-import com.leafy.searchservice.config.ElasticSearchProperties;
-import com.leafy.searchservice.model.elasticsearch.ProfileIndex;
 import com.leafy.searchservice.services.failedevent.FailedEventService;
+import com.leafy.searchservice.services.sync.ProfileIndexSyncImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
-import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -32,11 +25,8 @@ import java.nio.ByteBuffer;
 public class ProfileIndexEventListener {
 
     private final FailedEventService failedEventService;
-    private final ElasticsearchOperations elasOps;
-    private final ElasticSearchProperties elasProps;
+    private final ProfileIndexSyncImpl profileIndexSync;
     private final ObjectMapper objectMapper;
-    private final ProfileClient profileClient;
-    private final AuthUserClient authUserClient;
 
     @RetryableTopic(
             attempts = "3",
@@ -62,17 +52,8 @@ public class ProfileIndexEventListener {
         log.info("Processing profile index request: profileId={}, partition={}, offset={}",
                 profileId, partition, offset);
 
-
-        try {
-            ProfileIndex profileIndex = toProfileIndex(profileId);
-            elasOps.save(profileIndex, IndexCoordinates.of(elasProps.getProfileAlias()));
-
-            log.info("Profile indexed successfully: profileId={}", profileId);
-
-        } catch (Exception e) {
-            log.error("Failed to index profile: profileId={}", profileId, e);
-            throw e;
-        }
+        profileIndexSync.upsertProfile(profileId);
+        log.info("Profile indexed successfully: profileId={}", profileId);
     }
 
     @DltHandler
@@ -87,79 +68,77 @@ public class ProfileIndexEventListener {
             @Header(value = "kafka_dlt-original-partition", required = false) Integer originalPartition,
             @Header(value = "kafka_dlt-original-offset", required = false) Long originalOffset,
             @Header(value = "retry_topic-attempts", required = false) byte[] attemptsBytes) {
+        EventType eventType = dlqTopic.contains("profile.updated")
+                ? EventType.PROFILE_UPDATED
+                : EventType.PROFILE_CREATED;
+
+        handleDlqFailure(
+                profileUpsertEvent.getProfileId(),
+                eventType,
+                profileUpsertEvent,
+                dlqTopic,
+                dlqPartition,
+                dlqOffset,
+                errorMsgBytes,
+                stackTraceBytes,
+                originalTopic,
+                originalPartition,
+                originalOffset,
+                attemptsBytes
+        );
+    }
+
+    private void handleDlqFailure(
+            String eventId,
+            EventType eventType,
+            Object payload,
+            String dlqTopic,
+            int dlqPartition,
+            long dlqOffset,
+            byte[] errorMsgBytes,
+            byte[] stackTraceBytes,
+            String originalTopic,
+            Integer originalPartition,
+            Long originalOffset,
+            byte[] attemptsBytes) {
         String errorMessage = errorMsgBytes != null ? new String(errorMsgBytes) : "Unknown error";
         String stackTrace = stackTraceBytes != null ? new String(stackTraceBytes) : "No stacktrace available";
 
-        // Final topic info to save
-        String finalTopic = (originalTopic != null) ? originalTopic : dlqTopic;
-        int finalPartition = (originalPartition != null) ? originalPartition : dlqPartition;
-        long finalOffset = (originalOffset != null) ? originalOffset : dlqOffset;
+        String finalTopic = originalTopic != null ? originalTopic : dlqTopic;
+        int finalPartition = originalPartition != null ? originalPartition : dlqPartition;
+        long finalOffset = originalOffset != null ? originalOffset : dlqOffset;
+        int retryCount = parseRetryCount(attemptsBytes);
 
-        // Parse attempts
-        int retryCount = 0;
-        if (attemptsBytes != null) {
-            try {
-                retryCount = ByteBuffer.wrap(attemptsBytes).getInt();
-            } catch (Exception ignored) {
-            }
-        }
-
-        log.error("Index requested event moved to DLQ: profileId={}, originalTopic={}, error={}",
-                profileUpsertEvent.getProfileId(), finalTopic, errorMessage);
+        log.error("Profile indexing event moved to DLQ: eventType={}, eventId={}, originalTopic={}, error={}",
+                eventType, eventId, finalTopic, errorMessage);
 
         try {
-            String payloadJson = objectMapper.writeValueAsString(profileUpsertEvent);
-            EventType eventType = dlqTopic.contains("profile.updated") ? EventType.PROFILE_UPDATED : EventType.PROFILE_CREATED;
-            failedEventService.logFailure(profileUpsertEvent.getProfileId(), eventType, finalTopic, finalPartition, finalOffset, payloadJson, errorMessage, stackTrace, retryCount);
-        } catch (Exception ex) {
-            log.error("Critical error while logging failure to MongoDB", ex);
+            String payloadJson = objectMapper.writeValueAsString(payload);
+            failedEventService.logFailure(
+                    eventId,
+                    eventType,
+                    finalTopic,
+                    finalPartition,
+                    finalOffset,
+                    payloadJson,
+                    errorMessage,
+                    stackTrace,
+                    retryCount
+            );
+        } catch (Exception exception) {
+            log.error("Critical error while logging profile indexing failure to MongoDB", exception);
         }
     }
 
-    private ProfileIndex toProfileIndex(String profileId) {
-        ProfileServiceProfileResponse profile = getProfile(profileId);
-        AuthUserResponse user = getUser(profile.getUserId());
-
-        return ProfileIndex.builder()
-                .id(profile.getId())
-                .userId(profile.getUserId())
-                .fullName(profile.getFullName())
-            .profilePicture(profile.getProfilePicture())
-            .avatar(profile.getAvatar())
-                .phoneNumber(user.getPhoneNumber())
-                .email(user.getEmail())
-                .role(profile.getRole())
-                .specialty(profile.getSpecialty())
-                .isVerified(profile.getIsVerified())
-                .active(profile.getActive())
-                .bio(profile.getBio())
-                .addressLine(profile.getAddressLine())
-                .provinceCode(profile.getProvinceCode())
-                .districtCode(profile.getDistrictCode())
-                .wardCode(profile.getWardCode())
-                .latitude(profile.getLatitude())
-                .longitude(profile.getLongitude())
-                .build();
-    }
-
-    private ProfileServiceProfileResponse getProfile(String profileId) {
-        var response = profileClient.getProfileById(profileId);
-
-        if (response == null || response.data() == null) {
-            throw new IllegalStateException("Profile service returned empty data for profileId=" + profileId);
+    private int parseRetryCount(byte[] attemptsBytes) {
+        if (attemptsBytes == null) {
+            return 0;
         }
 
-        return response.data();
-    }
-
-    private AuthUserResponse getUser(String userId) {
-        var response = authUserClient.getUserById(userId);
-
-        if (response == null || response.data() == null) {
-            throw new IllegalStateException("Auth service returned empty data for userId=" + userId);
+        try {
+            return ByteBuffer.wrap(attemptsBytes).getInt();
+        } catch (Exception ignored) {
+            return 0;
         }
-
-        return response.data();
     }
-
 }

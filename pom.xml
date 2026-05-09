@@ -31,6 +31,8 @@
         <module>iot-metrics-collector-service</module>
         <module>iot-test-data-service</module>
         <module>community-feed-service</module>
+        <module>socket-service</module>
+        <module>message-service</module>
     </modules>
 
 

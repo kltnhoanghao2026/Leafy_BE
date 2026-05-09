@@ -8,8 +8,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.leafy.common.event.notification.AlertTriggeredEvent;
-import com.leafy.notificationservice.document.NotificationLogDocument;
-import com.leafy.notificationservice.document.PushTokenDocument;
+import com.leafy.notificationservice.model.Notification;
+import com.leafy.notificationservice.model.TokenDevice;
 import com.leafy.notificationservice.repository.NotificationLogRepository;
 import com.leafy.notificationservice.repository.PushTokenRepository;
 import java.time.Instant;
@@ -56,20 +56,20 @@ class PushNotificationServiceTest {
     @Test
     void handleAlertTriggered_validEventSendsPushAndMarksSent() throws Exception {
         AlertTriggeredEvent event = createEvent();
-        PushTokenDocument token = createToken();
+        TokenDevice token = createToken();
         when(pushTokenRepository.findByUserIdAndActiveTrue(event.getOwnerUserId())).thenReturn(List.of(token));
         when(notificationLogRepository.existsByEventIdAndUserIdAndPushTokenIdAndStatus(
                 event.getEventId(), event.getOwnerUserId(), token.getId(), "SENT")).thenReturn(false);
         when(notificationLogRepository.findByEventIdAndUserIdAndPushTokenId(
                 event.getEventId(), event.getOwnerUserId(), token.getId())).thenReturn(Optional.empty());
-        when(notificationLogRepository.save(any(NotificationLogDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(notificationLogRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(pushDeliveryService.sendToToken(eq(token.getFcmToken()), eq(event.getTitle()), eq(event.getMessage()), any(Map.class)))
                 .thenReturn("provider-1");
 
         pushNotificationService.handleAlertTriggered(event);
 
         verify(pushDeliveryService).sendToToken(eq(token.getFcmToken()), eq(event.getTitle()), eq(event.getMessage()), any(Map.class));
-        ArgumentCaptor<NotificationLogDocument> logCaptor = ArgumentCaptor.forClass(NotificationLogDocument.class);
+        ArgumentCaptor<Notification> logCaptor = ArgumentCaptor.forClass(Notification.class);
         verify(notificationLogRepository, org.mockito.Mockito.times(2)).save(logCaptor.capture());
         org.junit.jupiter.api.Assertions.assertEquals("SENT", logCaptor.getAllValues().get(1).getStatus());
         org.junit.jupiter.api.Assertions.assertEquals("provider-1", logCaptor.getAllValues().get(1).getProviderMessageId());
@@ -89,21 +89,21 @@ class PushNotificationServiceTest {
     @Test
     void handleAlertTriggered_firebaseFailureMarksFailed() throws Exception {
         AlertTriggeredEvent event = createEvent();
-        PushTokenDocument token = createToken();
+        TokenDevice token = createToken();
         when(pushTokenRepository.findByUserIdAndActiveTrue(event.getOwnerUserId())).thenReturn(List.of(token));
         when(notificationLogRepository.existsByEventIdAndUserIdAndPushTokenIdAndStatus(
                 event.getEventId(), event.getOwnerUserId(), token.getId(), "SENT")).thenReturn(false);
         when(notificationLogRepository.findByEventIdAndUserIdAndPushTokenId(
                 event.getEventId(), event.getOwnerUserId(), token.getId())).thenReturn(Optional.empty());
-        when(notificationLogRepository.save(any(NotificationLogDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(notificationLogRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(pushDeliveryService.sendToToken(eq(token.getFcmToken()), eq(event.getTitle()), eq(event.getMessage()), any(Map.class)))
                 .thenThrow(new PushDeliveryException("INTERNAL", "send failed", null));
 
         pushNotificationService.handleAlertTriggered(event);
 
-        ArgumentCaptor<NotificationLogDocument> logCaptor = ArgumentCaptor.forClass(NotificationLogDocument.class);
+        ArgumentCaptor<Notification> logCaptor = ArgumentCaptor.forClass(Notification.class);
         verify(notificationLogRepository, org.mockito.Mockito.times(2)).save(logCaptor.capture());
-        NotificationLogDocument failedLog = logCaptor.getAllValues().get(1);
+        Notification failedLog = logCaptor.getAllValues().get(1);
         org.junit.jupiter.api.Assertions.assertEquals("FAILED", failedLog.getStatus());
         org.junit.jupiter.api.Assertions.assertEquals("INTERNAL", failedLog.getErrorCode());
     }
@@ -111,7 +111,7 @@ class PushNotificationServiceTest {
     @Test
     void handleAlertTriggered_duplicateSentLogSkipsSend() throws Exception {
         AlertTriggeredEvent event = createEvent();
-        PushTokenDocument token = createToken();
+        TokenDevice token = createToken();
         when(pushTokenRepository.findByUserIdAndActiveTrue(event.getOwnerUserId())).thenReturn(List.of(token));
         when(notificationLogRepository.existsByEventIdAndUserIdAndPushTokenIdAndStatus(
                 event.getEventId(), event.getOwnerUserId(), token.getId(), "SENT")).thenReturn(true);
@@ -124,13 +124,13 @@ class PushNotificationServiceTest {
     @Test
     void handleAlertTriggered_duplicateReservationSkipsSend() throws Exception {
         AlertTriggeredEvent event = createEvent();
-        PushTokenDocument token = createToken();
+        TokenDevice token = createToken();
         when(pushTokenRepository.findByUserIdAndActiveTrue(event.getOwnerUserId())).thenReturn(List.of(token));
         when(notificationLogRepository.existsByEventIdAndUserIdAndPushTokenIdAndStatus(
                 event.getEventId(), event.getOwnerUserId(), token.getId(), "SENT")).thenReturn(false);
         when(notificationLogRepository.findByEventIdAndUserIdAndPushTokenId(
                 event.getEventId(), event.getOwnerUserId(), token.getId())).thenReturn(Optional.empty());
-        when(notificationLogRepository.save(any(NotificationLogDocument.class))).thenThrow(new DuplicateKeyException("duplicate"));
+        when(notificationLogRepository.save(any(Notification.class))).thenThrow(new DuplicateKeyException("duplicate"));
 
         pushNotificationService.handleAlertTriggered(event);
 
@@ -140,8 +140,8 @@ class PushNotificationServiceTest {
     @Test
     void handleAlertTriggered_retryAfterFailureSendsAgainAndMarksSent() throws Exception {
         AlertTriggeredEvent event = createEvent();
-        PushTokenDocument token = createToken();
-        NotificationLogDocument failedLog = NotificationLogDocument.builder()
+        TokenDevice token = createToken();
+        Notification failedLog = Notification.builder()
                 .eventId(event.getEventId())
                 .userId(event.getOwnerUserId())
                 .pushTokenId(token.getId())
@@ -153,7 +153,7 @@ class PushNotificationServiceTest {
                 event.getEventId(), event.getOwnerUserId(), token.getId(), "SENT")).thenReturn(false);
         when(notificationLogRepository.findByEventIdAndUserIdAndPushTokenId(
                 event.getEventId(), event.getOwnerUserId(), token.getId())).thenReturn(Optional.of(failedLog));
-        when(notificationLogRepository.save(any(NotificationLogDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(notificationLogRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(pushDeliveryService.sendToToken(eq(token.getFcmToken()), eq(event.getTitle()), eq(event.getMessage()), any(Map.class)))
                 .thenReturn("provider-2");
 
@@ -167,13 +167,13 @@ class PushNotificationServiceTest {
     @Test
     void handleAlertTriggered_invalidTokenFailureDeactivatesToken() throws Exception {
         AlertTriggeredEvent event = createEvent();
-        PushTokenDocument token = createToken();
+        TokenDevice token = createToken();
         when(pushTokenRepository.findByUserIdAndActiveTrue(event.getOwnerUserId())).thenReturn(List.of(token));
         when(notificationLogRepository.existsByEventIdAndUserIdAndPushTokenIdAndStatus(
                 event.getEventId(), event.getOwnerUserId(), token.getId(), "SENT")).thenReturn(false);
         when(notificationLogRepository.findByEventIdAndUserIdAndPushTokenId(
                 event.getEventId(), event.getOwnerUserId(), token.getId())).thenReturn(Optional.empty());
-        when(notificationLogRepository.save(any(NotificationLogDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(notificationLogRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(pushDeliveryService.sendToToken(eq(token.getFcmToken()), eq(event.getTitle()), eq(event.getMessage()), any(Map.class)))
                 .thenThrow(new PushDeliveryException("UNREGISTERED", "token invalid", null));
 
@@ -202,8 +202,8 @@ class PushNotificationServiceTest {
         return event;
     }
 
-    private PushTokenDocument createToken() {
-        return PushTokenDocument.builder()
+    private TokenDevice createToken() {
+        return TokenDevice.builder()
                 .id("token-1")
                 .userId("user-1")
                 .platform("WEB")

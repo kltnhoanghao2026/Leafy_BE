@@ -1,6 +1,7 @@
 package com.leafy.fileservice.service.s3;
 
 import com.leafy.fileservice.dto.response.S3UploadResponse;
+import com.leafy.fileservice.dto.response.PresignedUploadResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -21,6 +22,8 @@ import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
 import java.util.Map;
@@ -142,6 +145,36 @@ public class S3ServiceImpl implements S3Service {
 
                                 log.info("Presigned URL generated successfully for key: {}", s3Key);
                                 return url;
+                        }
+                });
+        }
+
+        @Override
+        public Mono<PresignedUploadResponse> generatePresignedUploadUrl(String filename, String contentType, int expirationMinutes) {
+                String key = UUID.randomUUID() + "-" + filename;
+                log.info("Generating presigned URL for upload to S3 key: {}, expiration: {} minutes", key, expirationMinutes);
+
+                return Mono.fromCallable(() -> {
+                        try (S3Presigner presigner = S3Presigner.create()) {
+                                PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                                                .bucket(bucketName)
+                                                .key(key)
+                                                .contentType(contentType)
+                                                .build();
+
+                                PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                                                .signatureDuration(Duration.ofMinutes(expirationMinutes))
+                                                .putObjectRequest(putObjectRequest)
+                                                .build();
+
+                                PresignedPutObjectRequest presignedRequest = presigner.presignPutObject(presignRequest);
+                                String url = presignedRequest.url().toString();
+
+                                log.info("Presigned upload URL generated successfully for key: {}", key);
+                                return PresignedUploadResponse.builder()
+                                                .s3Key(key)
+                                                .presignedUrl(url)
+                                                .build();
                         }
                 });
         }

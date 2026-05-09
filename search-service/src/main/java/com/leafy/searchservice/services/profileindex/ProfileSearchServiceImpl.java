@@ -40,37 +40,35 @@ public class ProfileSearchServiceImpl implements ProfileSearchService {
             String specialty,
             Pageable pageable
     ) {
-        if (!StringUtils.hasText(keyword)) {
-            return Page.empty();
-        }
-
-        String searchQuery = keyword.trim();
+        String searchQuery = StringUtils.hasText(keyword) ? keyword.trim() : null;
         String specialtyFilter = StringUtils.hasText(specialty) ? specialty.trim() : null;
         String currentUserId = resolveCurrentUserId();
 
         Query query = Query.of(q ->
                 q.bool(b -> {
-                    b.should(s -> s.term(t ->
-                            t.field("phoneNumber").value(searchQuery)
-                    ));
+                    if (searchQuery != null) {
+                        b.should(s -> s.term(t ->
+                                t.field("phoneNumber").value(searchQuery)
+                        ));
 
-                    b.should(s -> s.match(m ->
-                            m.field("fullName")
-                                    .query(searchQuery)
-                                    .boost(0.5f)
-                    ));
+                        b.should(s -> s.match(m ->
+                                m.field("fullName")
+                                        .query(searchQuery)
+                                        .boost(0.5f)
+                        ));
 
-                    b.should(s -> s.multiMatch(mm ->
-                            mm.fields("fullName", "fullName.fuzzy")
-                                    .query(searchQuery)
-                                    .fuzziness("1")
-                                    .prefixLength(0)
-                                    .maxExpansions(50)
-                                    .type(TextQueryType.BestFields)
-                                    .boost(1.5f)
-                    ));
+                        b.should(s -> s.multiMatch(mm ->
+                                mm.fields("fullName", "fullName.fuzzy")
+                                        .query(searchQuery)
+                                        .fuzziness("1")
+                                        .prefixLength(0)
+                                        .maxExpansions(50)
+                                        .type(TextQueryType.BestFields)
+                                        .boost(1.5f)
+                        ));
 
-                    b.minimumShouldMatch("1");
+                        b.minimumShouldMatch("1");
+                    }
 
                     b.filter(f -> f.term(t -> t.field("active").value(true)));
 
@@ -82,7 +80,7 @@ public class ProfileSearchServiceImpl implements ProfileSearchService {
                         b.filter(f -> f.term(t -> t.field("isVerified").value(isVerified)));
                     }
 
-                    if (StringUtils.hasText(specialtyFilter)) {
+                    if (specialtyFilter != null) {
                         b.filter(f -> f.match(m -> m.field("specialty").query(specialtyFilter)));
                     }
 

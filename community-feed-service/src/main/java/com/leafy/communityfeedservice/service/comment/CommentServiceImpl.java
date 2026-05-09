@@ -1,10 +1,13 @@
 package com.leafy.communityfeedservice.service.comment;
 
+import com.leafy.common.enums.NotificationType;
 import com.leafy.common.event.community.CommentEvent;
+import com.leafy.common.event.notification.RawNotificationEvent;
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
 import com.leafy.common.model.kafka.EventType;
 import com.leafy.common.publisher.OutboxEventPublisher;
+import com.leafy.common.publisher.RawNotificationEventPublisher;
 import com.leafy.common.utils.ServiceSecurityUtils;
 import com.leafy.communityfeedservice.dto.request.CommentCreateRequest;
 import com.leafy.communityfeedservice.dto.request.CommentUpdateRequest;
@@ -26,6 +29,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -41,12 +45,13 @@ public class CommentServiceImpl implements CommentService {
     CommentMapper commentMapper;
     OutboxEventPublisher outboxEventPublisher;
     ProfileSummaryRepository profileSummaryRepository;
+    RawNotificationEventPublisher notificationPublisher;
 
     @Override
     @Transactional
     public CommentResponse createComment(CommentCreateRequest request) {
         String currentProfileId = ServiceSecurityUtils.getCurrentProfileId();
-        
+
         Post post = postRepository.findById(request.getPostId())
                 .orElseThrow(() -> new AppException(ErrorCode.POST_NOT_FOUND));
 
@@ -54,13 +59,16 @@ public class CommentServiceImpl implements CommentService {
         comment.setAuthorId(currentProfileId);
         comment.setActive(true);
 
+        // Track parent author for COMMENT_REPLY notification (resolved before save)
+        String parentAuthorId = null;
         if (request.getParentId() != null && !request.getParentId().isBlank()) {
             Comment parent = commentRepository.findById(request.getParentId())
-                    .orElseThrow(() -> new AppException(ErrorCode.COMMENT_NOT_FOUND)); 
+                    .orElseThrow(() -> new AppException(ErrorCode.COMMENT_NOT_FOUND));
             if (!parent.getPostId().equals(post.getId())) {
                 throw new AppException(ErrorCode.VALIDATION_ERROR);
             }
             comment.setReplyDepth(parent.getReplyDepth() + 1);
+            parentAuthorId = parent.getAuthorId();
         } else {
             comment.setReplyDepth(0);
         }
@@ -73,10 +81,60 @@ public class CommentServiceImpl implements CommentService {
                 .parentId(comment.getParentId())
                 .authorId(currentProfileId)
                 .build();
-        
+
         outboxEventPublisher.saveAndPublish(comment.getId(), "COMMENT", EventType.COMMENT_CREATED, eventPayload);
 
+        // ── Notification publishing ──────────────────────────────────────────
+        publishCommentNotification(comment, post, currentProfileId, parentAuthorId);
+
         return enrichCommentResponse(commentMapper.toResponse(comment));
+    }
+
+    /**
+     * Fires POST_COMMENT (top-level) or COMMENT_REPLY (nested) notifications.
+     * Actor info is resolved from the local ProfileSummary cache — no Feign call needed.
+     * Self-action guard prevents notifying the author for activity on their own content.
+     */
+    private void publishCommentNotification(Comment comment, Post post,
+                                            String actorId, String parentAuthorId) {
+        try {
+            ProfileSummary actor = profileSummaryRepository.findById(actorId).orElse(null);
+            String actorName   = actor != null ? actor.getFullName()  : actorId;
+            String actorAvatar = actor != null ? actor.getAvatar()    : null;
+
+            if (parentAuthorId != null) {
+                // COMMENT_REPLY — notify the parent comment's author
+                if (parentAuthorId.equals(actorId)) return; // self-reply
+                notificationPublisher.publish(RawNotificationEvent.builder()
+                        .recipientId(parentAuthorId)
+                        .actorId(actorId)
+                        .actorName(actorName)
+                        .actorAvatar(actorAvatar)
+                        .type(NotificationType.COMMENT_REPLY)
+                        .referenceId(comment.getId())
+                        .occurredAt(LocalDateTime.now())
+                        .build());
+            } else {
+                // POST_COMMENT — notify the post author
+                String postAuthorId = post.getAuthorId();
+                if (postAuthorId.equals(actorId)) return; // self-comment
+                notificationPublisher.publish(RawNotificationEvent.builder()
+                        .recipientId(postAuthorId)
+                        .actorId(actorId)
+                        .actorName(actorName)
+                        .actorAvatar(actorAvatar)
+                        .type(NotificationType.POST_COMMENT)
+                        .referenceId(post.getId())
+                        .payload(Map.of("postTitle", post.getContent() != null
+                                && post.getContent().getTitle() != null
+                                ? post.getContent().getTitle() : ""))
+                        .occurredAt(LocalDateTime.now())
+                        .build());
+            }
+        } catch (Exception e) {
+            log.warn("[Notification] Failed to publish comment notification: commentId={}, actor={}",
+                    comment.getId(), actorId, e);
+        }
     }
 
     @Override

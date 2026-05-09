@@ -127,6 +127,29 @@ public interface ProfileService {
             Pageable pageable);
 
     /**
+     * Search experts using search-service and enrich with connection status.
+     */
+    Page<ProfileResponse> searchExpertsEnriched(
+            String searchTerm,
+            String specialty,
+            int page,
+            int size,
+            String sortBy,
+            String sortDir,
+            String currentUserId);
+
+    /**
+     * Get experts using database and enrich with connection status.
+     */
+    Page<ProfileResponse> getExpertsEnriched(
+            String searchTerm,
+            int page,
+            int size,
+            String sortBy,
+            String sortDir,
+            String currentUserId);
+
+    /**
      * Delete profile by ID
      *
      * @param profileId the profile ID
@@ -180,4 +203,22 @@ public interface ProfileService {
      * @return the updated profile response
      */
     ProfileResponse verifyProfile(String profileId);
+
+    /**
+     * Resolve a userId (from auth-service / JWT subject) to its profile ID.
+     * Lightweight — does not fetch auth-service or certificate data.
+     *
+     * @param userId the auth userId
+     * @return the profile ID, or {@code null} if no profile exists for this userId
+     */
+    String getProfileIdByUserId(String userId);
+
+    /**
+     * Enrich a single ProfileResponse with isFollowing / hasPendingConsultRequest
+     * relative to the given currentUserId. Mutates the response in-place.
+     *
+     * @param profile       the profile response to enrich
+     * @param currentUserId the user ID of the viewer
+     */
+    void enrichSingleWithConnectionStatus(ProfileResponse profile, String currentUserId);
 }

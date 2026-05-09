@@ -2,6 +2,7 @@ package com.leafy.notificationservice;
 
 import com.leafy.common.repository.OutboxEventRepository;
 import com.leafy.notificationservice.repository.NotificationLogRepository;
+import com.leafy.notificationservice.repository.NotificationUserRepository;
 import com.leafy.notificationservice.repository.PushTokenRepository;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -15,7 +16,8 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 @EnableMongoRepositories(basePackageClasses = {
         OutboxEventRepository.class,
         PushTokenRepository.class,
-        NotificationLogRepository.class
+        NotificationLogRepository.class,
+        NotificationUserRepository.class
 })
 public class NotificationServiceApplication {
 

@@ -56,4 +56,8 @@ public class ProfileResponse {
     LocalDateTime createdAt;
 
     LocalDateTime lastModifiedAt;
+
+    Boolean isFollowing;
+
+    Boolean hasPendingConsultRequest;
 }

@@ -68,7 +68,7 @@ class ChatService:
             answer=final_state.get("generation", "I could not generate an answer."),
             thread_id=thread_id,
             documents=final_state.get("documents", []),
-            treatment_plan=generated_plan,
+            plan=generated_plan,
             plant_id=generated_plan.get("plantId") if generated_plan else None,
             web_search_results=final_state.get("web_search_results", []),
             saved_plan_id=saved_plan_id,
@@ -169,7 +169,7 @@ class ChatService:
             logger.error("RAG pipeline error for user %s: %s", current_user.id, e, exc_info=True)
             raise AppException(ErrorCode.RAG_PIPELINE_ERROR, str(e))
 
-        saved_plan_id = self._chat_repository.persist_treatment_plan_if_any(
+        saved_plan_id = self._chat_repository.persist_plan_if_any(
             final_state,
             user_id=current_user.id,
             question=request.question,
@@ -326,7 +326,7 @@ class ChatService:
             if disconnected:
                 return
 
-            saved_plan_id = self._chat_repository.persist_treatment_plan_if_any(
+            saved_plan_id = self._chat_repository.persist_plan_if_any(
                 latest_state,
                 user_id=current_user.id,
                 question=request.question,
@@ -360,7 +360,7 @@ class ChatService:
                         "answer": result.answer,
                         "thread_id": result.thread_id,
                         "documents": self._chat_repository.serialize_documents(result.documents or []),
-                        "treatment_plan": result.treatment_plan,
+                        "plan": result.plan,
                         "plant_id": result.plant_id,
                         "web_search_results": result.web_search_results,
                         "saved_plan_id": result.saved_plan_id,

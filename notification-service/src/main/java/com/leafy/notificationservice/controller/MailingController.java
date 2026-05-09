@@ -1,7 +1,15 @@
 package com.leafy.notificationservice.controller;
 
 import com.leafy.common.dto.ApiResponse;
+import com.leafy.common.exception.AppException;
+import com.leafy.common.exception.ErrorCode;
 import com.leafy.notificationservice.dto.request.EmailRequest;
+import com.leafy.notificationservice.dto.request.SendBulkEmailRequest;
+import com.leafy.notificationservice.dto.request.SendNotificationEmailRequest;
+import com.leafy.notificationservice.dto.request.SendOtpRequest;
+import com.leafy.notificationservice.dto.request.SendPasswordResetRequest;
+import com.leafy.notificationservice.dto.request.SendSimpleEmailRequest;
+import com.leafy.notificationservice.dto.request.SendWelcomeRequest;
 import com.leafy.notificationservice.dto.request.TemplateEmailRequest;
 import com.leafy.notificationservice.dto.response.EmailResponse;
 import com.leafy.notificationservice.service.mail.MailingService;
@@ -13,14 +21,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.Map;
 
-/**
- * REST Controller for email operations
- */
 @RestController
 @RequestMapping("/mailing")
 @RequiredArgsConstructor
@@ -30,214 +38,96 @@ public class MailingController {
 
     MailingService mailingService;
 
-    /**
-     * Send an email
-     *
-     * @param request the email request
-     * @return the email response
-     */
     @PostMapping("/send")
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('USER')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
     public ResponseEntity<ApiResponse<EmailResponse>> sendEmail(@Valid @RequestBody EmailRequest request) {
-        log.info("POST /api/v1/mailing/send - Sending email");
         EmailResponse response = mailingService.sendEmail(request);
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } else {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(5001, response.getMessage(), null));
+        if (!response.isSuccess()) {
+            throw new AppException(ErrorCode.EMAIL_DELIVERY_FAILED, response.getError());
         }
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * Send a template-based email
-     *
-     * @param request the template email request
-     * @return the email response
-     */
     @PostMapping("/send-template")
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('USER')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
     public ResponseEntity<ApiResponse<EmailResponse>> sendTemplateEmail(@Valid @RequestBody TemplateEmailRequest request) {
-        log.info("POST /api/v1/mailing/send-template - Sending template email");
         EmailResponse response = mailingService.sendTemplateEmail(request);
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } else {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(5002, response.getMessage(), null));
+        if (!response.isSuccess()) {
+            throw new AppException(ErrorCode.EMAIL_DELIVERY_FAILED, response.getError());
         }
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * Send a simple email
-     *
-     * @param requestBody contains to, subject, and htmlContent
-     * @return the email response
-     */
     @PostMapping("/send-simple")
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('USER')")
-    public ResponseEntity<ApiResponse<EmailResponse>> sendSimpleEmail(@RequestBody Map<String, String> requestBody) {
-        log.info("POST /api/v1/mailing/send-simple - Sending simple email");
-        
-        String to = requestBody.get("to");
-        String subject = requestBody.get("subject");
-        String htmlContent = requestBody.get("htmlContent");
-        
-        EmailResponse response = mailingService.sendSimpleEmail(to, subject, htmlContent);
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } else {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(5003, response.getMessage(), null));
+    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
+    public ResponseEntity<ApiResponse<EmailResponse>> sendSimpleEmail(@Valid @RequestBody SendSimpleEmailRequest request) {
+        EmailResponse response = mailingService.sendSimpleEmail(request.getTo(), request.getSubject(), request.getHtmlContent());
+        if (!response.isSuccess()) {
+            throw new AppException(ErrorCode.EMAIL_DELIVERY_FAILED, response.getError());
         }
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * Send bulk email to multiple recipients
-     *
-     * @param requestBody contains toList, subject, and htmlContent
-     * @return the email response
-     */
     @PostMapping("/send-bulk")
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<ApiResponse<EmailResponse>> sendBulkEmail(@RequestBody Map<String, Object> requestBody) {
-        log.info("POST /api/v1/mailing/send-bulk - Sending bulk email");
-        
-        @SuppressWarnings("unchecked")
-        List<String> toList = (List<String>) requestBody.get("toList");
-        String subject = (String) requestBody.get("subject");
-        String htmlContent = (String) requestBody.get("htmlContent");
-        
-        EmailResponse response = mailingService.sendBulkEmail(toList, subject, htmlContent);
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } else {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(5004, response.getMessage(), null));
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<EmailResponse>> sendBulkEmail(@Valid @RequestBody SendBulkEmailRequest request) {
+        EmailResponse response = mailingService.sendBulkEmail(request.getToList(), request.getSubject(), request.getHtmlContent());
+        if (!response.isSuccess()) {
+            throw new AppException(ErrorCode.EMAIL_DELIVERY_FAILED, response.getError());
         }
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * Send welcome email
-     *
-     * @param requestBody contains toEmail and name
-     * @return the email response
-     */
     @PostMapping("/send-welcome")
-    public ResponseEntity<ApiResponse<EmailResponse>> sendWelcomeEmail(@RequestBody Map<String, String> requestBody) {
-        log.info("POST /api/v1/mailing/send-welcome - Sending welcome email");
-        
-        String toEmail = requestBody.get("toEmail");
-        String name = requestBody.get("name");
-        
-        EmailResponse response = mailingService.sendWelcomeEmail(toEmail, name);
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } else {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(5005, response.getMessage(), null));
+    @PreAuthorize("hasRole('SERVICE') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<EmailResponse>> sendWelcomeEmail(@Valid @RequestBody SendWelcomeRequest request) {
+        EmailResponse response = mailingService.sendWelcomeEmail(request.getToEmail(), request.getName());
+        if (!response.isSuccess()) {
+            throw new AppException(ErrorCode.EMAIL_DELIVERY_FAILED, response.getError());
         }
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * Send password reset email
-     *
-     * @param requestBody contains toEmail and resetLink
-     * @return the email response
-     */
     @PostMapping("/send-password-reset")
-    public ResponseEntity<ApiResponse<EmailResponse>> sendPasswordResetEmail(@RequestBody Map<String, String> requestBody) {
-        log.info("POST /api/v1/mailing/send-password-reset - Sending password reset email");
-        
-        String toEmail = requestBody.get("toEmail");
-        String resetLink = requestBody.get("resetLink");
-        
-        EmailResponse response = mailingService.sendPasswordResetEmail(toEmail, resetLink);
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } else {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(5006, response.getMessage(), null));
+    @PreAuthorize("hasRole('SERVICE') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<EmailResponse>> sendPasswordResetEmail(@Valid @RequestBody SendPasswordResetRequest request) {
+        EmailResponse response = mailingService.sendPasswordResetEmail(request.getToEmail(), request.getResetLink());
+        if (!response.isSuccess()) {
+            throw new AppException(ErrorCode.EMAIL_DELIVERY_FAILED, response.getError());
         }
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * Send OTP verification email
-     *
-     * @param requestBody contains toEmail and otp
-     * @return the email response
-     */
     @PostMapping("/send-otp")
-    public ResponseEntity<ApiResponse<EmailResponse>> sendOtpEmail(@RequestBody Map<String, String> requestBody) {
-        log.info("POST /api/v1/mailing/send-otp - Sending OTP email");
-        
-        String toEmail = requestBody.get("toEmail");
-        String otp = requestBody.get("otp");
-        
-        EmailResponse response = mailingService.sendOtpEmail(toEmail, otp);
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } else {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(5007, response.getMessage(), null));
+    @PreAuthorize("hasRole('SERVICE') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<EmailResponse>> sendOtpEmail(@Valid @RequestBody SendOtpRequest request) {
+        EmailResponse response = mailingService.sendOtpEmail(request.getToEmail(), request.getOtp());
+        if (!response.isSuccess()) {
+            throw new AppException(ErrorCode.EMAIL_DELIVERY_FAILED, response.getError());
         }
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * Send notification email
-     *
-     * @param requestBody contains toEmail, subject, and message
-     * @return the email response
-     */
     @PostMapping("/send-notification")
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('USER')")
-    public ResponseEntity<ApiResponse<EmailResponse>> sendNotificationEmail(@RequestBody Map<String, String> requestBody) {
-        log.info("POST /api/v1/mailing/send-notification - Sending notification email");
-        
-        String toEmail = requestBody.get("toEmail");
-        String subject = requestBody.get("subject");
-        String message = requestBody.get("message");
-        
-        EmailResponse response = mailingService.sendNotificationEmail(toEmail, subject, message);
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } else {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(5008, response.getMessage(), null));
+    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
+    public ResponseEntity<ApiResponse<EmailResponse>> sendNotificationEmail(@Valid @RequestBody SendNotificationEmailRequest request) {
+        EmailResponse response = mailingService.sendNotificationEmail(request.getToEmail(), request.getSubject(), request.getMessage());
+        if (!response.isSuccess()) {
+            throw new AppException(ErrorCode.EMAIL_DELIVERY_FAILED, response.getError());
         }
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * Check mailing service status
-     *
-     * @return service status
-     */
     @GetMapping("/status")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getStatus() {
-        log.info("GET /api/v1/mailing/status - Checking mailing service status");
-        
         Map<String, Object> status = Map.of(
                 "enabled", mailingService.isEnabled(),
                 "service", "Brevo",
                 "status", mailingService.isEnabled() ? "active" : "inactive"
         );
-        
         return ResponseEntity.ok(ApiResponse.success(status));
     }
 
-    /**
-     * Health check endpoint
-     *
-     * @return health status
-     */
     @GetMapping("/health")
     public ResponseEntity<ApiResponse<String>> healthCheck() {
         return ResponseEntity.ok(ApiResponse.success("Mailing service is healthy"));

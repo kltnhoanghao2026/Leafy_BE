@@ -1,0 +1,845 @@
+package com.leafy.messageservice.service.message;
+
+import com.leafy.common.utils.S3UtilV2;
+import com.leafy.common.utils.SecurityUtil;
+import com.leafy.common.exception.AppException;
+import com.leafy.common.exception.ErrorCode;
+import com.leafy.messageservice.dto.response.ChatNotification;
+import com.leafy.messageservice.dto.response.CursorPageResponse;
+import com.leafy.messageservice.dto.response.MessageResponse;
+import com.leafy.messageservice.dto.response.MessageSeenResponse;
+import com.leafy.messageservice.dto.response.ReplyMetadataResponse;
+import com.leafy.messageservice.model.Conversation;
+import com.leafy.messageservice.model.ConversationMember;
+import com.leafy.messageservice.model.LastMessageInfo;
+import com.leafy.messageservice.model.Message;
+import com.leafy.messageservice.model.AttachmentInfo;
+import com.leafy.messageservice.model.ChatUser;
+import com.leafy.messageservice.model.enums.MessageStatus;
+import com.leafy.messageservice.model.enums.MessageType;
+import com.leafy.messageservice.repository.ConversationRepository;
+import com.leafy.messageservice.repository.MessageRepository;
+import com.leafy.messageservice.repository.ChatUserRepository;
+import com.leafy.messageservice.service.conversation.ConversationService;
+import com.leafy.messageservice.dto.request.MessageEditRequest;
+import com.leafy.messageservice.dto.request.MessageSendRequest;
+
+import com.leafy.common.config.kafka.KafkaTopicProperties;
+import com.leafy.common.dto.client.socketservice.SocketEvent;
+import com.leafy.common.enums.SocketEventType;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import com.leafy.messageservice.dto.response.PageResponse;
+import com.leafy.messageservice.mapper.MessageMapper;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+
+import com.leafy.messageservice.model.GroupSettings;
+import com.leafy.messageservice.model.LinkPreview;
+import com.leafy.messageservice.model.enums.MemberRole;
+import com.leafy.messageservice.service.conversation.ConversationHelper;
+
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class MessageServiceImpl implements MessageService {
+
+    private static final Pattern JOIN_LINK_PATTERN = Pattern.compile("^https?://[^/]+/g/([a-zA-Z0-9_-]+)$");
+
+    private final MessageRepository messageRepository;
+    private final ConversationRepository conversationRepository;
+    private final ChatUserRepository chatUserRepository;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final SecurityUtil securityUtil;
+    private final MongoTemplate mongoTemplate;
+    private final MessageMapper messageMapper;
+    private final ConversationService conversationService;
+    private final ConversationHelper conversationHelper;
+    private final S3UtilV2 s3UtilV2;
+    private final KafkaTopicProperties kafkaTopicProperties;
+
+    // ─────────────────────────── Lấy tin nhắn ───────────────────────────
+
+    @Override
+    public PageResponse<List<MessageResponse>> findChatMessages(String conversationId, int page, int size) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+
+        // Kiểm tra quyền: user phải là thành viên của phòng chat
+        Conversation room = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
+        assertConversationMember(room, currentUserId);
+        ConversationMember currentMember = room.getMembers().stream()
+            .filter(m -> m.getProfileId().equals(currentUserId))
+            .findFirst().orElse(null);
+        boolean isActive = currentMember != null && isActiveMember(currentMember);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        LocalDateTime memberJoinedAt = (currentMember != null && currentMember.getJoinedAt() != null)
+            ? currentMember.getJoinedAt()
+            : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime deletedBefore = (room.getDeletedBefore() != null)
+            ? room.getDeletedBefore().getOrDefault(currentUserId, LocalDateTime.of(1970, 1, 1, 0, 0))
+            : LocalDateTime.of(1970, 1, 1, 0, 0);
+        Page<Message> messagePage = isActive
+            ? messageRepository.findByConversationIdAndNotDeleted(conversationId, currentUserId, memberJoinedAt, deletedBefore, pageable)
+            : messageRepository.findByConversationIdAndTypeAndNotDeleted(
+                conversationId,
+                currentUserId,
+                MessageType.SYSTEM,
+                deletedBefore,
+                PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt"))
+            );
+
+        String baseUrl = s3UtilV2.getS3BaseUrl();
+        List<MessageResponse> dtos = messagePage.getContent().stream()
+                .map(msg -> messageMapper.mapToMessageResponse(msg, baseUrl))
+                .collect(Collectors.toList());
+
+        enrichMessages(dtos);
+        return PageResponse.fromPageData(messagePage, dtos);
+    }
+
+    @Override
+    public PageResponse<List<MessageResponse>> findMediaMessages(String conversationId, List<String> types, int page, int size) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+
+        Conversation room = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
+        assertConversationMember(room, currentUserId);
+
+        LocalDateTime deletedBefore = (room.getDeletedBefore() != null)
+                ? room.getDeletedBefore().getOrDefault(currentUserId, LocalDateTime.of(1970, 1, 1, 0, 0))
+                : LocalDateTime.of(1970, 1, 1, 0, 0);
+
+        List<MessageType> messageTypes = types.stream()
+                .map(t -> {
+                    try { return MessageType.valueOf(t.toUpperCase()); }
+                    catch (IllegalArgumentException e) { return null; }
+                })
+                .filter(t -> t != null)
+                .collect(Collectors.toList());
+
+        if (messageTypes.isEmpty()) {
+            return PageResponse.fromPageData(Page.empty(), List.of());
+        }
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Message> messagePage = messageRepository.findByConversationIdAndTypesAndNotDeleted(
+                conversationId, currentUserId, messageTypes, deletedBefore, pageable);
+
+        String baseUrl = s3UtilV2.getS3BaseUrl();
+        List<MessageResponse> dtos = messagePage.getContent().stream()
+                .map(msg -> messageMapper.mapToMessageResponse(msg, baseUrl))
+                .collect(Collectors.toList());
+
+        return PageResponse.fromPageData(messagePage, dtos);
+    }
+
+    @Override
+    public CursorPageResponse<MessageResponse> findChatMessagesV2(
+            String conversationId, String cursor, int limit, String direction, String aroundMessageId) {
+        
+        String currentUserId = securityUtil.getCurrentProfileId();
+        Conversation room = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
+        assertConversationMember(room, currentUserId);
+
+        if (aroundMessageId != null) {
+            Message target = messageRepository.findById(aroundMessageId)
+                    .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+            
+            if (!target.getConversationId().equals(conversationId)) {
+                throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+            }
+
+            List<Message> older = findOlder(room, target.getCreatedAt(), limit / 2, currentUserId);
+            List<Message> newer = findNewer(room, target.getCreatedAt(), limit / 2, currentUserId);
+
+            List<Message> combined = new ArrayList<>();
+            combined.addAll(newer);
+            combined.add(target);
+            combined.addAll(older);
+
+            return buildCursorResponse(combined, limit, true);
+        }
+
+        return standardCursorPagination(room, cursor, direction, limit, currentUserId);
+    }
+
+    private CursorPageResponse<MessageResponse> standardCursorPagination(
+            Conversation room, String cursor, String direction, int limit, String currentUserId) {
+        
+        Query query = new Query();
+        List<Criteria> allCriteria = new ArrayList<>();
+        allCriteria.add(Criteria.where("conversationId").is(room.getId()));
+
+        LocalDateTime cursorTime = (cursor != null && !cursor.isBlank())
+                ? LocalDateTime.parse(cursor)
+                : LocalDateTime.now();
+
+        if ("NEWER".equalsIgnoreCase(direction)) {
+            allCriteria.add(Criteria.where("createdAt").gt(cursorTime));
+            query.with(Sort.by(Sort.Direction.ASC, "createdAt"));
+        } else {
+            allCriteria.add(Criteria.where("createdAt").lt(cursorTime));
+            query.with(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        allCriteria.addAll(getSecurityCriteria(room, currentUserId));
+        query.addCriteria(new Criteria().andOperator(allCriteria.toArray(new Criteria[0])));
+
+        query.limit(limit);
+        List<Message> messages = mongoTemplate.find(query, Message.class);
+
+        // FE expects DESC order (newest first)
+        if ("NEWER".equalsIgnoreCase(direction)) {
+            Collections.reverse(messages);
+        }
+
+        return buildCursorResponse(messages, limit, false);
+    }
+
+    private List<Message> findOlder(Conversation room, LocalDateTime time, int limit, String currentUserId) {
+        Query query = new Query();
+        List<Criteria> allCriteria = new ArrayList<>();
+        allCriteria.add(Criteria.where("conversationId").is(room.getId()));
+        allCriteria.add(Criteria.where("createdAt").lt(time));
+        allCriteria.addAll(getSecurityCriteria(room, currentUserId));
+        
+        query.addCriteria(new Criteria().andOperator(allCriteria.toArray(new Criteria[0])));
+        query.with(Sort.by(Sort.Direction.DESC, "createdAt"));
+        query.limit(limit);
+        
+        List<Message> messages = mongoTemplate.find(query, Message.class);
+        return messages; // Already DESC
+    }
+
+    private List<Message> findNewer(Conversation room, LocalDateTime time, int limit, String currentUserId) {
+        Query query = new Query();
+        List<Criteria> allCriteria = new ArrayList<>();
+        allCriteria.add(Criteria.where("conversationId").is(room.getId()));
+        allCriteria.add(Criteria.where("createdAt").gt(time));
+        allCriteria.addAll(getSecurityCriteria(room, currentUserId));
+        
+        query.addCriteria(new Criteria().andOperator(allCriteria.toArray(new Criteria[0])));
+        query.with(Sort.by(Sort.Direction.ASC, "createdAt"));
+        query.limit(limit);
+        
+        List<Message> messages = mongoTemplate.find(query, Message.class);
+        Collections.reverse(messages); // Reverse to make it DESC
+        return messages;
+    }
+
+    private List<Criteria> getSecurityCriteria(Conversation room, String currentUserId) {
+        List<Criteria> securityCriteria = new ArrayList<>();
+        
+        ConversationMember currentMember = room.getMembers().stream()
+                .filter(m -> m.getProfileId().equals(currentUserId))
+                .findFirst().orElse(null);
+        boolean isActive = currentMember != null && isActiveMember(currentMember);
+
+        // Xác định mốc thời gian sớm nhất mà User có quyền xem tin nhắn
+        LocalDateTime memberJoinedAt = (currentMember != null && currentMember.getJoinedAt() != null)
+                ? currentMember.getJoinedAt()
+                : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime deletedBefore = (room.getDeletedBefore() != null)
+                ? room.getDeletedBefore().getOrDefault(currentUserId, LocalDateTime.of(1970, 1, 1, 0, 0))
+                : LocalDateTime.of(1970, 1, 1, 0, 0);
+
+        LocalDateTime effectiveStartTime = memberJoinedAt.isAfter(deletedBefore) ? memberJoinedAt : deletedBefore;
+
+        securityCriteria.add(Criteria.where("deletedBy").ne(currentUserId));
+        securityCriteria.add(Criteria.where("createdAt").gt(effectiveStartTime));
+
+        if (!isActive) {
+            securityCriteria.add(Criteria.where("type").is(MessageType.SYSTEM));
+        }
+        
+        return securityCriteria;
+    }
+
+    private CursorPageResponse<MessageResponse> buildCursorResponse(
+            List<Message> messages, int limit, boolean isJump) {
+        
+        String baseUrl = s3UtilV2.getS3BaseUrl();
+        List<MessageResponse> dtos = messages.stream()
+                .map(msg -> messageMapper.mapToMessageResponse(msg, baseUrl))
+                .collect(Collectors.toList());
+        enrichMessages(dtos);
+
+        // List is DESC (newest at 0, oldest at size-1)
+        String newerCursor = messages.isEmpty() ? null : messages.get(0).getCreatedAt().toString();
+        String olderCursor = messages.isEmpty() ? null : messages.get(messages.size() - 1).getCreatedAt().toString();
+
+        return CursorPageResponse.<MessageResponse>builder()
+                .data(dtos)
+                .olderCursor(olderCursor)
+                .newerCursor(newerCursor)
+                .hasMoreOlder(messages.size() >= limit) 
+                .hasMoreNewer(isJump || messages.size() >= limit)
+                .isJumpResult(isJump)
+                .build();
+    }
+
+    // ─────────────────────────── Gửi tin nhắn ───────────────────────────
+
+    @Override
+    public void sendMessage(String conversationId, MessageSendRequest request) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+
+        // 1. Tìm phòng chat bằng ObjectId hoặc lazy creation
+        Conversation room;
+        boolean isNewConversation = false;
+
+        if (conversationId != null) {
+            room = conversationRepository.findById(conversationId)
+                    .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
+        } else if (request.recipientId() != null) {
+            // Luồng Lazy Creation cho người lạ/chat mới
+            // Kiểm tra xem conversation đã tồn tại chưa trước khi tạo mới
+            boolean alreadyExisted = conversationRepository
+                    .findDirectConversation(currentUserId, request.recipientId())
+                    .isPresent();
+            room = conversationService.getOrCreateDirectConversation(currentUserId, request.recipientId());
+            isNewConversation = !alreadyExisted;
+        } else {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        assertActiveMember(room, currentUserId);
+        conversationHelper.assertSettingAllowed(room, currentUserId, GroupSettings::isMemberCanSendMessages);
+
+        // 2. Enrich sender info
+        ChatUser sender = chatUserRepository.findById(currentUserId).orElse(null);
+
+        // 3. Validate request & resolve type
+        validateMessageRequest(request);
+        LinkPreview linkPreview = null;
+
+        // Kiểm tra join link nếu không có attachments
+        if (request.attachments() == null || request.attachments().isEmpty()) {
+            String trimmedContent = request.content() != null ? request.content().trim() : "";
+            Matcher joinLinkMatcher = JOIN_LINK_PATTERN.matcher(trimmedContent);
+            if (joinLinkMatcher.matches()) {
+                String token = joinLinkMatcher.group(1);
+                linkPreview = buildJoinLinkPreview(trimmedContent, token);
+            }
+        }
+
+        MessageType messageType = resolveMessageType(request, linkPreview);
+        List<AttachmentInfo> attachments = mapAttachments(request);
+
+        Message message = Message.builder()
+                .conversationId(room.getId())
+                .senderId(currentUserId)
+                .senderName(sender != null ? sender.getFullName() : null)
+                .senderAvatar(sender != null ? sender.getAvatar() : null)
+                .content(request.content())
+                .clientMessageId(request.clientMessageId())
+                .replyTo(request.replyTo())
+                .isForwarded(request.isForwarded())
+                .type(messageType)
+                .attachments(attachments)
+                .linkPreview(linkPreview)
+                .build();
+        messageRepository.save(message);
+
+        // 4. Xây dựng last message preview
+        String previewContent = buildPreviewContent(message);
+        LastMessageInfo lastInfo = LastMessageInfo.builder()
+                .messageId(message.getId())
+                .senderId(currentUserId)
+                .content(previewContent)
+                .timestamp(message.getCreatedAt())
+                .type(message.getType())
+                .status(message.getStatus())
+                .build();
+
+        // 5. Cập nhật lastMessage + tăng unreadCount cho tất cả member trừ sender
+        Query query = new Query(Criteria.where("id").is(room.getId()));
+        Update update = new Update().set("lastMessage", lastInfo);
+        room.getMembers().stream()
+            .filter(this::isActiveMember)
+                .filter(m -> !m.getProfileId().equals(currentUserId))
+                .forEach(m -> update.inc("unreadCounts." + m.getProfileId(), 1));
+
+        Conversation updatedRoom = mongoTemplate.findAndModify(
+                query, update,
+                FindAndModifyOptions.options().returnNew(true),
+                Conversation.class);
+
+        log.info("[Chat] Saved message & updated conversation state for room: {}", room.getId());
+
+        // 6. Push notification qua Kafka cho từng thành viên
+        String baseUrl = s3UtilV2.getS3BaseUrl();
+        Conversation finalRoom = updatedRoom != null ? updatedRoom : room;
+
+        // Build userCache for accountId resolution
+        Set<String> memberProfileIds = finalRoom.getMembers().stream()
+                .filter(this::isActiveMember)
+                .map(ConversationMember::getProfileId)
+                .collect(Collectors.toSet());
+        Map<String, ChatUser> memberCache = chatUserRepository.findAllById(memberProfileIds).stream()
+                .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
+        List<ChatNotification> notifPrototypes = new ArrayList<>(
+                List.of(messageMapper.mapToChatNotification(message, baseUrl, 0)));
+        enrichNotifications(notifPrototypes);
+        ChatNotification baseNotif = notifPrototypes.get(0);
+
+        finalRoom.getMembers().stream()
+            .filter(this::isActiveMember)
+            .forEach(member -> {
+            boolean isFromMe = member.getProfileId().equals(currentUserId);
+            Integer unreadCount = finalRoom.getUnreadCounts() != null
+                    ? finalRoom.getUnreadCounts().getOrDefault(member.getProfileId(), 0)
+                    : 0;
+
+            ChatNotification personalNotif = baseNotif.toBuilder()
+                    .isFromMe(isFromMe)
+                    .unreadCount(unreadCount)
+                    .build();
+
+            String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), memberCache);
+            kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
+                    targetAccountId,
+                    new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
+                            "/queue/messages", personalNotif));
+                });
+
+        // 7. Nếu là conversation mới, broadcast /queue/conversations cho cả 2 thành viên
+        // để recipient thấy ngay conversation trong sidebar mà không cần refresh
+        if (isNewConversation) {
+            log.info("[Chat] New direct conversation {} – broadcasting conversation update to all members.", finalRoom.getId());
+            conversationHelper.broadcastConversationUpdate(finalRoom);
+        }
+    }
+
+    // ─────────────────────────── Thu hồi / Xóa ───────────────────────────
+
+    @Override
+    public void revokeMessage(String messageId) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        if (!message.getSenderId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        if (message.getCreatedAt().isBefore(LocalDateTime.now().minusHours(24))) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        message.setStatus(MessageStatus.REVOKED);
+        message.setContent(null);
+        message.setReplyTo(null);
+        messageRepository.save(message);
+
+        // Update all messages that reply to this message
+        Query replyQuery = new Query(Criteria.where("replyTo.messageId").is(messageId));
+        Update replyUpdate = new Update()
+                .set("replyTo.content", null)
+                .set("replyTo.type", MessageType.CHAT);
+        mongoTemplate.updateMulti(replyQuery, replyUpdate, Message.class);
+
+        updateLastMessageStatus(message, MessageStatus.REVOKED);
+        broadcastStatusChange(message.getConversationId(), messageId, MessageStatus.REVOKED);
+    }
+
+    @Override
+    public void editMessage(String messageId, MessageEditRequest request) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        if (!message.getSenderId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        if (message.getStatus() == MessageStatus.REVOKED || message.getStatus() == MessageStatus.DELETED_BY_ADMIN) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        if (message.getCreatedAt().isBefore(LocalDateTime.now().minusHours(24))) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        message.setContent(request.content());
+        message.setEdited(true);
+        messageRepository.save(message);
+
+        // Update lastMessage if this is the last message
+        Query query = new Query(Criteria.where("id").is(message.getConversationId())
+                .and("lastMessage.messageId").is(message.getId()));
+        Update update = new Update()
+                .set("lastMessage.content", request.content());
+        mongoTemplate.updateFirst(query, update, Conversation.class);
+
+        // Broadcast the edit update
+        Conversation conversation = conversationRepository.findById(message.getConversationId()).orElse(null);
+        if (conversation != null) {
+            Set<String> editMemberIds = conversation.getMembers().stream()
+                    .filter(m -> !Boolean.FALSE.equals(m.getActive()))
+                    .map(ConversationMember::getProfileId).collect(Collectors.toSet());
+            Map<String, ChatUser> editCache = chatUserRepository.findAllById(editMemberIds).stream()
+                    .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
+            for (ConversationMember member : conversation.getMembers()) {
+                if (Boolean.FALSE.equals(member.getActive())) continue;
+
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("type", "MESSAGE_EDIT_UPDATE");
+                payload.put("conversationId", conversation.getId());
+                payload.put("messageId", messageId);
+                payload.put("content", request.content());
+
+                String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), editCache);
+                kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
+                        targetAccountId,
+                        new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
+                                "/queue/status-updates", payload));
+            }
+        }
+    }
+
+    @Override
+    public void deleteMessageForMe(String messageId) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+        Query query = new Query(Criteria.where("id").is(messageId));
+        Update update = new Update().addToSet("deletedBy", currentUserId);
+        mongoTemplate.updateFirst(query, update, Message.class);
+    }
+
+    @Override
+    public void deleteGroupMemberMessage(String conversationId, String messageId) {
+        String currentUserId = securityUtil.getCurrentProfileId();
+
+        Conversation room = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
+        if (!room.isGroup()) throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+
+        ConversationMember actor = room.getMembers().stream()
+                .filter(m -> m.getProfileId().equals(currentUserId) && isActiveMember(m))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_CONVERSATION_PARTICIPANT));
+
+        MemberRole actorRole = actor.getRole() != null ? actor.getRole() : MemberRole.MEMBER;
+        if (actorRole == MemberRole.MEMBER) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        if (!message.getConversationId().equals(conversationId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+
+        if (message.getCreatedAt().isBefore(LocalDateTime.now().minusHours(24))) {
+            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+        }
+
+        if (actorRole == MemberRole.ADMIN) {
+            room.getMembers().stream()
+                    .filter(m -> m.getProfileId().equals(message.getSenderId()))
+                    .findFirst()
+                    .ifPresent(sender -> {
+                        MemberRole senderRole = sender.getRole() != null ? sender.getRole() : MemberRole.MEMBER;
+                        if (senderRole == MemberRole.OWNER) {
+                            throw new AppException(ErrorCode.SYS_UNCATEGORIZED);
+                        }
+                    });
+        }
+
+        message.setStatus(MessageStatus.DELETED_BY_ADMIN);
+        message.setDeletedByAdminId(currentUserId);
+        message.setContent(null);
+        message.setReplyTo(null);
+        messageRepository.save(message);
+
+        Query replyQuery = new Query(Criteria.where("replyTo.messageId").is(messageId));
+        Update replyUpdate = new Update()
+                .set("replyTo.content", null)
+                .set("replyTo.type", MessageType.CHAT);
+        mongoTemplate.updateMulti(replyQuery, replyUpdate, Message.class);
+
+        updateLastMessageStatus(message, MessageStatus.DELETED_BY_ADMIN);
+        broadcastStatusChange(conversationId, messageId, MessageStatus.DELETED_BY_ADMIN, currentUserId);
+    }
+
+
+
+
+
+    // ─────────────────────────── Private helpers ───────────────────────────
+
+    /**
+     * Kiểm tra user có trong members của conversation không.
+     * Nếu không → throw UNAUTHORIZED (403).
+     */
+    @Override
+    public List<MessageResponse> getMessagesSince(String conversationId, String sinceId, String userId) {
+        // 1. Kiểm tra quyền membership
+        Conversation room = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
+
+        boolean isMember = room.getMembers().stream()
+                .anyMatch(m -> m.getProfileId().equals(userId) && isActiveMember(m));
+
+        if (!isMember) {
+            throw new AppException(ErrorCode.NOT_CONVERSATION_PARTICIPANT);
+        }
+
+        // 2. Lấy 100 tin nhắn gần nhất tính từ sinceId
+        List<Message> messages = messageRepository.findTop100ByConversationIdAndIdGreaterThanAndStatusNot(
+                conversationId, sinceId, MessageStatus.REVOKED);
+
+        String baseUrl = s3UtilV2.getS3BaseUrl();
+        List<MessageResponse> dtos = messages.stream()
+                .map(msg -> messageMapper.mapToMessageResponse(msg, baseUrl))
+                .collect(Collectors.toList());
+
+        enrichMessages(dtos);
+        return dtos;
+    }
+
+    private void assertConversationMember(Conversation room, String userId) {
+        boolean isMember = room.getMembers().stream()
+                .anyMatch(m -> m.getProfileId().equals(userId));
+        if (!isMember) {
+            throw new AppException(ErrorCode.NOT_CONVERSATION_PARTICIPANT);
+        }
+    }
+
+    private void assertActiveMember(Conversation room, String userId) {
+        boolean isMember = room.getMembers().stream()
+                .anyMatch(m -> m.getProfileId().equals(userId) && isActiveMember(m));
+        if (!isMember) {
+            throw new AppException(ErrorCode.NOT_CONVERSATION_PARTICIPANT);
+        }
+    }
+
+    private boolean isActiveMember(ConversationMember member) {
+        return !Boolean.FALSE.equals(member.getActive());
+    }
+
+    private void enrichMessages(List<MessageResponse> dtos) {
+        Set<String> userIds = new HashSet<>();
+        dtos.forEach(d -> {
+            userIds.add(d.senderId());
+            if (d.replyTo() != null) userIds.add(d.replyTo().senderId());
+        });
+        if (userIds.isEmpty()) return;
+
+        Map<String, ChatUser> userMap = chatUserRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(ChatUser::getId, u -> u));
+        String baseUrl = s3UtilV2.getS3BaseUrl();
+
+        for (int i = 0; i < dtos.size(); i++) {
+            MessageResponse d = dtos.get(i);
+            MessageResponse enriched = d;
+            ChatUser sender = userMap.get(d.senderId());
+            if (sender != null) {
+                enriched = enriched.withSenderName(sender.getFullName())
+                        .withSenderAvatar(sender.getAvatar() != null
+                                ? baseUrl + sender.getAvatar() : null);
+            }
+            if (d.replyTo() != null) {
+                ChatUser replySender = userMap.get(d.replyTo().senderId());
+                if (replySender != null) {
+                    enriched = enriched.withReplyTo(d.replyTo().withSenderName(replySender.getFullName()));
+                }
+            }
+            dtos.set(i, enriched);
+        }
+    }
+
+    private void enrichNotifications(List<ChatNotification> notifs) {
+        Set<String> userIds = new HashSet<>();
+        notifs.forEach(n -> {
+            userIds.add(n.senderId());
+            if (n.replyTo() != null) userIds.add(n.replyTo().senderId());
+        });
+        if (userIds.isEmpty()) return;
+
+        Map<String, ChatUser> userMap = chatUserRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(ChatUser::getId, u -> u));
+        String baseUrl = s3UtilV2.getS3BaseUrl();
+
+        for (int i = 0; i < notifs.size(); i++) {
+            ChatNotification n = notifs.get(i);
+            ChatNotification enriched = n;
+            ChatUser sender = userMap.get(n.senderId());
+            if (sender != null) {
+                enriched = enriched.withSenderName(sender.getFullName())
+                        .withSenderAvatar(sender.getAvatar() != null
+                                ? baseUrl + sender.getAvatar() : null);
+            }
+            if (n.replyTo() != null) {
+                ChatUser replySender = userMap.get(n.replyTo().senderId());
+                if (replySender != null) {
+                    ReplyMetadataResponse enrichedReply = n.replyTo().withSenderName(replySender.getFullName());
+                    enriched = enriched.withReplyTo(enrichedReply);
+                }
+            }
+            notifs.set(i, enriched);
+        }
+    }
+
+    private void updateLastMessageStatus(Message msg, MessageStatus newStatus) {
+        Query query = new Query(Criteria.where("id").is(msg.getConversationId())
+                .and("lastMessage.messageId").is(msg.getId()));
+        Update update = new Update()
+                .set("lastMessage.content", null)
+                .set("lastMessage.status", newStatus);
+        mongoTemplate.updateFirst(query, update, Conversation.class);
+    }
+
+    private void broadcastStatusChange(String conversationId, String messageId, MessageStatus newStatus) {
+        broadcastStatusChange(conversationId, messageId, newStatus, null);
+    }
+
+    private void broadcastStatusChange(String conversationId, String messageId, MessageStatus newStatus, String deletedByAdminId) {
+        Conversation conversation = conversationRepository.findById(conversationId).orElse(null);
+        if (conversation == null) return;
+
+        Set<String> statusMemberIds = conversation.getMembers().stream()
+                .filter(m -> !Boolean.FALSE.equals(m.getActive()))
+                .map(ConversationMember::getProfileId).collect(Collectors.toSet());
+        Map<String, ChatUser> statusCache = chatUserRepository.findAllById(statusMemberIds).stream()
+                .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
+        for (ConversationMember member : conversation.getMembers()) {
+            if (Boolean.FALSE.equals(member.getActive())) continue;
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("type", "MESSAGE_STATUS_UPDATE");
+            payload.put("conversationId", conversationId);
+            payload.put("messageId", messageId);
+            payload.put("newStatus", newStatus);
+            if (deletedByAdminId != null) {
+                payload.put("deletedByAdminId", deletedByAdminId);
+            }
+
+            String targetAccountId = conversationHelper.resolveAccountId(member.getProfileId(), statusCache);
+            kafkaTemplate.send(kafkaTopicProperties.getSocketEvents().getSocketEvents(),
+                    targetAccountId,
+                    new SocketEvent(SocketEventType.MESSAGE, targetAccountId,
+                            "/queue/status-updates", payload));
+        }
+    }
+
+
+
+    private LinkPreview buildJoinLinkPreview(String url, String token) {
+        try {
+            Conversation target = conversationRepository.findByJoinLinkToken(token).orElse(null);
+            if (target == null || !target.isGroup()) return null;
+
+            GroupSettings settings = target.getSettings();
+            if (settings == null || !settings.isJoinByLinkEnabled()) return null;
+
+            Set<ConversationMember> activeMembers = target.getMembers().stream()
+                    .filter(m -> !Boolean.FALSE.equals(m.getActive()))
+                    .collect(Collectors.toSet());
+
+            Set<String> memberIds = activeMembers.stream()
+                    .map(ConversationMember::getProfileId).collect(Collectors.toSet());
+            Map<String, ChatUser> userCache = chatUserRepository.findAllById(memberIds).stream()
+                    .collect(Collectors.toMap(ChatUser::getId, u -> u));
+
+            String baseUrl = s3UtilV2.getS3BaseUrl();
+            List<LinkPreview.MemberSnapshot> previews = activeMembers.stream()
+                    .map(ConversationMember::getProfileId)
+                    .limit(5)
+                    .map(userCache::get)
+                    .filter(Objects::nonNull)
+                    .map(u -> LinkPreview.MemberSnapshot.builder()
+                            .name(u.getFullName())
+                            .avatar(u.getAvatar() != null ? baseUrl + u.getAvatar() : null)
+                            .build())
+                    .toList();
+
+            String groupName = target.getName();
+            if (groupName == null || groupName.isBlank()) {
+                groupName = conversationHelper.getDynamicGroupName(target, null, userCache);
+            }
+
+            return LinkPreview.builder()
+                    .url(url)
+                    .token(token)
+                    .groupName(groupName)
+                    .groupAvatar(target.getAvatar() != null ? baseUrl + target.getAvatar() : null)
+                    .memberCount(activeMembers.size())
+                    .memberPreviews(previews)
+                    .build();
+        } catch (Exception e) {
+            log.warn("[Chat] Failed to build join link preview for token {}: {}", token, e.getMessage());
+            return null;
+        }
+    }
+
+    // ───────────── Attachment / Type helpers ─────────────
+
+    private void validateMessageRequest(MessageSendRequest request) {
+        boolean hasContent = request.content() != null && !request.content().isBlank();
+        boolean hasAttachments = request.attachments() != null && !request.attachments().isEmpty();
+        if (!hasContent && !hasAttachments) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+    }
+
+    private MessageType resolveMessageType(MessageSendRequest request, LinkPreview linkPreview) {
+        if (linkPreview != null) return MessageType.LINK;
+        if (request.attachments() == null || request.attachments().isEmpty()) return MessageType.CHAT;
+
+        String contentType = request.attachments().get(0).contentType();
+        if (contentType != null) {
+            if (contentType.startsWith("image/")) return MessageType.IMAGE;
+            if (contentType.startsWith("video/")) return MessageType.VIDEO;
+        }
+        return MessageType.FILE;
+    }
+
+    private List<AttachmentInfo> mapAttachments(MessageSendRequest request) {
+        if (request.attachments() == null || request.attachments().isEmpty()) return List.of();
+        return request.attachments().stream()
+                .map(a -> AttachmentInfo.builder()
+                        .key(a.key())
+                        .url(a.url())
+                        .fileName(a.fileName())
+                        .originalFileName(a.originalFileName())
+                        .contentType(a.contentType())
+                        .size(a.size())
+                        .build())
+                .toList();
+    }
+
+    private String buildPreviewContent(Message message) {
+        return switch (message.getType() == null ? MessageType.CHAT : message.getType()) {
+            case IMAGE -> "[Hình ảnh]";
+            case VIDEO -> "[Video]";
+            case FILE -> "[Tệp]";
+            case LINK -> "[Liên kết]";
+            default -> message.getContent();
+        };
+    }
+
+}

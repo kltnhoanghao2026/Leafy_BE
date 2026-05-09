@@ -47,7 +47,7 @@ public enum ErrorCode {
         PLANT_NOT_FOUND(HttpStatus.NOT_FOUND, 2017, "error.plant.not.found"),
         SPECIES_NOT_FOUND(HttpStatus.NOT_FOUND, 2018, "error.species.not.found"),
         PLANT_EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, 2019, "error.plant.event.not.found"),
-        TREATMENT_PLAN_NOT_FOUND(HttpStatus.NOT_FOUND, 2020, "error.treatment.plan.not.found"),
+        PLAN_NOT_FOUND(HttpStatus.NOT_FOUND, 2020, "error.treatment.plan.not.found"),
 
         // Role and permission errors (21xx)
         ROLE_NOT_FOUND(HttpStatus.NOT_FOUND, 2101, "error.role.not.found"),
@@ -81,7 +81,13 @@ public enum ErrorCode {
         MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, 5002, "error.message.not.found"),
         NOT_CONVERSATION_PARTICIPANT(HttpStatus.FORBIDDEN, 5003, "error.not.conversation.participant"),
         INVALID_DIRECT_CONVERSATION(HttpStatus.BAD_REQUEST, 5004, "error.invalid.direct.conversation"),
-        ONLY_GROUP_OPERATION(HttpStatus.BAD_REQUEST, 5005, "error.only.group.operation")
+        ONLY_GROUP_OPERATION(HttpStatus.BAD_REQUEST, 5005, "error.only.group.operation"),
+
+        // Notification errors (6xxx)
+        PUSH_TOKEN_NOT_FOUND(HttpStatus.NOT_FOUND, 6001, "error.push.token.not.found"),
+        PUSH_DELIVERY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, 6002, "error.push.delivery.failed"),
+        EMAIL_DELIVERY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, 6003, "error.email.delivery.failed"),
+        PUSH_NOTIFICATION_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, 6004, "error.push.notification.disabled")
 
         ;
 

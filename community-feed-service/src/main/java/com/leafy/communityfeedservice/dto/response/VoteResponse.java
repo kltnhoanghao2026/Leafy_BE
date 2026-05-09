@@ -1,5 +1,6 @@
 package com.leafy.communityfeedservice.dto.response;
 
+import com.leafy.communityfeedservice.model.ProfileSummary;
 import com.leafy.communityfeedservice.model.enums.VoteTargetType;
 import com.leafy.communityfeedservice.model.enums.VoteType;
 import lombok.AccessLevel;
@@ -20,6 +21,7 @@ public class VoteResponse {
     String id;
     VoteType type;
     String authorId;
+    ProfileSummary authorInfo;
     String targetId;
     VoteTargetType targetType;
     boolean active;

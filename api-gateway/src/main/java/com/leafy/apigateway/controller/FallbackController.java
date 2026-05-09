@@ -82,6 +82,18 @@ public class FallbackController {
         return Mono.just(createFallbackResponse("Disease detection service is temporarily unavailable"));
     }
 
+    @RequestMapping("/messages-service")
+    public Mono<ResponseEntity<Map<String, Object>>> messagesServiceFallback() {
+        log.warn("Messages service is unavailable - Circuit breaker activated");
+        return Mono.just(createFallbackResponse("Messages service is temporarily unavailable"));
+    }
+
+    @RequestMapping("/socket-service")
+    public Mono<ResponseEntity<Map<String, Object>>> socketServiceFallback() {
+        log.warn("Socket service is unavailable - Circuit breaker activated");
+        return Mono.just(createFallbackResponse("Socket service is temporarily unavailable"));
+    }
+
     private ResponseEntity<Map<String, Object>> createFallbackResponse(String message) {
         Map<String, Object> response = new HashMap<>();
         response.put("status", "error");

@@ -17,7 +17,9 @@ public interface PlantService {
 
     Plant getPlantEntityById(String plantId);
 
-    Page<PlantResponse> getAllPlants(PlantStatus status, Pageable pageable);
+    Page<PlantResponse> getAllPlants(String search, String farmPlotId, String farmZoneId, String speciesId, PlantStatus status, Pageable pageable);
+
+    Page<PlantResponse> getMyPlants(String search, String farmPlotId, String farmZoneId, String speciesId, PlantStatus status, Pageable pageable);
 
     Page<PlantResponse> getPlantsBySpeciesId(String speciesId, Pageable pageable);
 

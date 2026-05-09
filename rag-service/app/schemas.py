@@ -131,7 +131,7 @@ EventTypeEnum = Literal[
     "HARVEST",              # Cherry picking — used for totalYieldKg tracking
 ]
 
-TreatmentPlanSourceEnum = Literal["websearch", "documents"]
+PlanSourceEnum = Literal["websearch", "documents"]
 
 
 class PlantEvent(BaseModel):
@@ -237,14 +237,14 @@ class PlantEvent(BaseModel):
     # ── Source tracking (filled after plan is persisted to MongoDB) ───────────
     sourcePlanId: Optional[str] = Field(
         default=None,
-        description="ID of the TreatmentPlan MongoDB document that generated this event.",
+        description="ID of the Plan MongoDB document that generated this event.",
     )
 
 
-class TreatmentPlan(BaseModel):
+class Plan(BaseModel):
     """Structured recovery plan for a diseased plant.
 
-    Field names are camelCase to match the plant-management-service TreatmentPlan
+    Field names are camelCase to match the plant-management-service Plan
     MongoDB model and PlantEventCreateRequest DTO.
     """
 
@@ -281,7 +281,7 @@ class TreatmentPlan(BaseModel):
             "'NORMAL' — can wait until within the week."
         ),
     )
-    source: Optional[TreatmentPlanSourceEnum] = Field(
+    source: Optional[PlanSourceEnum] = Field(
         default=None,
         description=(
             "Primary evidence source used when generating this plan. "

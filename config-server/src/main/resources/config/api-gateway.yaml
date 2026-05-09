@@ -93,10 +93,32 @@ spring:
                     name: seedServiceCircuitBreaker
                     fallbackUri: forward:/fallback/community-feed-service
 
+            - id: admin-seed-profiles
+              uri: lb://community-feed-service
+              predicates:
+                - Path=/api/admin/seed/profiles
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/community-feed-service
+
             - id: admin-seed-certificates
               uri: lb://profile-service
               predicates:
                 - Path=/api/admin/seed/certificates
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/profile-service
+
+            - id: admin-seed-experts
+              uri: lb://profile-service
+              predicates:
+                - Path=/api/admin/seed/experts
               filters:
                 - StripPrefix=1
                 - name: CircuitBreaker
@@ -129,10 +151,21 @@ spring:
                     fallbackUri: forward:/fallback/file-service
 
             # Notification Service Routes
+            - id: notification-service-admin-sync
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/notifications/admin/sync-notification-users
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/notification-service
+
             - id: notification-service
               uri: lb://notification-service
               predicates:
-                - Path=/api/push-tokens/**,/api/mailing/**
+                - Path=/api/notifications/**,/api/push-tokens/**,/api/mailing/**
               filters:
                 - StripPrefix=1
                 - name: CircuitBreaker
@@ -177,10 +210,10 @@ spring:
                     fallbackUri: forward:/fallback/plant-management-service
 
             # Treatment Plan Routes (Plant Management)
-            - id: treatment-plans-service
+            - id: plans-service
               uri: lb://plant-management-service
               predicates:
-                - Path=/api/treatment-plans/**
+                - Path=/api/plans/**
               filters:
                 - StripPrefix=1
                 - name: CircuitBreaker
@@ -332,7 +365,7 @@ spring:
             - id: search-service
               uri: lb://search-service
               predicates:
-                - Path=/api/search/posts/**, /api/search/profiles/**, /api/search/sync/**, /api/search/failed-events/**
+                - Path=/api/search/search, /api/search/posts/**, /api/search/profiles/**, /api/search/sync/**, /api/search/failed-events/**
               filters:
                 - StripPrefix=2
                 - name: CircuitBreaker
@@ -351,9 +384,9 @@ spring:
 
             # Messages Service Routes
             - id: messages-service
-              uri: lb://messages-server
+              uri: lb://message-service
               predicates:
-                - Path=/api/messages/**, /api/conversations/**
+                - Path=/api/messages/**, /api/conversations/**, /api/v2/conversations/**
               filters:
                 - StripPrefix=1
                 - name: CircuitBreaker
@@ -361,19 +394,24 @@ spring:
                     name: messagesServiceCircuitBreaker
                     fallbackUri: forward:/fallback/messages-service
 
-            # Messages Service WebSocket Route
-            - id: messages-service-ws
-              uri: lb:ws://messages-server
+            # Socket Service Routes (WebSocket)
+            - id: socket-service-ws
+              uri: lb://socket-service
               predicates:
-                - Path=/ws/messages/**
+                - Path=/ws/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: socketServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/socket-service
 
             # OpenAPI Documentation Routes for Messages Service
             - id: messages-service-openapi
-              uri: lb://messages-server
+              uri: lb://message-service
               predicates:
-                - Path=/messages-server/v3/api-docs/**
+                - Path=/message-service/v3/api-docs/**
               filters:
-                - RewritePath=/messages-server/v3/api-docs, /v3/api-docs
+                - RewritePath=/message-service/v3/api-docs, /v3/api-docs
 
           default-filters:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Access-Control-Allow-Methods Access-Control-Allow-Headers, RETAIN_FIRST
@@ -460,6 +498,8 @@ resilience4j:
         baseConfig: default
       messagesServiceCircuitBreaker:
         baseConfig: default
+      socketServiceCircuitBreaker:
+        baseConfig: default
 
   timelimiter:
     configs:
@@ -490,6 +530,8 @@ resilience4j:
         baseConfig: default
       seedServiceCircuitBreaker:
         timeoutDuration: 120s
+      socketServiceCircuitBreaker:
+        baseConfig: default
 
 # JWT Configuration
 jwt:

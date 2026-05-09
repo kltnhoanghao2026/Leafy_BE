@@ -26,4 +26,11 @@ public class User extends BaseModel {
     String password;
 
     Role role;
+
+    /**
+     * Cached profile ID from profile-service.
+     * Populated once when the user's profile is first created and stored here
+     * to avoid cross-service calls during every token generation.
+     */
+    String profileId;
 }

@@ -10,6 +10,7 @@ public record SeederResponse(
         int seededPostCount,
         int seededCommentCount,
         int seededVoteCount,
-        int sourceProfileCount
+        int sourceProfileCount,
+        int seededProfileCount
 ) {
 }
