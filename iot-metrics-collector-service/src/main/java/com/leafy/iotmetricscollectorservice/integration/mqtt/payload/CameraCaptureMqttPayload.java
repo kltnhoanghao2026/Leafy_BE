@@ -9,6 +9,7 @@ import lombok.Setter;
 public class CameraCaptureMqttPayload {
     private String requestId;
     private String deviceUid;
+    private String triggerType;
     private Instant requestedAt;
     private String resolution;
     private String quality;

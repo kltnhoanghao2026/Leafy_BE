@@ -10,10 +10,13 @@ public class ImageMetaPayload {
     private String requestId;
     private Boolean success;
     private Instant ts;
+    private Instant timestamp;
+    private String status;
     private String fileId;
     private String contentType;
     private Long sizeBytes;
     private Integer width;
     private Integer height;
     private String error;
+    private String errorMessage;
 }

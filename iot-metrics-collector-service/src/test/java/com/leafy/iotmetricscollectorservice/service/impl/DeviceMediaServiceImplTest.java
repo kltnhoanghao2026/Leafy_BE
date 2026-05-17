@@ -17,6 +17,7 @@ import com.leafy.iotmetricscollectorservice.model.DeviceMediaEvent;
 import com.leafy.iotmetricscollectorservice.model.IoTDevice;
 import com.leafy.iotmetricscollectorservice.model.enums.DeviceMediaEventStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.ProvisioningStatus;
+import com.leafy.iotmetricscollectorservice.model.enums.TriggerType;
 import com.leafy.iotmetricscollectorservice.model.ref.FileRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.DeviceMediaEventRepository;
@@ -78,6 +79,25 @@ class DeviceMediaServiceImplTest {
             org.mockito.ArgumentMatchers.eq(request)
         );
         assertThat(eventCaptor.getValue().getRequestId()).isEqualTo(response.getRequestId());
+        assertThat(eventCaptor.getValue().getTriggerType()).isEqualTo(TriggerType.MANUAL.name());
+    }
+
+    @Test
+    void requestCapture_withScheduledTriggerCreatesScheduledEventForMqttPayload() {
+        UUID deviceId = UUID.randomUUID();
+        IoTDevice device = claimedDevice(deviceId);
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(device));
+        when(deviceMediaEventRepository.save(any(DeviceMediaEvent.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.requestCapture(deviceId, new CameraCaptureRequest(), TriggerType.SCHEDULED);
+
+        ArgumentCaptor<DeviceMediaEvent> eventCaptor = ArgumentCaptor.forClass(DeviceMediaEvent.class);
+        verify(cameraCaptureMqttPublisher).publishCaptureCommand(
+            org.mockito.ArgumentMatchers.eq(device),
+            eventCaptor.capture(),
+            any(CameraCaptureRequest.class)
+        );
+        assertThat(eventCaptor.getValue().getTriggerType()).isEqualTo(TriggerType.SCHEDULED.name());
     }
 
     @Test
@@ -128,6 +148,33 @@ class DeviceMediaServiceImplTest {
     }
 
     @Test
+    void handleImageMeta_statusSuccessUsesTimestampAndMetadataFields() {
+        DeviceMediaEvent event = new DeviceMediaEvent();
+        event.setRequestId("request-1");
+        when(deviceMediaEventRepository.findByRequestId("request-1")).thenReturn(Optional.of(event));
+
+        ImageMetaPayload payload = new ImageMetaPayload();
+        payload.setRequestId("request-1");
+        payload.setStatus("SUCCESS");
+        payload.setTimestamp(Instant.parse("2026-05-15T08:00:05Z"));
+        payload.setFileId("file-1");
+        payload.setContentType("image/jpeg");
+        payload.setSizeBytes(456L);
+        FileRef fileRef = new FileRef();
+        fileRef.setId("file-1");
+        when(entityManager.getReference(FileRef.class, "file-1")).thenReturn(fileRef);
+
+        service.handleImageMeta("device-001", payload);
+
+        assertThat(event.getStatus()).isEqualTo(DeviceMediaEventStatus.UPLOADED.name());
+        assertThat(event.getUploadedAt()).isEqualTo(Instant.parse("2026-05-15T08:00:05Z"));
+        assertThat(event.getCapturedAt()).isEqualTo(Instant.parse("2026-05-15T08:00:05Z"));
+        assertThat(event.getSizeBytes()).isEqualTo(456L);
+        assertThat(event.getFile().getId()).isEqualTo("file-1");
+        verify(deviceMediaEventRepository).save(event);
+    }
+
+    @Test
     void handleImageMeta_failureUpdatesEventAsFailed() {
         DeviceMediaEvent event = new DeviceMediaEvent();
         event.setRequestId("request-1");
@@ -142,6 +189,28 @@ class DeviceMediaServiceImplTest {
 
         assertThat(event.getStatus()).isEqualTo(DeviceMediaEventStatus.FAILED.name());
         assertThat(event.getError()).isEqualTo("CAMERA_CAPTURE_FAILED");
+        verify(deviceMediaEventRepository).save(event);
+    }
+
+    @Test
+    void handleImageMeta_statusFailureStoresTimestampSizeAndErrorMessage() {
+        DeviceMediaEvent event = new DeviceMediaEvent();
+        event.setRequestId("request-1");
+        when(deviceMediaEventRepository.findByRequestId("request-1")).thenReturn(Optional.of(event));
+
+        ImageMetaPayload payload = new ImageMetaPayload();
+        payload.setRequestId("request-1");
+        payload.setStatus("FAILURE");
+        payload.setTimestamp(Instant.parse("2026-05-15T08:00:05Z"));
+        payload.setSizeBytes(0L);
+        payload.setErrorMessage("UPLOAD_HTTP_FAILED");
+
+        service.handleImageMeta("device-001", payload);
+
+        assertThat(event.getStatus()).isEqualTo(DeviceMediaEventStatus.FAILED.name());
+        assertThat(event.getCapturedAt()).isEqualTo(Instant.parse("2026-05-15T08:00:05Z"));
+        assertThat(event.getSizeBytes()).isZero();
+        assertThat(event.getError()).isEqualTo("UPLOAD_HTTP_FAILED");
         verify(deviceMediaEventRepository).save(event);
     }
 

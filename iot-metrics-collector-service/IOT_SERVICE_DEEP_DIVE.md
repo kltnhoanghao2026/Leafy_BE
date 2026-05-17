@@ -121,6 +121,49 @@ coffee/{env}/devices/{deviceUid}/config/set
 
 The namespace (`coffee/prod` by default) is inferred from the first subscribed topic.
 
+**Outbound camera capture** (server -> device):
+```
+coffee/{env}/devices/{deviceUid}/camera/capture
+```
+
+Manual and scheduled captures use the same payload shape. Scheduled captures carry `triggerType: "SCHEDULED"` so the ESP32-CAM can log and publish matching metadata while keeping the same queued capture, retry, upload, and `image/meta` flow.
+
+```json
+{
+  "requestId": "b2cb4be7-f0d9-4a2e-8ef7-24f00de59e0b",
+  "deviceUid": "leafy-prototype-001",
+  "triggerType": "SCHEDULED",
+  "requestedAt": "2026-05-15T08:00:00Z",
+  "resolution": "VGA",
+  "quality": "MEDIUM",
+  "upload": {
+    "mode": "FILE_SERVICE_MULTIPART",
+    "endpoint": "http://192.168.1.10:8080/files/upload"
+  }
+}
+```
+
+Expected firmware logs for scheduled capture:
+
+```text
+[INFO] Queued SCHEDULED camera capture requestId=b2cb4be7-f0d9-4a2e-8ef7-24f00de59e0b
+[INFO] Scheduled capture command accepted for deviceUid=leafy-prototype-001
+```
+
+### Multi-instance camera schedule execution
+
+`DeviceCameraScheduleRunner` is safe to run on more than one collector instance. Each runner scans due schedule ids, then `DeviceCameraScheduleService.tryAcquireSchedule(scheduleId)` opens a new transaction and locks the schedule row with `PESSIMISTIC_WRITE` / `SELECT ... FOR UPDATE`. The lock timeout is zero, so a second instance skips the same due slot instead of waiting and publishing a duplicate MQTT command.
+
+Within the lock transaction the service re-checks `enabled` and `nextRunAt`, calls the existing scheduled capture path, and advances `lastRunAt` / `nextRunAt`. Manual capture endpoints do not use this schedule lock and keep their existing behavior.
+
+Example logs:
+
+```text
+[INFO] Schedule acquired by collectorInstanceId=iot-metrics-collector-7f9d8. scheduleId=..., deviceUid=leafy-prototype-001, nextRunAt=2026-05-15T08:00:00Z
+[INFO] Scheduled camera capture requested. scheduleId=..., deviceUid=leafy-prototype-001
+[INFO] Schedule acquisition blocked. scheduleId=..., collectorInstanceId=iot-metrics-collector-2a41c, reason=CannotAcquireLockException
+```
+
 ---
 
 ## 5. Data Model (PostgreSQL)

@@ -1,5 +1,6 @@
 package com.leafy.iottestdataservice.config;
 
+import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,5 +23,10 @@ public class SeedConfig {
         scheduler.setThreadNamePrefix("iot-seed-");
         scheduler.initialize();
         return scheduler;
+    }
+
+    @Bean
+    public Clock seedClock() {
+        return Clock.systemUTC();
     }
 }

@@ -3,7 +3,9 @@ package com.leafy.iottestdataservice.mqtt;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leafy.iottestdataservice.config.SeedProperties;
+import com.leafy.iottestdataservice.dto.mqtt.CameraCaptureCommandPayload;
 import com.leafy.iottestdataservice.dto.mqtt.ConfigAckPayload;
+import com.leafy.iottestdataservice.dto.mqtt.ImageMetaPayload;
 import com.leafy.iottestdataservice.dto.mqtt.StatusPayload;
 import com.leafy.iottestdataservice.dto.mqtt.TelemetryPayload;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,16 @@ public class DefaultSeedMqttPublisher implements SeedMqttPublisher {
     @Override
     public void publishConfigAck(String deviceUid, ConfigAckPayload payload) {
         publish(buildTopic(deviceUid, "ack"), payload);
+    }
+
+    @Override
+    public void publishCameraCaptureCommand(String deviceUid, CameraCaptureCommandPayload payload) {
+        publish(buildTopic(deviceUid, "camera/capture"), payload);
+    }
+
+    @Override
+    public void publishImageMeta(String deviceUid, ImageMetaPayload payload) {
+        publish(buildTopic(deviceUid, "image/meta"), payload);
     }
 
     private void publish(String topic, Object payload) {

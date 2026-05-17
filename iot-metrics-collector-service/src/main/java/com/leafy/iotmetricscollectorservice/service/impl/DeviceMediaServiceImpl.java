@@ -43,6 +43,12 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
     @Override
     @Transactional
     public CameraCaptureResponse requestCapture(UUID deviceId, CameraCaptureRequest request) {
+        return requestCapture(deviceId, request, TriggerType.MANUAL);
+    }
+
+    @Override
+    @Transactional
+    public CameraCaptureResponse requestCapture(UUID deviceId, CameraCaptureRequest request, TriggerType triggerType) {
         CameraCaptureRequest normalizedRequest = normalize(request);
         IoTDevice device = ioTDeviceRepository.findById(deviceId)
             .orElseThrow(() -> TelemetryQueryException.deviceNotFound(deviceId));
@@ -54,7 +60,7 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
         event.setDevice(device);
         event.setZone(device.getZone());
         event.setMediaType(MediaType.IMAGE.name());
-        event.setTriggerType(TriggerType.MANUAL.name());
+        event.setTriggerType((triggerType != null ? triggerType : TriggerType.MANUAL).name());
         event.setStatus(DeviceMediaEventStatus.REQUESTED.name());
         event.setRequestId(UUID.randomUUID().toString());
         event.setRequestedAt(now);
@@ -111,9 +117,15 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
             return;
         }
 
-        if (Boolean.TRUE.equals(payload.getSuccess())) {
+        Instant metadataTime = payload.getTimestamp() != null
+            ? payload.getTimestamp()
+            : (payload.getTs() != null ? payload.getTs() : Instant.now());
+        boolean successful = Boolean.TRUE.equals(payload.getSuccess())
+            || "SUCCESS".equalsIgnoreCase(payload.getStatus());
+
+        if (successful) {
             event.setStatus(DeviceMediaEventStatus.UPLOADED.name());
-            event.setUploadedAt(payload.getTs() != null ? payload.getTs() : Instant.now());
+            event.setUploadedAt(metadataTime);
             event.setCapturedAt(event.getUploadedAt());
             event.setContentType(payload.getContentType());
             event.setSizeBytes(payload.getSizeBytes());
@@ -125,10 +137,21 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
             }
         } else {
             event.setStatus(DeviceMediaEventStatus.FAILED.name());
-            event.setError(payload.getError() != null ? payload.getError() : "CAMERA_CAPTURE_FAILED");
-            event.setCapturedAt(payload.getTs() != null ? payload.getTs() : Instant.now());
+            event.setError(resolveImageMetaError(payload));
+            event.setSizeBytes(payload.getSizeBytes());
+            event.setCapturedAt(metadataTime);
         }
         deviceMediaEventRepository.save(event);
+    }
+
+    private String resolveImageMetaError(ImageMetaPayload payload) {
+        if (payload.getErrorMessage() != null && !payload.getErrorMessage().isBlank()) {
+            return payload.getErrorMessage();
+        }
+        if (payload.getError() != null && !payload.getError().isBlank()) {
+            return payload.getError();
+        }
+        return "CAMERA_CAPTURE_FAILED";
     }
 
     @Override
