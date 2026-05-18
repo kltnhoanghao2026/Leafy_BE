@@ -22,76 +22,7 @@ from app.schemas import Plan
 logger = logging.getLogger(__name__)
 
 
-# ── Plan horizon extraction ────────────────────────────────────────────────────
-
-_DURATION_PATTERNS = [
-    # Vietnamese
-    (r'(\d+)\s*tháng',      30),   # n tháng → n * 30 days
-    (r'(\d+)\s*tuần',        7),   # n tuần  → n * 7 days
-    (r'(\d+)\s*ngày',         1),  # n ngày  → n days
-    # English
-    (r'(\d+)\s*month',       30),
-    (r'(\d+)\s*week',         7),
-    (r'(\d+)\s*day',          1),
-]
-
-def _extract_plan_horizon_days(question: str) -> int:
-    """
-    Scan the question for an explicit duration request (e.g. '1 tháng', '2 tuần').
-    Returns the horizon in days, or 0 if not found.
-    """
-    q = question.lower()
-    for pattern, multiplier in _DURATION_PATTERNS:
-        m = re.search(pattern, q)
-        if m:
-            return int(m.group(1)) * multiplier
-    return 0
-
-
-def _build_event_density_guidance(horizon_days: int) -> str:
-    """
-    Return a tailored event-density block for the system prompt based on
-    how many days the requested plan should cover.
-    """
-    if horizon_days <= 0:
-        return ""
-
-    # Derive recommended counts from the horizon
-    irrigation_count   = max(2, horizon_days // 7)          # ~weekly
-    nutrition_count    = max(1, horizon_days // 14)          # bi-weekly
-    scouting_count     = max(2, horizon_days // 7)           # weekly
-    weed_count         = max(1, horizon_days // 14)          # bi-weekly
-    pruning_count      = 1 if horizon_days >= 14 else 0
-    phenology_count    = max(1, horizon_days // 14)          # bi-weekly milestones
-
-    lines = [
-        f"PLAN HORIZON: {horizon_days} days.",
-        "You MUST distribute events evenly across the full period.",
-        f"Minimum event counts for a {horizon_days}-day plan:",
-        f"  • IRRIGATION       : ≥{irrigation_count} events (one per ~7 days, e.g. days 0, 7, 14, 21…)",
-        f"  • NUTRITION        : ≥{nutrition_count} events (one per ~14 days)",
-        f"  • SCOUTING         : ≥{scouting_count} events (one per ~7 days)",
-        f"  • WEED_CONTROL     : ≥{weed_count} events (one per ~14 days)",
-    ]
-    if pruning_count:
-        lines.append(f"  • PRUNING          : ≥{pruning_count} event (toward the end of the period)")
-    lines += [
-        f"  • PHENOLOGY        : ≥{phenology_count} milestone(s) (record growth stage changes)",
-        f"Total events expected: ≥{irrigation_count + nutrition_count + scouting_count + weed_count + pruning_count + phenology_count}",
-        "",
-        "durationDays rules for this plan:",
-        "  • IRRIGATION window: set durationDays = 1 (single task each occurrence)",
-        "  • NUTRITION application: set durationDays = 1",
-        "  • SCOUTING: set durationDays = 1",
-        "  • WEED_CONTROL: set durationDays = 1–2 depending on scale",
-        "  • PRUNING: set durationDays = 1–3 depending on canopy size",
-        "  • PHENOLOGY: set durationDays = 1 (point-in-time observation)",
-        "",
-        "CRITICAL: Do NOT cluster all events at the start.",
-        f"Spread them across the full {horizon_days} days.",
-        "Use daysFromNow values like: 0, 7, 14, 21, 28 for a 30-day plan.",
-    ]
-    return "\n".join(lines)
+from app.nodes.planner_utils import extract_plan_horizon_days, build_event_density_guidance
 
 
 def planner(state: GraphState) -> dict:
@@ -102,7 +33,7 @@ def planner(state: GraphState) -> dict:
     chronological list of EmbeddedPlanEvent objects that are stored as
     an embedded array inside the Plan document in plant-management-service.
 
-    Post-processing sorts events by daysFromNow; actual ISO dates are
+    Post-processing sorts events by daysFromStart; actual ISO dates are
     computed at apply time by the plant-management-service consumer.
 
     Args:
@@ -115,20 +46,43 @@ def planner(state: GraphState) -> dict:
           - `plant_id`: str extracted by the LLM from the question
     """
     question = state["question"]
+    messages = state.get("messages", [])
     documents = state.get("documents", [])
     web_results = state.get("web_search_results") or []
     language = state.get("language", "English")
     refinement_guidance = (state.get("refinement_guidance") or "").strip()
+    # The original intent-bearing question from a prior clarification turn.
+    # E.g. "Tạo kế hoạch trị bệnh rỉ sét cho tôi" — gives the true planning objective
+    # even when the current `question` is only a clarifying reply like "cây cà phê".
+    original_question = (state.get("original_question") or "").strip()
 
     logger.info("[GENERAL PLANNER] Building structured agronomic plan")
+    if original_question:
+        logger.info("[GENERAL PLANNER] Original intent question: '%.120s'", original_question)
 
-    if not documents and not web_results:
-        logger.warning("[GENERAL PLANNER] No documents or web results available - skipping plan generation")
-        return {"generated_plan": None, "plant_id": None}
+    # Check confidence scores (requires at least one source to be >= 0.7)
+    best_doc_score = max((doc.metadata.get("rerank_score", 0.0) for doc in documents), default=0.0)
+    best_web_score = max((r.get("score", 0.0) for r in web_results), default=0.0)
+
+    if (not documents and not web_results) or (best_doc_score < 0.7 and best_web_score < 0.7):
+        logger.warning(
+            "[GENERAL PLANNER] Insufficient knowledge to generate plan (doc_score: %.2f, web_score: %.2f)", 
+            best_doc_score, best_web_score
+        )
+        msg = "Hệ thống không tìm thấy đủ kiến thức đáng tin cậy để tạo ra kế hoạch điều trị an toàn cho bệnh này. Vui lòng cung cấp thêm thông tin hoặc thử lại với tên bệnh cụ thể hơn."
+        return {
+            "generated_plan": None, 
+            "plant_id": None,
+            "generation": msg,
+            "messages": [AIMessage(content=msg)]
+        }
 
     # ── Plan horizon & event-density guidance ────────────────────────────────
-    horizon_days = _extract_plan_horizon_days(question)
-    density_guidance = _build_event_density_guidance(horizon_days)
+    # Prefer the original question for horizon extraction because the clarifying
+    # reply ("cây cà phê") won't contain a duration.
+    horizon_source = original_question or question
+    horizon_days = extract_plan_horizon_days(horizon_source)
+    density_guidance = build_event_density_guidance(horizon_days)
     if horizon_days:
         logger.info("[GENERAL PLANNER] Detected plan horizon: %d days", horizon_days)
 
@@ -142,10 +96,12 @@ def planner(state: GraphState) -> dict:
 
     web_context = ""
     if web_results:
+        # Prefer `raw_content` (full page text) when available — gives the planner
+        # richer agronomic detail than the short Tavily snippet in `content`.
         web_lines = "\n---\n".join(
             f"Web Source {i + 1}: {r.get('title', 'Untitled')}\n"
             f"URL: {r.get('url', '')}\n"
-            f"Content: {r.get('content', '')}"
+            f"Content: {r.get('raw_content') or r.get('content', '')}"
             for i, r in enumerate(web_results[:5])
         )
         web_context = f"""
@@ -210,6 +166,20 @@ Your task is to create a precise, actionable general plan that can include:
 - field maintenance and lifecycle events.
 
 The plan must match user intent. Do NOT force disease treatment when the user only asks for care/maintenance.
+
+IMPORTANT — Disease-Specific Plans (treatment plans):
+  When the query contains a named disease (e.g. "rust", "phoma", "leaf rust", "Hemileia vastatrix",
+  "bệnh rỉ sắt", etc.), this is ALWAYS a TREATMENT plan. You MUST:
+    1. Include at least 2–3 TREATMENT_APPLICATION events (spray schedule).
+    2. Include a DISEASE_DETECTED event at day 0.
+    3. Include a HEALTH_RECOVERY event at the end.
+    4. Use the exact chemical names, dosages (L/ha AND ml/25L), PHI, and PPE from the context.
+    5. Set `planName` to something like "Bệnh Rỉ Sắt — Kế Hoạch Điều Trị 21 Ngày"
+       (disease name in Vietnamese + plan type + duration).
+    6. Set `diseaseName` to the actual disease name (e.g. "Coffee Leaf Rust"), NOT "General Plant Care".
+
+Do NOT produce a generic care plan (irrigation + nutrition only) for a disease request.
+Do NOT omit TREATMENT_APPLICATION events when the query is about a named disease.
 {env_context}
 {density_guidance}
 
@@ -236,19 +206,32 @@ Rules:
 - TREATMENT plans should include DISEASE_DETECTED and HEALTH_RECOVERY when disease/pest context is explicit.
 - MIXED plans may combine routine care with treatment and pruning/denoting actions.
 - Do not include DISEASE_DETECTED or HEALTH_RECOVERY if there is no disease/pest context.
-- Calculate `daysFromNow` to distribute events EVENLY across the full horizon.
-  For a 30-day plan use offsets like 0, 7, 14, 21, 28 for weekly events;
-  for bi-weekly events use 0, 14, 28; never cluster all events at the beginning.
+- Calculate `daysFromStart` to distribute events EVENLY across the full horizon.
+  Space recurring events by dividing the total horizon by the number of occurrences.
+  Choose offsets that reflect the agronomic logic (e.g. align irrigation with dry spells,
+  schedule fungicide before high-humidity forecasts). Never cluster all events at the start.
+  Do NOT copy any fixed or example list of numbers — reason from context.
 - Each recurring event type (IRRIGATION, NUTRITION, SCOUTING, etc.) must appear
   as MULTIPLE separate PlantEvent entries — one entry per occurrence, not one entry
   with a long description. E.g. four weekly irrigations = four IRRIGATION events.
 - Be specific in `description`: include exact dosage, concentration, PPE, and method when chemical treatment is involved.
+  DOSAGE FORMAT — MANDATORY for every TREATMENT_APPLICATION event:
+  Always express chemical dosages in BOTH formats on the same line:
+    (a) Official Vietnamese label rate: L/ha or kg/ha (e.g. "0.5–0.75 L/ha")
+    (b) Field-mix equivalent for 25L spray tank: ml/25L (e.g. "= 12–19 ml/25L water")
+  Example: "Apply Amistar Top 325SC at 0.5–0.75 L/ha (= 12–19 ml/25L water)"
+  The ml/25L value MUST be consistent with the L/ha rate using: ml/25L = (L/ha × 25000) / 800
+  Never recommend more than the product label maximum.
 - Do NOT invent or guess a `plantId`. Leave `plantId` as null — it will be injected from the caller's request context.
 - Generate a concise, descriptive `planName` that conveys the primary objective and scope.
     Examples: "Coffee Leaf Rust Treatment Plan", "Post-Harvest Pruning & Fertilisation Plan",
               "Phytophthora Root Rot Recovery — 4-Week Protocol", "Routine Care Plan — Dry Season".
 - This schema requires `diseaseName`. If this is NOT a disease-specific request, set:
     diseaseName = "General Plant Care"
+- Each PlantEvent MUST specify a `targetType` based on its logical scope:
+    * `FARM` — for events affecting the whole plot (e.g. general scouting, whole-farm weed control).
+    * `FARM_ZONE` — for events scoped to a specific zone (e.g. zonal irrigation or fertilisation).
+    * `PLANT` — for highly localized actions (e.g. quarantining, stumping/treating a specific diseased tree).
 - For TREATMENT_APPLICATION events, you MUST populate these dedicated fields:
     * `phiDays` -> integer - the Pre-Harvest Interval in days from the product label
                         (e.g. 7, 14, 21). Set to null for all other event types.
@@ -302,13 +285,43 @@ include ALL of the following (the "4 Rights" principle + regulatory requirements
   7. MAXIMUM RESIDUE LIMIT (MRL):
      - If produce targets export or premium retail, include explicit MRL compliance notes.{safety_note}"""
 
+    # ── Build dialogue context ────────────────────────────────────────────────
+    # When clarification was needed (e.g. user first said "kế hoạch trị bệnh rỉ sét"
+    # then replied "cây cà phê"), `original_question` carries the intent-bearing
+    # message and `question` is only the clarifying reply.
+    # We surface original_question explicitly so the LLM knows the TRUE objective.
+    dialogue_context = ""
+    if original_question and original_question.lower() != question.lower():
+        # Clarification flow: make the original intent the primary directive
+        intent_block = (
+            f"Original Planning Request (primary intent — use this to determine plan type, "
+            f"disease focus, and urgency):\n{original_question}\n\n"
+            f"User's Clarifying Reply (provides the missing context):\n{question}"
+        )
+        if len(messages) > 1:
+            recent_msgs = messages[-4:]
+            formatted_dialogue = "\n".join(
+                [f"{'User' if m.type == 'human' else 'Assistant'}: {m.content[:300]}" for m in recent_msgs]
+            )
+            dialogue_context = f"Conversation Context:\n{formatted_dialogue}\n\n{intent_block}"
+        else:
+            dialogue_context = intent_block
+    elif len(messages) > 1:
+        # Normal multi-turn flow: include recent history + current question
+        recent_msgs = messages[-4:]
+        formatted_dialogue = "\n".join(
+            [f"{'User' if m.type == 'human' else 'Assistant'}: {m.content[:300]}" for m in recent_msgs]
+        )
+        dialogue_context = f"Conversation Context:\n{formatted_dialogue}\n\nLatest Query:\n{question}"
+    else:
+        dialogue_context = f"User Query:\n{question}"
+
     prompt = f"""{system_prompt}
 
 Agronomic Knowledge (from knowledge base):
 {docs_context}{web_context}
 
-User Query:
-{question}
+{dialogue_context}
 
 Generate the complete Plan object now.
 IMPORTANT: The entire output, including plan descriptions, notes, and ALL events MUST be detailed in the following language: {language}."""
@@ -326,10 +339,10 @@ IMPORTANT: The entire output, including plan descriptions, notes, and ALL events
         logger.warning("[GENERAL PLANNER] Empty schedule generated - skipping plan")
         return {"generated_plan": None, "plant_id": None}
 
-    # Sort by daysFromNow so the schedule is chronological.
+    # Sort by daysFromStart so the schedule is chronological.
     # Absolute dates (calculatedStartDate/calculatedEndDate) are computed
     # at apply time by the plant-management-service consumer.
-    schedule.sort(key=lambda e: e["daysFromNow"])
+    schedule.sort(key=lambda e: e["daysFromStart"])
 
     if web_results:
         final_plan["source"] = "websearch"
@@ -338,6 +351,18 @@ IMPORTANT: The entire output, including plan descriptions, notes, and ALL events
 
     if not final_plan.get("diseaseName"):
         final_plan["diseaseName"] = "General Plant Care"
+
+    # If the LLM fell back to "General Plant Care" on a disease-specific planning request,
+    # inject the actual disease name from the question so the plan is always correctly
+    # labelled.  We extract it from the question (which the service set from disease_name).
+    if final_plan.get("diseaseName") == "General Plant Care":
+        import re
+        match = re.search(r"Disease target:\s*(\S+(?:\s+\S+){0,3})\s*\(", question)
+        if match:
+            detected = match.group(1).strip()
+            # Only override if the extracted text actually looks like a disease name
+            if detected and len(detected) > 2 and detected.lower() not in ("rust", "phoma"):
+                final_plan["diseaseName"] = detected
 
     if not final_plan.get("urgency"):
         final_plan["urgency"] = "NORMAL"

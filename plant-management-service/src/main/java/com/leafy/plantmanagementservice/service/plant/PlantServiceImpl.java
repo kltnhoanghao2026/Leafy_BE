@@ -29,6 +29,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import com.leafy.plantmanagementservice.service.species.SpeciesService;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -40,10 +46,14 @@ public class PlantServiceImpl implements PlantService {
     private final FarmPlotService farmPlotService;
     private final FarmZoneService farmZoneService;
     private final ConsultingAccessHelper consultingAccessHelper;
+    private final SpeciesService speciesService;
 
     @Override
     @Transactional
     public PlantResponse createPlant(PlantCreateRequest request) {
+        // Validate speciesId exists
+        speciesService.getSpeciesEntityById(request.getSpeciesId());
+
         Plant plant = plantMapper.toEntity(request);
         plant.setPlantNumber(generatePlantNumber());
         FarmPlotResponse farmPlot = farmPlotService.getById(request.getFarmPlotId());
@@ -64,6 +74,11 @@ public class PlantServiceImpl implements PlantService {
     public PlantResponse updatePlant(String plantId, PlantUpdateRequest request) {
         log.info("Updating plant: {}", plantId);
         Plant plant = getPlantEntityById(plantId);
+
+        if (request.getSpeciesId() != null) {
+            speciesService.getSpeciesEntityById(request.getSpeciesId());
+        }
+
         plantMapper.updateEntityFromRequest(request, plant);
         Plant updatedPlant = plantRepository.save(plant);
         return plantMapper.toResponse(updatedPlant);

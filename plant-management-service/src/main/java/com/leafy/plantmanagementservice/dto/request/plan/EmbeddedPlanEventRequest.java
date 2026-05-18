@@ -37,8 +37,8 @@ public class EmbeddedPlanEventRequest {
 
     String description;
 
-    @PositiveOrZero(message = "daysFromNow must be zero or positive")
-    Integer daysFromNow;
+    @PositiveOrZero(message = "daysFromStart must be zero or positive")
+    Integer daysFromStart;
 
     @PositiveOrZero(message = "durationDays must be zero or positive")
     Integer durationDays;

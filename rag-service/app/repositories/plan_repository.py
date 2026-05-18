@@ -48,6 +48,71 @@ class PlanRepository:
         logger.info("Plan saved — planId=%s, userId=%s", doc.get("planId"), doc.get("userId"))
         return doc["planId"]
 
+    def save_rag_plan(
+        self,
+        *,
+        generated_plan: Dict[str, Any],
+        source_documents: Optional[List[Dict[str, Any]]] = None,
+        web_search_results: Optional[List[Dict[str, Any]]] = None,
+        user_id: str,
+        plant_management_plan_id: Optional[str] = None,
+    ) -> str:
+        """Save a RAG-generated plan to rag-service MongoDB.
+
+        Returns the local rag-service planId. If plant_management_plan_id is provided,
+        it is stored as a cross-reference (useful for linking the two plan records).
+        """
+        import uuid
+        from datetime import datetime, timezone
+
+        plan_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+
+        # Strip empty {} entries from sourceDocuments — they indicate
+        # no meaningful retrieval context was available at generation time.
+        docs = [
+            d for d in (source_documents or [])
+            if d and isinstance(d, dict) and any(v for v in d.values() if v)
+        ]
+        web = [
+            w for w in (web_search_results or [])
+            if w and isinstance(w, dict) and any(v for v in w.values() if v)
+        ]
+
+        doc: Dict[str, Any] = {
+            "planId": plan_id,
+            "planName": generated_plan.get("planName"),
+            "diseaseName": generated_plan.get("diseaseName"),
+            "confidenceScore": generated_plan.get("confidenceScore"),
+            "severityLevel": generated_plan.get("severityLevel"),
+            "requiredInputs": generated_plan.get("requiredInputs") or [],
+            "safetyWarnings": generated_plan.get("safetyWarnings") or [],
+            "successIndicators": generated_plan.get("successIndicators"),
+            "estimatedCost": generated_plan.get("estimatedCost"),
+            "sourceType": "RAG_GEN",
+            "source": generated_plan.get("source"),
+            "sourceDocuments": docs,
+            "webSearchResults": web,
+            "plantId": generated_plan.get("plantId"),
+            "farmPlotId": generated_plan.get("farmPlotId"),
+            "farmZoneId": generated_plan.get("farmZoneId"),
+            "schedule": generated_plan.get("schedule") or [],
+            "isPublic": False,
+            "active": True,
+            "creatorId": user_id,
+            "ownerId": user_id,
+            "userId": user_id,
+            "plantManagementPlanId": plant_management_plan_id,
+            "createdAt": now,
+            "lastModifiedAt": now,
+        }
+        self._collection.insert_one(doc)
+        logger.info(
+            "RAG plan saved — planId=%s, pm_planId=%s, userId=%s, docs=%d, web=%d",
+            plan_id, plant_management_plan_id, user_id, len(docs), len(web),
+        )
+        return plan_id
+
     def find_by_user(
         self,
         user_id: str,

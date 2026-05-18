@@ -6,6 +6,7 @@ import com.leafy.common.event.PlanAppliedEvent;
 import com.leafy.common.event.PlanApplyRequestedEvent;
 import com.leafy.common.event.notification.RawNotificationEvent;
 import com.leafy.common.publisher.RawNotificationEventPublisher;
+import com.leafy.plantmanagementservice.dto.request.plantevent.EventTaskRequest;
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventCreateRequest;
 import com.leafy.plantmanagementservice.model.EmbeddedPlanEvent;
 import com.leafy.plantmanagementservice.model.FarmZone;
@@ -87,7 +88,7 @@ public class PlanApplyConsumer {
         List<EmbeddedPlanEvent> expandedTemplateEvents = new ArrayList<>();
         for (EmbeddedPlanEvent t : templateEvents) {
             int duration = t.getDurationDays() != null && t.getDurationDays() > 0 ? t.getDurationDays() : 1;
-            int baseDaysFromNow = t.getDaysFromNow() != null ? t.getDaysFromNow() : 0;
+            int baseDaysFromStart = t.getDaysFromStart() != null ? t.getDaysFromStart() : 0;
 
             for (int i = 0; i < duration; i++) {
                 EmbeddedPlanEvent cloned = EmbeddedPlanEvent.builder()
@@ -95,7 +96,7 @@ public class PlanApplyConsumer {
                         .targetType(t.getTargetType())
                         .note(t.getNote())
                         .description(t.getDescription())
-                        .daysFromNow(baseDaysFromNow + i)
+                        .daysFromStart(baseDaysFromStart + i)
                         .durationDays(1)
                         .phiDays(t.getPhiDays())
                         .ppeRequired(t.getPpeRequired())
@@ -330,6 +331,19 @@ public class PlanApplyConsumer {
                                                    List<String> excludedPlantIds,
                                                    List<String> excludedFarmZoneIds,
                                                    String parentPlantEventId) {
+        List<EventTaskRequest> taskRequests = null;
+        if (template.getTasks() != null && !template.getTasks().isEmpty()) {
+            taskRequests = template.getTasks().stream()
+                    .map(t -> EventTaskRequest.builder()
+                            .title(t.getTitle())
+                            .description(t.getDescription())
+                            .order(t.getOrder())
+                            .estimatedCost(t.getEstimatedCost())
+                            .completed(false)
+                            .build())
+                    .collect(Collectors.toList());
+        }
+
         PlantEventCreateRequest req = PlantEventCreateRequest.builder()
                 .plantId(plantId)
                 .farmPlotId(farmPlotId)
@@ -338,23 +352,23 @@ public class PlanApplyConsumer {
                 .targetType(template.getTargetType())  // forward from template; caller overrides per scope
                 .note(template.getNote())
                 .description(template.getDescription())
-                .daysFromNow(template.getDaysFromNow())
+                .daysFromStart(template.getDaysFromStart())
                 .durationDays(template.getDurationDays())
                 .isPlanned(true)
                 .phiDays(template.getPhiDays())
                 .ppeRequired(template.getPpeRequired())
                 .mrlNote(template.getMrlNote())
                 .estimatedCost(template.getEstimatedCost())
-                .sourcePlanId(planId)
                 .planApplyId(applyId)
                 .parentPlantEventId(parentPlantEventId)
                 .trackingGranularity(granularity)
                 .excludedPlantIds(excludedPlantIds)
                 .excludedFarmZoneIds(excludedFarmZoneIds)
+                .tasks(taskRequests)
                 .build();
 
-        if (template.getDaysFromNow() != null && startDate != null) {
-            LocalDate calcStart = startDate.plusDays(template.getDaysFromNow());
+        if (template.getDaysFromStart() != null && startDate != null) {
+            LocalDate calcStart = startDate.plusDays(template.getDaysFromStart());
             req.setCalculatedStartDate(calcStart);
             if (template.getDurationDays() != null) {
                 req.setCalculatedEndDate(calcStart.plusDays(template.getDurationDays()));

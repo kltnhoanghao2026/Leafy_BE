@@ -174,8 +174,8 @@ public class PlanIndex {
     @Field(type = FieldType.Boolean)
     Boolean isPublic;
 
-    @Field(type = FieldType.Boolean)
-    Boolean isConsulted;
+    @Field(type = FieldType.Keyword)
+    String sourceType;
 
     // ── Stats ─────────────────────────────────────────────────────────────────
 

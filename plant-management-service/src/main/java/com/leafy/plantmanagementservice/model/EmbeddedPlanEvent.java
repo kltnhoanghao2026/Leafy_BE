@@ -42,7 +42,7 @@ public class EmbeddedPlanEvent {
     String description;
 
     /** Days from the apply start date when this event should begin. */
-    Integer daysFromNow;
+    Integer daysFromStart;
 
     /** Duration of the event window in days. */
     Integer durationDays;

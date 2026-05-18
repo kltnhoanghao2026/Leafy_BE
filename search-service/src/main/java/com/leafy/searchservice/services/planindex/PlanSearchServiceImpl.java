@@ -180,7 +180,7 @@ public class PlanSearchServiceImpl implements PlanSearchService {
                 .estimatedCost(planIndex.getEstimatedCost())
                 .source(planIndex.getSource())
                 .isPublic(planIndex.getIsPublic())
-                .isConsulted(planIndex.getIsConsulted())
+                .sourceType(planIndex.getSourceType())
                 .eventCount(planIndex.getEventCount())
                 .applyCount(planIndex.getApplyCount())
                 .creatorInfo(creatorInfo)

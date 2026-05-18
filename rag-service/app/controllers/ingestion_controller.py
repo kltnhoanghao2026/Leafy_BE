@@ -32,6 +32,7 @@ ALLOWED_MIME_TYPES = [
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/plain",
+    "text/markdown",
 ]
 
 UPLOAD_DIR = Path("uploads")
@@ -199,7 +200,7 @@ async def preview_document_endpoint(
         result = PreviewResponse(
             filename=file.filename or safe_name,
             total_chunks=len(chunk_previews),
-            sections=[],
+            sections=sections,
             chunks=chunk_previews,
         )
         return ApiResponse.success(result=result)
@@ -315,6 +316,7 @@ async def get_document_detail(
         ChunkPreview(
             index=c.get("chunk_index", i),
             text=c.get("text", ""),
+            point_id=c.get("point_id"),
         )
         for i, c in enumerate(raw_chunks)
     ]

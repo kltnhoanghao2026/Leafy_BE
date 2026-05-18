@@ -64,6 +64,18 @@ class DiagnoseRepository:
             logger.error(f"Failed to save DiagnoseResult: {e}")
             raise
 
+    @classmethod
+    def update_plant_id(cls, diagnose_request_id: str, plant_id: str) -> bool:
+        try:
+            result = cls._get_collection(COLLECTION_REQUESTS).update_one(
+                {"diagnoseRequestId": diagnose_request_id},
+                {"$set": {"plantId": plant_id}}
+            )
+            return result.modified_count > 0 or result.matched_count > 0
+        except PyMongoError as e:
+            logger.error(f"Failed to update plantId for DiagnoseRequest {diagnose_request_id}: {e}")
+            raise
+
     # ------------------------------------------------------------------ #
     #  Read — DiagnoseRequest                                              #
     # ------------------------------------------------------------------ #

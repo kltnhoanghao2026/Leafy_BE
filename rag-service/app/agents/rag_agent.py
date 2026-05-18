@@ -39,32 +39,25 @@ from app.nodes.planner import planner
 # Phase 6: History summarization
 from app.nodes.summarization_node import maybe_summarize
 
-# Phase 1.5: Intent classification
-from app.nodes.intent_classifier_node import classify_query_intent
+# Phase 1.5: Intent and Clarification classification
+from app.nodes.intent_and_clarification_node import intent_and_clarification, clarification_response
 from app.nodes.direct_node import direct_response
-
-# Phase 1.6: Clarification check
-from app.nodes.clarification_node import check_clarification, clarification_response
 
 
 # === Conditional Edge Functions ===
 
-def route_by_intent(state: GraphState) -> str:
-    """Short-circuit direct messages; send agricultural queries through clarification check."""
+def route_by_intent_and_clarification(state: GraphState) -> str:
+    """Short-circuit direct messages or vague questions, else proceed to full RAG."""
     intent = state.get("intent", "agriculture_query")
     if intent == "direct":
         logger.info("[GRAPH] Direct intent detected → DIRECT path (skip RAG)")
         return "direct"
-    logger.info("[GRAPH] Agricultural query → clarification check")
-    return "agriculture_query"
-
-
-def route_by_clarification(state: GraphState) -> str:
-    """Short-circuit vague questions to ask the user for more detail."""
+    
     if state.get("needs_clarification"):
         logger.info("[GRAPH] Question too vague → CLARIFICATION path")
         return "needs_clarification"
-    logger.info("[GRAPH] Question sufficient → full RAG pipeline")
+        
+    logger.info("[GRAPH] Agricultural query sufficient → full RAG pipeline")
     return "proceed"
 
 
@@ -136,12 +129,9 @@ def build_graph(checkpointer=None):
     # === Phase 6: History summarization (entry point) ===
     workflow.add_node("maybe_summarize", maybe_summarize)
 
-    # === Phase 1.5: Intent Classification ===
-    workflow.add_node("classify_intent", classify_query_intent)
+    # === Phase 1.5: Intent and Clarification ===
+    workflow.add_node("intent_and_clarification", intent_and_clarification)
     workflow.add_node("direct", direct_response)
-
-    # === Phase 1.6: Clarification Check ===
-    workflow.add_node("clarification_check", check_clarification)
     workflow.add_node("clarification", clarification_response)
 
     # === Phase 0: Environment State ===
@@ -169,28 +159,19 @@ def build_graph(checkpointer=None):
     workflow.set_entry_point("maybe_summarize")
 
     # === Phase 6 → Phase 1.5 ===
-    workflow.add_edge("maybe_summarize", "classify_intent")
+    workflow.add_edge("maybe_summarize", "intent_and_clarification")
 
-    # === Phase 1.5: Intent routing ===
+    # === Phase 1.5: Intent and Clarification routing ===
     workflow.add_conditional_edges(
-        "classify_intent",
-        route_by_intent,
+        "intent_and_clarification",
+        route_by_intent_and_clarification,
         {
             "direct": "direct",                        # direct fast path → END
-            "agriculture_query": "clarification_check", # check detail sufficiency first
+            "needs_clarification": "clarification",    # ask user for more info → END
+            "proceed": "env_state",                    # full RAG pipeline
         }
     )
     workflow.add_edge("direct", END)
-
-    # === Phase 1.6: Clarification routing ===
-    workflow.add_conditional_edges(
-        "clarification_check",
-        route_by_clarification,
-        {
-            "needs_clarification": "clarification",  # ask user for more info → END
-            "proceed": "env_state",                   # full RAG pipeline
-        }
-    )
     workflow.add_edge("clarification", END)
 
     # === Phase 0 → Phase 2 ===

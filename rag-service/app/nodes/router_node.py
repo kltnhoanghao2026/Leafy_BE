@@ -21,19 +21,7 @@ from app.core.ai_providers import get_chat_model
 
 logger = logging.getLogger(__name__)
 
-
-_PLANNING_INTENT_RE = re.compile(
-    r"\b(treatment plan|recovery plan|action plan|care plan|"
-    r"maintenance plan|pruning plan|denoting plan|"
-    r"step-by-step|what steps|schedule|spray calendar|care schedule|"
-    r"irrigation schedule|fertilizer schedule|weed control schedule|"
-    r"pruning schedule|denoting schedule|"
-    r"give me a plan|plan for|"
-    r"kế hoạch|lịch trình|lịch phun|phác đồ|quy trình xử lý|"
-    r"chăm sóc|đốn|đốn tỉa|tỉa cành|dọn cỏ)\b",
-    re.IGNORECASE,
-)
-
+from app.core.constants import PLANNING_INTENT_RE, DETAIL_SIGNAL_RE
 
 class RouterDecision(BaseModel):
     """Decision model for routing logic."""
@@ -74,33 +62,28 @@ def route_decision(state: GraphState) -> dict:
     documents = state.get("documents", [])
     env_state = state.get("env_state", {})
 
-    # ── Priority 1: pending planning intent from a prior clarification turn ─────
-    # When the user answered a clarification question (e.g. replied "cây cà phê"
-    # after being asked what crop they grow), the clarification node preserved
-    # the original planning intent in state.  Force the planning path here so
-    # we don't lose it because the reply itself has no planning keywords.
-    if state.get("pending_planning_intent"):
-        logger.info(
-            "[ROUTER] Pending planning intent from prior clarification → PLANNING path"
-        )
+    # ── Priority 0: Client-forced route override ─────────────────────────────────
+    # When the frontend explicitly picks a route (fast / deep / planning), bypass
+    # all automatic routing logic and use the caller's choice directly.
+    forced = state.get("forced_route")
+    if forced in ("fast", "deep", "planning"):
+        logger.info("[ROUTER] Route forced by client → %s PATH", forced.upper())
         return {
-            "path_type": "planning",
-            "confidence_score": 0.0,
-            "completeness_score": 0.0,
-            "pending_planning_intent": False,   # reset — consumed this turn
+            "path_type": forced,
+            "confidence_score": 1.0,
+            "completeness_score": 1.0,
         }
 
-    # ── Priority 2: planning keywords in current question ───────────────────────
-    if _PLANNING_INTENT_RE.search(question):
+    # ── Priority 1: planning keywords in current question ───────────────────────
+    if PLANNING_INTENT_RE.search(question):
         logger.info("[ROUTER] Planning keyword in question → PLANNING path")
         return {
             "path_type": "planning",
             "confidence_score": 0.0,
             "completeness_score": 0.0,
-            "pending_planning_intent": False,
         }
 
-    # ── Priority 3: planning keywords in recent conversation history ─────────
+    # ── Priority 2: planning keywords in recent conversation history ─────────
     # Catches follow-up short messages like "lập kế hoạch cho tôi" that were
     # preceded by planning context in the last assistant turn.
     all_messages = state.get("messages", [])
@@ -110,7 +93,7 @@ def route_decision(state: GraphState) -> dict:
     ]
     # Exclude the current question (last human message) to avoid double-counting
     prior_human_texts = [m.content for m in recent_human[:-1]]
-    if any(_PLANNING_INTENT_RE.search(t) for t in prior_human_texts):
+    if any(PLANNING_INTENT_RE.search(t) for t in prior_human_texts):
         logger.info(
             "[ROUTER] Planning keyword in recent conversation history → PLANNING path"
         )
@@ -118,7 +101,6 @@ def route_decision(state: GraphState) -> dict:
             "path_type": "planning",
             "confidence_score": 0.0,
             "completeness_score": 0.0,
-            "pending_planning_intent": False,
         }
 
     # ── No documents: fast/deep heuristic ───────────────────────────────────
@@ -126,13 +108,7 @@ def route_decision(state: GraphState) -> dict:
         # Short / generic questions with no retrieved docs don't benefit from a
         # Tavily web-search round-trip — use Gemini Flash's pre-training knowledge.
         # Long or detail-heavy questions still warrant web search (deep path).
-        _DETAIL_SIGNAL_RE = re.compile(
-            r"\b(dosage|concentration|ppm|mg|kg/ha|g/ha|l/ha|treatment plan|"
-            r"specific|exactly|how much|how many|rate|latest|diagnosis|"
-            r"liều lượng|nồng độ|loại thuốc|phòng trừ|điều trị|bao nhiêu)\b",
-            re.IGNORECASE,
-        )
-        is_simple = len(question.split()) < 12 and not _DETAIL_SIGNAL_RE.search(question)
+        is_simple = len(question.split()) < 12 and not DETAIL_SIGNAL_RE.search(question)
         if is_simple:
             logger.info("[ROUTER] No documents + simple query — FAST path (no web search)")
             return {

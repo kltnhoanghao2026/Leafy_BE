@@ -26,7 +26,7 @@ public class PlantEventResponse {
     TargetType targetType;
     String note;
     String description;
-    Integer daysFromNow;
+    Integer daysFromStart;
     Integer durationDays;
     boolean planned;
     LocalDate calculatedStartDate;
@@ -35,7 +35,6 @@ public class PlantEventResponse {
     String ppeRequired;
     String mrlNote;
     String estimatedCost;
-    String sourcePlanId;
     String planApplyId;
     String parentPlantEventId;
 

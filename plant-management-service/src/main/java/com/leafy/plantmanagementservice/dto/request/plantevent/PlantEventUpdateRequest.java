@@ -26,7 +26,7 @@ public class PlantEventUpdateRequest {
     EventType eventType;
     String note;
     String description;
-    Integer daysFromNow;
+    Integer daysFromStart;
     Integer durationDays;
     Boolean isPlanned;
     LocalDate calculatedStartDate;
@@ -35,7 +35,6 @@ public class PlantEventUpdateRequest {
     String ppeRequired;
     String mrlNote;
     String estimatedCost;
-    String sourcePlanId;
     Boolean completed;
 
     /** Replace the entire task list when non-null. Null means "leave tasks unchanged". */

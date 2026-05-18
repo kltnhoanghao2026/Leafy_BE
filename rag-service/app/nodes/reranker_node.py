@@ -7,6 +7,7 @@ accurate relevance scores than simple vector similarity.
 """
 
 import logging
+import math
 from typing import List
 from langchain_core.documents import Document
 
@@ -25,48 +26,64 @@ def rerank_documents(state: GraphState) -> dict:
     similarity between independent embeddings.
     
     Args:
-        state: Current graph state with candidate_docs from hybrid search
+        state: Current graph state with documents from hybrid search
         
     Returns:
-        Updated state with reranked_docs (top-k most relevant)
+        Updated state with documents (top-k most relevant)
     """
-    logger.info("[RERANKER] Reranking %d candidate documents", len(state.get('candidate_docs', [])))
+    logger.info("[RERANKER] Reranking %d candidate documents", len(state.get('documents', [])))
     
     question = state["question"]
-    candidate_docs = state.get("candidate_docs", [])
+    documents = state.get("documents", [])
     
-    if not candidate_docs:
+    if not documents:
         logger.info("[RERANKER] No candidate documents to rerank — passing empty list")
         return {
             "question": question,
-            "reranked_docs": [],
             "documents": [],  # Update main documents field
         }
+    
+    # ── Retrieval query resolution (mirroring hybrid_search_node) ───────────
+    explicit_search_query = (state.get("search_query") or "").strip()
+    original_question = (state.get("original_question") or "").strip()
+    
+    if explicit_search_query:
+        search_query = explicit_search_query
+    elif original_question and original_question.lower() != question.lower():
+        search_query = f"{original_question} {question}"
+    else:
+        search_query = question
     
     # Load reranker model
     reranker = get_reranker_model()
     
-    # Prepare (query, doc) pairs for scoring
-    pairs = [(question, doc.page_content) for doc in candidate_docs]
+    # Prepare (query, doc) pairs for scoring using the semantic search query
+    pairs = [(search_query, doc.page_content) for doc in documents]
     
     # Get relevance scores
     scores = reranker.predict(pairs)
     
     # Combine docs with scores and sort by relevance
-    doc_score_pairs = list(zip(candidate_docs, scores))
+    doc_score_pairs = list(zip(documents, scores))
     doc_score_pairs.sort(key=lambda x: x[1], reverse=True)
     
     # Get top-k documents (configurable, default to top 5)
     top_k = 5
-    reranked_docs = [doc for doc, score in doc_score_pairs[:top_k]]
+    reranked_docs = []
+    for doc, score in doc_score_pairs[:top_k]:
+        # Cross-encoder outputs raw logits (range: -inf to +inf).
+        # Apply sigmoid to convert to a 0-1 probability so the planner's
+        # 0.7 confidence threshold is meaningful.
+        normalized_score = 1.0 / (1.0 + math.exp(-float(score)))
+        doc.metadata["rerank_score"] = normalized_score
+        reranked_docs.append(doc)
     
-    logger.info("[RERANKER] %d candidates → top %d after reranking", len(candidate_docs), len(reranked_docs))
+    logger.info("[RERANKER] %d candidates → top %d after reranking", len(documents), len(reranked_docs))
     for i, (doc, score) in enumerate(doc_score_pairs[:top_k]):
         logger.debug("[RERANKER] Rank %d | score=%.4f | %.80s", i + 1, score, doc.page_content)
     
     return {
         "question": question,
-        "reranked_docs": reranked_docs,
-        "documents": reranked_docs,  # Set as main documents for downstream nodes
+        "documents": reranked_docs,
     }
 

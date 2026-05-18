@@ -1,6 +1,8 @@
 package com.leafy.plantmanagementservice.dto.response.plan;
 
 import com.leafy.plantmanagementservice.dto.response.plan.EmbeddedPlanEventResponse;
+import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
+import com.leafy.plantmanagementservice.model.enums.SeverityLevel;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -20,16 +22,16 @@ public class PlanResponse {
     // ── Source tracking ───────────────────────────────────────────────────────
     String creatorId;
     String ownerId;
-    String ragPlanId;
     String planName;
-    String question;
     String source;
+
+    List<com.leafy.plantmanagementservice.model.SourceDocument> sourceDocuments;
+    List<com.leafy.plantmanagementservice.model.WebSearchResult> webSearchResults;
 
     // ── Diagnosis ─────────────────────────────────────────────────────────────
     String diseaseName;
     Double confidenceScore;
-    String severityLevel;
-    String urgency;
+    SeverityLevel severityLevel;
 
     // ── Plan metadata ─────────────────────────────────────────────────────────
     List<String> requiredInputs;
@@ -50,8 +52,7 @@ public class PlanResponse {
     // ── Visibility ────────────────────────────────────────────────────────────
     Boolean isPublic;
 
-    // ── Consulting ───────────────────────────────────────────────────────────
-    Boolean isConsulted;
+    PlanSourceType sourceType;
 
     // ── Author info (enriched from profile-service) ───────────────────────────
     AuthorInfo ownerInfo;

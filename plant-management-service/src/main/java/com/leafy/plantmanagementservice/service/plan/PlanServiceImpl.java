@@ -20,6 +20,7 @@ import com.leafy.plantmanagementservice.mapper.PlanApplyMapper;
 import com.leafy.plantmanagementservice.mapper.PlanMapper;
 import com.leafy.plantmanagementservice.model.Plan;
 import com.leafy.plantmanagementservice.model.PlanApply;
+import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
 import com.leafy.plantmanagementservice.model.enums.PlanStatus;
 import com.leafy.plantmanagementservice.repository.PlanApplyRepository;
 import com.leafy.plantmanagementservice.repository.PlanRepository;
@@ -64,10 +65,15 @@ public class PlanServiceImpl implements PlanService {
         // 1. Build entity
         String profileId = ServiceSecurityUtils.getCurrentProfileId();
         Plan plan = planMapper.toEntity(request);
-        plan.setUserId(userId);
         plan.setCreatorId(profileId);
         plan.setOwnerId(profileId);
         plan.setPublic(request.getIsPublic() != null && request.getIsPublic());
+
+        if (request.getSourceType() != null) {
+            plan.setSourceType(request.getSourceType());
+        } else {
+            plan.setSourceType(PlanSourceType.USER_CREATED);
+        }
 
         // 2. Embed template events directly — no separate PlantEvent documents created here
         if (!CollectionUtils.isEmpty(request.getSchedule())) {
@@ -133,23 +139,33 @@ public class PlanServiceImpl implements PlanService {
     @Override
     public PlanResponse getPlanById(String planId) {
         Plan plan = getPlanEntity(planId);
+        String profileId = ServiceSecurityUtils.getCurrentProfileId();
+        boolean isOwner = profileId != null && profileId.equals(plan.getOwnerId());
+        boolean isCreator = profileId != null && profileId.equals(plan.getCreatorId());
+
         // Allow access if plan is public, or the requester is the owner/creator
         if (!plan.isPublic()) {
-            String profileId = ServiceSecurityUtils.getCurrentProfileId();
-            String userId = ServiceSecurityUtils.getCurrentAccountId();
-            boolean isOwner = profileId != null && profileId.equals(plan.getOwnerId());
-            boolean isCreator = profileId != null && profileId.equals(plan.getCreatorId());
-            // Legacy plans (created before ownerId/creatorId fields existed) only have userId
-            boolean isUserMatch = userId != null && userId.equals(plan.getUserId());
-            if (!isOwner && !isCreator && !isUserMatch) {
+            if (!isOwner && !isCreator) {
                 throw new AppException(ErrorCode.AUTH_UNAUTHORIZED);
             }
         }
         PlanResponse response = enrich(planMapper.toResponse(plan));
         // Populate applies list for detail view
-        List<PlanApply> applies = planApplyRepository.findByPlanId(planId);
-        response.setApplies(planApplyMapper.toResponseList(applies));
-        response.setApplyCount((long) applies.size());
+        // If the requester is not the owner or creator, they should only see their own applies
+        List<PlanApply> visibleApplies;
+        if (isOwner || isCreator) {
+            visibleApplies = planApplyRepository.findByPlanId(planId);
+        } else {
+            String currentProfileId = ServiceSecurityUtils.getCurrentProfileId();
+            if (currentProfileId != null) {
+                visibleApplies = planApplyRepository.findByPlanIdAndAppliedById(planId, currentProfileId);
+            } else {
+                visibleApplies = List.of();
+            }
+        }
+        
+        response.setApplies(planApplyMapper.toResponseList(visibleApplies));
+        response.setApplyCount(planApplyRepository.countByPlanId(planId));
         return response;
     }
 
@@ -203,7 +219,6 @@ public class PlanServiceImpl implements PlanService {
         if (request.getDiseaseName() != null)        plan.setDiseaseName(request.getDiseaseName());
         if (request.getConfidenceScore() != null)    plan.setConfidenceScore(request.getConfidenceScore());
         if (request.getSeverityLevel() != null)      plan.setSeverityLevel(request.getSeverityLevel());
-        if (request.getUrgency() != null)            plan.setUrgency(request.getUrgency());
         if (request.getRequiredInputs() != null)     plan.setRequiredInputs(request.getRequiredInputs());
         if (request.getSafetyWarnings() != null)     plan.setSafetyWarnings(request.getSafetyWarnings());
         if (request.getSuccessIndicators() != null)  plan.setSuccessIndicators(request.getSuccessIndicators());
@@ -236,13 +251,11 @@ public class PlanServiceImpl implements PlanService {
         log.info("Expert {} creating consulting plan for farmer {}", expertProfileId, farmerProfileId);
         consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId);
 
-        String userId = ServiceSecurityUtils.getCurrentAccountId();
         Plan plan = planMapper.toEntity(request);
-        plan.setUserId(userId);
         plan.setCreatorId(expertProfileId);
         plan.setOwnerId(farmerProfileId);  // owner is the farmer, not the expert
         plan.setPublic(request.getIsPublic() != null && request.getIsPublic());
-        plan.setConsulted(true);
+        plan.setSourceType(PlanSourceType.CONSULTED);
 
         // Embed template events directly — same pattern as createPlan()
         if (!CollectionUtils.isEmpty(request.getSchedule())) {
@@ -369,8 +382,25 @@ public class PlanServiceImpl implements PlanService {
 
     @Override
     public Page<PlanApplyResponse> getAppliesByPlan(String planId, Pageable pageable) {
-        return planApplyRepository.findByPlanId(planId, pageable)
-                .map(planApplyMapper::toResponse);
+        Plan plan = getPlanEntity(planId);
+        String profileId = ServiceSecurityUtils.getCurrentProfileId();
+        boolean isOwner = profileId != null && profileId.equals(plan.getOwnerId());
+        boolean isCreator = profileId != null && profileId.equals(plan.getCreatorId());
+
+        if (isOwner || isCreator) {
+            return planApplyRepository.findByPlanId(planId, pageable)
+                    .map(planApplyMapper::toResponse);
+        } else {
+            // For public plans (or if authorized via other means), only return their own applies
+            if (!plan.isPublic()) {
+                throw new AppException(ErrorCode.AUTH_UNAUTHORIZED);
+            }
+            if (profileId == null) {
+                return org.springframework.data.domain.Page.empty();
+            }
+            return planApplyRepository.findByPlanIdAndAppliedById(planId, profileId, pageable)
+                    .map(planApplyMapper::toResponse);
+        }
     }
 
     @Override

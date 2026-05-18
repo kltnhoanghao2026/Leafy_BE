@@ -23,6 +23,17 @@ def _build_refinement_guidance(safety_issues: List[str]) -> str:
         issue_text = (issue or "").strip()
         lowered = issue_text.lower()
 
+        if any(k in lowered for k in ("dosage", "5×", "5x", "upper limit", "l/ha", "exceeds", "mg/l", "ml per", "concentration")):
+            instructions.append(
+                "The dosage must be expressed as L/ha or kg/ha on the product label scale. "
+                "For Vietnamese coffee spray equipment (400-800 L water/ha), typical fungicide rates are: "
+                "systemic fungicides 0.5-1.0 L/ha (=12.5-25 ml per 25L water), "
+                "contact fungicides 1.5-2.5 kg/ha. "
+                "Express all dosages using the official Vietnamese label rate (e.g., '0.5-1.0 L/ha, equivalent to 15-20 ml/25L water'). "
+                "Do NOT recommend any dosage exceeding the product label maximum."
+            )
+            continue
+
         if any(k in lowered for k in ("mrl", "residue", "export", "eu", "usda", "reg. 396/2005")):
             instructions.append(
                 "You are missing MRL information for the target market. "

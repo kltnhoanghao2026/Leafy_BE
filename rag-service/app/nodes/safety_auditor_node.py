@@ -6,6 +6,7 @@ responses to prevent hallucinations, unsafe recommendations, and regulatory viol
 """
 
 import logging
+import re
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from typing import Any, List
@@ -81,85 +82,8 @@ class SafetyAudit(BaseModel):
         return str(value).strip()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Keywords that indicate a 'passing' statement (LLM narrating a pass as an issue)
-# ─────────────────────────────────────────────────────────────────────────────
-_PASS_PHRASES = (
-    "no banned", "not listed as a banned", "not a banned",
-    "within typical", "within range", "within the typical", "within the range",
-    "is compliant", "are compliant", "is within", "are within",
-    "no issues", "no violations", "not detected", "not found",
-    "compliant.", "is included", "are included", "phe included",
-    "ppe warning included", "has no phi", "no phi required",
-    "is not listed", "not prescribed", "not recommended",
-    "dosage realism:", "banned substances check:",  # LLM section headers
-)
-
-_EXPORT_CONTEXT_KEYWORDS = (
-    "export", "xuất khẩu", "eu", "european union", "usda", "japan", "japanese",
-    "premium retail", "international", "target market", "market standard", "certification",
-    "rainforest alliance", "4c", "organic certification",
-)
-
-_MRL_ISSUE_KEYWORDS = (
-    "mrl", "residue", "maximum residue", "reg. 396/2005", "janis", "export limit",
-)
-
-def _filter_real_violations(issues: List[str]) -> List[str]:
-    """
-    Remove items from `issues_found` that are actually passing statements.
-    The LLM sometimes narrates its checklist (e.g. 'No banned substances detected.')
-    instead of listing only violations.
-    """
-    real = []
-    for issue in issues:
-        lower = issue.lower()
-        if any(phrase in lower for phrase in _PASS_PHRASES):
-            logger.debug("[SAFETY AUDIT] Discarding false-positive issue: %s", issue[:80])
-            continue
-        real.append(issue)
-    return real
-
-
-def _is_export_context(question: str, generation: str) -> bool:
-    # Export context should be triggered by explicit user intent in the question,
-    # not by incidental export wording that the model may add in generation.
-    combined = question.lower()
-    return any(keyword in combined for keyword in _EXPORT_CONTEXT_KEYWORDS)
-
-
-def _drop_non_blocking_mrl_issues(issues: List[str], export_context: bool) -> List[str]:
-    if export_context:
-        return issues
-
-    filtered = []
-    for issue in issues:
-        lowered = issue.lower()
-        if any(keyword in lowered for keyword in _MRL_ISSUE_KEYWORDS):
-            logger.info("[SAFETY AUDIT] Ignoring MRL-only issue in non-export context: %s", issue)
-            continue
-        filtered.append(issue)
-    return filtered
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Substances banned or severely restricted in Vietnamese coffee production.
-# Sources: PPD Circular 03/2023/TT-BNNPTNT, Stockholm Convention annexes,
-#          EU Reg. 396/2005 zero-tolerance list.
-# ─────────────────────────────────────────────────────────────────────────────
-BANNED_SUBSTANCES = [
-    # Organochlorine pesticides (Stockholm POPs)
-    "DDT", "Chlordane", "Heptachlor", "Endosulfan",
-    "Lindane", "Aldrin", "Dieldrin", "Endrin",
-    # Banned in Vietnam specifically (PPD List 2023)
-    "Methyl parathion", "Monocrotophos", "Methamidophos",
-    "Phosphamidon", "Carbofuran",   # ultra-high-tox, banned for coffee
-    "Paraquat",                      # banned VN Circular 10/2020
-    "Chlorpyrifos",                  # EU MRL zero-tolerance on coffee exports
-    "Fipronil",                      # high bee/soil toxicity, restricted on coffee
-    # Heavy metals / soil sterilants
-    "Arsenic", "Mercury",
-]
+from app.core.constants import BANNED_SUBSTANCES
+from app.nodes.safety_utils import filter_real_violations, is_export_context, drop_non_blocking_mrl_issues
 
 
 def safety_auditor(state: GraphState) -> dict:
@@ -191,7 +115,7 @@ def safety_auditor(state: GraphState) -> dict:
     generation = state.get("generation", "")
     question = state["question"]
     env_state = state.get("env_state", {})
-    export_context = _is_export_context(question, generation)
+    export_context = is_export_context(question, generation)
     
     # 1. Quick checks for obvious violations or missing keywords
     issues = []
@@ -319,13 +243,24 @@ Audit the response against these requirements and flag ONLY actual violations:
    Flag if and only if a banned substance from the list above is clearly recommended.
    Do NOT flag if the substance is merely mentioned in a warning context.
 
-2. DOSAGE REALISM
-   Flag if a dosage is ≥ 5× the typical upper limit for Vietnamese coffee labels:
+2. DOSAGE REALISM — UNIT-AWARE CHECK (CRITICAL)
+   Vietnamese coffee spray equipment uses 400–800 L water/ha.
+   Label dosages in ml/L or ml/tank MUST be converted to L/ha before comparing:
+     Formula: (ml_per_25L ÷ 25) × 800 = ml_per_ha ÷ 1000 = L/ha
+     Example: 15 ml per 25 L water → (15/25)×800 = 480 ml/ha = 0.48 L/ha ✓ COMPLIANT
+     Example: 20 ml per 25 L water → (20/25)×800 = 640 ml/ha = 0.64 L/ha ✓ COMPLIANT
+
+   Typical upper limits (L/ha or kg/ha):
      • Contact fungicides (Mancozeb 80WP, Copper Hydroxide 77WP): 1.5–2.5 kg/ha
-     • Systemic fungicides (Propiconazole 25EC, Azoxystrobin 25SC): 0.5–1.0 L/ha
+     • Systemic fungicides (Propiconazole 25EC, Azoxystrobin 25SC, Amistar Top 325SC): 0.5–1.0 L/ha
      • Insecticides for CBB (Abamectin 1.8EC): 0.5–1.0 L/ha at 1:400 dilution
      • Foliar fertiliser: 0.3–0.5% solution
+
+   ONLY flag if the CONVERTED L/ha value is ≥ 5× the typical upper limit.
+   If the dosage unit is ml/L or ml/25L and you cannot convert it exactly,
+   assume compliance unless the concentration clearly exceeds 5ml/L (=4 L/ha at 800L/ha).
    Do NOT flag dosages that fall within or near the typical range.
+   Do NOT flag if you cannot determine the exact L/ha value from the given units.
 
 3. PHI COMPLIANCE
    Flag ONLY if PHI is completely absent from a pesticide recommendation.
@@ -395,9 +330,9 @@ Remember: return ONLY real violations in `issues_found`. Passing checks must NOT
         return {"safety_passed": True, "safety_issues": []}
 
     # ── Post-process: strip passing narration from issues_found ──────────────
-    llm_violations = _filter_real_violations(audit_result.issues_found)
-    llm_violations = _drop_non_blocking_mrl_issues(llm_violations, export_context)
-    issues = _drop_non_blocking_mrl_issues(issues, export_context)
+    llm_violations = filter_real_violations(audit_result.issues_found)
+    llm_violations = drop_non_blocking_mrl_issues(llm_violations, export_context)
+    issues = drop_non_blocking_mrl_issues(issues, export_context)
 
     # If the LLM listed only passing statements, the response is actually compliant
     # even if is_safe_and_compliant was set to False by the model.

@@ -38,6 +38,7 @@ class ChunkPreview(BaseModel):
     text: str = Field(..., description="Chunk text content.")
     section: Optional[str] = Field(None, description="Semantic section — not set for flat chunking.")
     element_type: Optional[str] = Field(None, description="Source element type — not set for flat chunking.")
+    point_id: Optional[str] = Field(None, description="Qdrant point ID of this chunk.")
 
 
 class PreviewResponse(BaseModel):
@@ -74,3 +75,21 @@ class DocumentDetail(DocumentSummary):
     """Full document detail including its chunks."""
 
     chunks: List[ChunkPreview] = Field(default=[], description="All chunks from this document.")
+
+
+class ChunkDetail(BaseModel):
+    """Full chunk detail returned by the chunks-by-point-ids endpoint."""
+
+    chunk_id: str = Field(..., description="MongoDB chunk identifier (UUID).")
+    document_id: str = Field(..., description="SHA-256 file hash of the source document.")
+    chunk_index: int = Field(..., description="0-based position of this chunk in the source document.")
+    point_id: Optional[str] = Field(None, description="Qdrant point ID for this chunk.")
+    text: str = Field(..., description="Full text content of the chunk.")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Chunk metadata including source file, category, section, etc.")
+
+
+class ChunksByPointIdsRequest(BaseModel):
+    """Request body for querying chunks by Qdrant point IDs."""
+
+    point_ids: List[str] = Field(..., max_length=50, description="List of Qdrant point IDs to look up.")
+

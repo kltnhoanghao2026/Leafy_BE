@@ -24,7 +24,7 @@ public class EmbeddedPlanEventResponse {
     TargetType targetType;
     String note;
     String description;
-    Integer daysFromNow;
+    Integer daysFromStart;
     Integer durationDays;
     Integer phiDays;
     String ppeRequired;

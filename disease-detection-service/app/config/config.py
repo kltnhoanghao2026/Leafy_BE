@@ -37,6 +37,9 @@ class Config(BaseConfig):
     MODEL_INPUT_SIZE: tuple[int, int] = (224, 224)
     MODEL_TOP_K: int = 3  # Top K predictions to return
 
+    # File Service settings
+    FILE_SERVICE_URL: str = "http://localhost:8084/internal/files"
+
     # Logging
     LOG_LEVEL: str = "INFO"
 

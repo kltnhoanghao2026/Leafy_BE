@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, File, UploadFile, Request, Depends
+from fastapi import APIRouter, File, UploadFile, Request, Depends, Form
 
 from app.dto.response.api_response import ApiResponse
 from app.services.prediction_service import PredictionService
@@ -14,11 +14,12 @@ router = APIRouter(prefix="/predict", tags=["Prediction"])
 def predict(
     request: Request,
     file: UploadFile = File(...),
+    plantId: str | None = Form(None),
     current_user: UserPrincipal = Depends(get_current_user),
 ):
     """Classification endpoint for image prediction"""
     model = request.app.state.model
-    prediction_response = PredictionService.predict(file, model, current_user)
+    prediction_response = PredictionService.predict(file, model, current_user, plantId)
     return ApiResponse.success(prediction_response)
 
 @router.get("/health", response_model=HealthResponse)

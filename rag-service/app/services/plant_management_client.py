@@ -32,10 +32,10 @@ class PlantManagementClient:
     def create_plan(
         self,
         *,
-        rag_plan_id: str,
-        question: str,
         generated_plan: Dict[str, Any],
         plan_source: Optional[str],
+        source_documents: Optional[List[Dict[str, Any]]],
+        web_search_results: Optional[List[Dict[str, Any]]],
         auth_header: str,
     ) -> Optional[str]:
         """POST /api/plans to plant-management-service.
@@ -49,10 +49,10 @@ class PlantManagementClient:
         service's own MongoDB has already succeeded at this point.
         """
         payload = self._build_payload(
-            rag_plan_id=rag_plan_id,
-            question=question,
             generated_plan=generated_plan,
             plan_source=plan_source,
+            source_documents=source_documents,
+            web_search_results=web_search_results,
         )
 
         url = f"{self._base_url}/api/plans"
@@ -68,9 +68,8 @@ class PlantManagementClient:
 
             if response.status_code >= 400:
                 logger.warning(
-                    "[PLAN SYNC] plant-management-service returned status=%d for ragPlanId=%s — body=%s",
+                    "[PLAN SYNC] plant-management-service returned status=%d — body=%s",
                     response.status_code,
-                    rag_plan_id,
                     response.text[:200],
                 )
                 return None
@@ -81,17 +80,16 @@ class PlantManagementClient:
                 data = data["data"]
             plan_id = data.get("id") if isinstance(data, dict) else None
             logger.info(
-                "[PLAN SYNC] Plan created in plant-management-service — id=%s, ragPlanId=%s",
+                "[PLAN SYNC] Plan created in plant-management-service — id=%s",
                 plan_id,
-                rag_plan_id,
             )
             return plan_id
 
         except httpx.RequestError as exc:
-            logger.warning("[PLAN SYNC] HTTP request failed for ragPlanId=%s: %s", rag_plan_id, exc)
+            logger.warning("[PLAN SYNC] HTTP request failed: %s", exc)
             return None
         except Exception as exc:
-            logger.warning("[PLAN SYNC] Unexpected error for ragPlanId=%s: %s", rag_plan_id, exc, exc_info=True)
+            logger.warning("[PLAN SYNC] Unexpected error: %s", exc, exc_info=True)
             return None
 
     # ── Payload builder ────────────────────────────────────────────────────────
@@ -99,24 +97,32 @@ class PlantManagementClient:
     def _build_payload(
         self,
         *,
-        rag_plan_id: str,
-        question: str,
         generated_plan: Dict[str, Any],
         plan_source: Optional[str],
+        source_documents: Optional[List[Dict[str, Any]]] = None,
+        web_search_results: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
+        # Strip empty {} entries from sourceDocuments — they indicate no
+        # meaningful retrieval context was available at generation time.
+        docs = [
+            d for d in (source_documents or [])
+            if d and isinstance(d, dict) and any(v for v in d.values() if v)
+        ]
+        web = web_search_results or []
+
         schedule = generated_plan.get("schedule")
         payload: Dict[str, Any] = {
-            "ragPlanId": rag_plan_id,
-            "question": question,
             "planName": generated_plan.get("planName"),
             "source": plan_source,
+            "sourceType": "RAG_GEN",
+            "sourceDocuments": docs if docs else [],
+            "webSearchResults": web,
             "plantId": generated_plan.get("plantId"),
             "farmPlotId": generated_plan.get("farmPlotId"),
             "farmZoneId": generated_plan.get("farmZoneId"),
             "diseaseName": generated_plan.get("diseaseName"),
             "confidenceScore": generated_plan.get("confidenceScore"),
             "severityLevel": generated_plan.get("severityLevel"),
-            "urgency": generated_plan.get("urgency"),
             "requiredInputs": generated_plan.get("requiredInputs"),
             "safetyWarnings": generated_plan.get("safetyWarnings"),
             "successIndicators": generated_plan.get("successIndicators"),
@@ -135,7 +141,7 @@ class PlantManagementClient:
         ``EmbeddedPlanEventRequest`` — the backend resolves these at apply time:
 
         * ``sourcePlanId`` / ``planApplyId`` — set by the service after persistence
-        * ``isPlanned`` — determined by the service based on daysFromNow
+        * ``isPlanned`` — determined by the service based on daysFromStart
         * ``farmPlotId`` / ``farmZoneId`` / ``plantId`` — injected from the apply request
         * ``calculatedStartDate`` / ``calculatedEndDate`` — computed at apply time
         """

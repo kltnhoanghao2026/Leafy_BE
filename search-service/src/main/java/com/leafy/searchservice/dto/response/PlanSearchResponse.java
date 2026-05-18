@@ -36,7 +36,7 @@ public class PlanSearchResponse {
 
     // Visibility
     Boolean isPublic;
-    Boolean isConsulted;
+    String sourceType;
 
     // Stats
     Integer eventCount;

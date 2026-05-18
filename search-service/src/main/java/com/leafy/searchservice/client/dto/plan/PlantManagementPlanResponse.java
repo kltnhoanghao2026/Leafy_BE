@@ -43,7 +43,7 @@ public class PlantManagementPlanResponse {
 
     // Visibility
     Boolean isPublic;
-    Boolean isConsulted;
+    String sourceType;
 
     // Stats
     Long applyCount;

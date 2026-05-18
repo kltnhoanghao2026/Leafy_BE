@@ -145,19 +145,6 @@ public class PlantEventController {
                 plantEventService.getEventsByPlantIdAndPlanned(plantId, isPlanned, pageable)));
     }
 
-    @GetMapping("/plan/{sourcePlanId}")
-    public ResponseEntity<ApiResponse<Page<PlantEventResponse>>> getEventsBySourcePlanId(
-            @PathVariable String sourcePlanId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "calculatedStartDate") String sortBy,
-            @RequestParam(defaultValue = "ASC") String sortDir) {
-        log.info("GET /plant-events/plan/{} - Getting events by source plan", sourcePlanId);
-        Pageable pageable = buildPageable(page, size, sortBy, sortDir);
-        return ResponseEntity.ok(ApiResponse.success(
-                plantEventService.getEventsBySourcePlanId(sourcePlanId, pageable)));
-    }
-
     @GetMapping("/plan-apply/{planApplyId}")
     public ResponseEntity<ApiResponse<Page<PlantEventResponse>>> getEventsByPlanApplyId(
             @PathVariable String planApplyId,
@@ -205,14 +192,13 @@ public class PlantEventController {
             @RequestParam(required = false) String farmPlotId,
             @RequestParam(required = false) String farmZoneId,
             @RequestParam(required = false) String plantId,
-            @RequestParam(required = false) String sourcePlanId,
             @RequestParam(required = false) String planApplyId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        log.info("GET /plant-events/calendar - profileId={}, farmPlotId={}, farmZoneId={}, plantId={}, sourcePlanId={}, planApplyId={}, range=[{}, {}]",
-                profileId, farmPlotId, farmZoneId, plantId, sourcePlanId, planApplyId, startDate, endDate);
+        log.info("GET /plant-events/calendar - profileId={}, farmPlotId={}, farmZoneId={}, plantId={}, planApplyId={}, range=[{}, {}]",
+                profileId, farmPlotId, farmZoneId, plantId, planApplyId, startDate, endDate);
         List<PlantEventResponse> events = plantEventService.getEventsForCalendar(
-                profileId, farmPlotId, farmZoneId, plantId, sourcePlanId, planApplyId, startDate, endDate);
+                profileId, farmPlotId, farmZoneId, plantId, planApplyId, startDate, endDate);
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 

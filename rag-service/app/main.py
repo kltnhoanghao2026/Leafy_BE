@@ -47,9 +47,21 @@ from app.exceptions.global_exception_handler import register_exception_handlers
 from app.controllers.chat_controller import router as chat_router
 from app.controllers.ingestion_controller import router as ingestion_router
 from app.controllers.conversation_controller import router as conversation_router
-from app.controllers.plan_controller import router as plan_router
+from app.controllers.plan_generation_controller import router as plan_generation_router
+from app.controllers.chunks_controller import router as chunks_router
 import app.agents.rag_agent as rag_agent_module
+import app.agents.plan_agent as plan_agent_module
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+import asyncio
+import shutil
+import uuid
+from pathlib import Path
+
+from app.utils.file_utils import calculate_file_hash
+from app.services.vector_db import get_vector_service
+from app.services.task_manager import get_task_manager
+from app.workers.document import process_document
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +74,50 @@ else:
     logger.warning("LangSmith tracing is DISABLED (LANGCHAIN_TRACING_V2 != true)")
 # ────────────────────────────────────────────────────────────────────────────
 
+async def ingest_knowledge_examples():
+    """Auto-ingest markdown documents from knowledge-example folder at startup."""
+    knowledge_dir = Path("knowledge-example")
+    upload_dir = Path("uploads")
+    upload_dir.mkdir(exist_ok=True)
+    
+    if not knowledge_dir.exists():
+        logger.warning("knowledge-example directory not found, skipping pre-ingestion.")
+        return
+
+    try:
+        vector_service = get_vector_service()
+        task_manager = get_task_manager()
+    except Exception as e:
+        logger.warning("Could not initialize vector_service or task_manager: %s", e)
+        return
+
+    for file_path in knowledge_dir.glob("*.md"):
+        try:
+            file_hash = await calculate_file_hash(file_path)
+            if vector_service.check_existing_hash(file_hash):
+                logger.info("File %s already ingested, skipping.", file_path.name)
+                continue
+                
+            logger.info("Auto-ingesting knowledge file: %s", file_path.name)
+            task_id = str(uuid.uuid4())
+            
+            # Create a copy since process_document removes it after completion
+            temp_file_path = upload_dir / f"{task_id}_{file_path.name}"
+            shutil.copy2(file_path, temp_file_path)
+            
+            metadata = {
+                "original_filename": file_path.name,
+                "content_type": "text/markdown",
+                # No user_id → treated as public knowledge base doc,
+                # visible to ALL users via the IsEmptyCondition filter in hybrid_search.
+                "category": "agronomy",
+                "variety": "coffee"
+            }
+            task_manager.create_task(task_id, file_info=metadata)
+            
+            asyncio.create_task(process_document(temp_file_path, metadata, file_hash, task_id))
+        except Exception as e:
+            logger.error("Error auto-ingesting %s: %s", file_path.name, e)
 
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
@@ -77,10 +133,16 @@ async def lifespan(fastapi_app: FastAPI):
     logger.info("[STARTUP] Initialising AsyncSqliteSaver at '%s'", db_path)
     async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
         rag_agent_module.rag_app = rag_agent_module.build_graph(checkpointer)
+        plan_agent_module.plan_app = plan_agent_module.build_graph(checkpointer)
         logger.info("[STARTUP] LangGraph RAG pipeline ready")
+        
+        # Run auto-ingestion for knowledge examples
+        await ingest_knowledge_examples()
+        
         yield
     # Connection is closed automatically when the async context exits on shutdown
     rag_agent_module.rag_app = None
+    plan_agent_module.plan_app = None
     logger.info("[SHUTDOWN] AsyncSqliteSaver connection closed")
 
 tags_metadata = [
@@ -138,6 +200,7 @@ app = FastAPI(
         "| PDF    | `application/pdf` |\n"
         "| DOCX   | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |\n"
         "| TXT    | `text/plain` |\n"
+        "| Markdown | `text/markdown` |\n"
     ),
     version="2.0.0",
     contact={
@@ -161,7 +224,8 @@ register_exception_handlers(app)
 # ── Routers ──────────────────────────────────────────────────────────────────
 app.include_router(ingestion_router, prefix="/rag/v1", tags=["Ingestion"])
 app.include_router(chat_router, prefix="/rag/v1", tags=["Chat"])
-app.include_router(plan_router, prefix="/rag/v1/plans", tags=["Treatment Plans"])
+app.include_router(chunks_router, prefix="/rag/v1", tags=["Chunks"])
+app.include_router(plan_generation_router, prefix="/rag/v2/plans", tags=["Treatment Plans"])
 app.include_router(conversation_router, prefix="/rag/v1/conversations", tags=["Conversations"])
 
 

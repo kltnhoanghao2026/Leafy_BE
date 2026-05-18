@@ -56,7 +56,7 @@ public class PlantEvent extends BaseModel {
     String description;
 
     /** Days from creation date (used by RAG planner; stored for reference). */
-    Integer daysFromNow;
+    Integer daysFromStart;
 
     /** Duration of the event window in days. */
     Integer durationDays;
@@ -84,10 +84,6 @@ public class PlantEvent extends BaseModel {
     String estimatedCost;
 
     // ── Source Tracking ───────────────────────────────────────────────────────
-    /** ID of the Plan (MongoDB) that generated this event, if any. */
-    @Indexed
-    String sourcePlanId;
-
     /** ID of the PlanApply instance that generated this event, if any. */
     @Indexed
     String planApplyId;

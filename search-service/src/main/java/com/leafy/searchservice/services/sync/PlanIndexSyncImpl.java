@@ -143,7 +143,7 @@ public class PlanIndexSyncImpl {
                 .successIndicators(plan.getSuccessIndicators())
                 .estimatedCost(plan.getEstimatedCost())
                 .isPublic(plan.getIsPublic())
-                .isConsulted(plan.getIsConsulted())
+                .sourceType(plan.getSourceType())
                 .eventCount(plan.getEvents() != null ? plan.getEvents().size() : 0)
                 .applyCount(plan.getApplyCount())
                 .creatorName(creatorName)

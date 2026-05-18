@@ -1,6 +1,7 @@
 import io
 import time
 import logging
+import requests
 import numpy as np
 from PIL import Image
 from fastapi import UploadFile
@@ -48,13 +49,33 @@ class PredictionService:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _save_request(file: UploadFile, user_id: str) -> str:
+    def _upload_to_file_service(file: UploadFile, image_bytes: bytes) -> str:
+        """Uploads the image to file-service and returns the fileId. Returns empty string on failure."""
+        url = f"{config.FILE_SERVICE_URL}/upload"
+        files = {
+            'file': (file.filename or "image.jpg", image_bytes, file.content_type or "image/jpeg")
+        }
+        try:
+            response = requests.post(url, files=files, timeout=10)
+            if response.status_code in [200, 201]:
+                resp_json = response.json()
+                return resp_json.get("data", {}).get("id", "")
+            else:
+                logger.error(f"Failed to upload to file-service. Status: {response.status_code}, Body: {response.text}")
+        except Exception as e:
+            logger.error(f"Exception calling file-service: {e}")
+        return ""
+
+    @staticmethod
+    def _save_request(file: UploadFile, user_id: str, file_id: str = "", plant_id: str = "") -> str:
         """Persist DiagnoseRequest to MongoDB; returns diagnoseRequestId."""
         try:
             doc = DiagnoseRequest(
                 userId=user_id,
                 imageFileName=file.filename or "unknown",
                 imageContentType=file.content_type or "image/unknown",
+                fileId=file_id,
+                plantId=plant_id or ""
             )
             return DiagnoseRepository.save_request(doc.to_dict())
         except Exception as e:
@@ -86,7 +107,7 @@ class PredictionService:
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def predict(cls, file: UploadFile, model, current_user: UserPrincipal) -> dict:
+    def predict(cls, file: UploadFile, model, current_user: UserPrincipal, plant_id: str | None = None) -> dict:
         start_time = time.time()
 
         try:
@@ -96,8 +117,11 @@ class PredictionService:
              if not model:
                   raise AppException(ErrorCode.MODEL_NOT_LOADED)
 
+             # Upload to file-service
+             file_id = cls._upload_to_file_service(file, image_bytes)
+
              # Persist request before inference
-             diagnose_request_id = cls._save_request(file, current_user.id)
+             diagnose_request_id = cls._save_request(file, current_user.id, file_id, plant_id or "")
 
              predictions = AIModelInference.perform_inference(model, image_array)
              processing_time = (time.time() - start_time) * 1000

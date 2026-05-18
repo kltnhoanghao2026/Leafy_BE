@@ -131,6 +131,8 @@ EventTypeEnum = Literal[
     "HARVEST",              # Cherry picking — used for totalYieldKg tracking
 ]
 
+TargetTypeEnum = Literal["FARM", "FARM_ZONE", "PLANT"]
+
 PlanSourceEnum = Literal["websearch", "documents"]
 
 
@@ -142,11 +144,13 @@ class EventTask(BaseModel):
 
     title: str = Field(
         ...,
-        description="Short label describing what needs to be done, e.g. 'Mix fungicide solution'.",
+        max_length=60,
+        description="Short label (max 60 chars), e.g. 'Pha dung dịch thuốc trừ nấm'.",
     )
     description: Optional[str] = Field(
         default=None,
-        description="Optional longer explanation, dosage instructions, or notes for this specific task.",
+        max_length=200,
+        description="Optional 1-sentence note (max 200 chars). Only add if genuinely needed.",
     )
     order: Optional[int] = Field(
         default=None,
@@ -193,12 +197,21 @@ class PlantEvent(BaseModel):
             "• HARVEST — cherry picking event"
         ),
     )
-    daysFromNow: int = Field(
+    targetType: TargetTypeEnum = Field(
+        ...,
+        description=(
+            "Intended scope of this template event:\n"
+            "• FARM — event applies to an entire farm plot\n"
+            "• FARM_ZONE — event applies to a specific zone within a farm plot\n"
+            "• PLANT — event applies to an individual plant"
+        ),
+    )
+    daysFromStart: int = Field(
         ...,
         description=(
             "Offset in days from the plan's start date: 0 = day 1, 7 = one week in, etc. "
             "Calculate gaps from the protocol timing "
-            "(e.g. 'repeat in 2 weeks' → second event has daysFromNow = first + 14)."
+            "(e.g. 'repeat in 2 weeks' → second event has daysFromStart = first + 14)."
         ),
     )
     durationDays: int = Field(
@@ -207,14 +220,16 @@ class PlantEvent(BaseModel):
     )
     note: str = Field(
         ...,
-        description="Short title / label for the event, e.g. 'Copper Fungicide Spray'.",
+        max_length=80,
+        description="Short title / label for the event (max 80 chars), e.g. 'Phun thuốc trừ nấm lần 1'.",
     )
     description: str = Field(
         ...,
+        max_length=400,
         description=(
-            "Detailed instructions: dosage, method, and safety precautions. "
-            "Be specific — e.g. 'Apply Captan 50 WP at 0.5% concentration. "
-            "Wear PPE. Ensure full leaf coverage. Avoid spraying in direct sunlight.'"
+            "Concise, actionable instructions in 1-3 sentences (max 400 chars). "
+            "Include dosage and method ONLY when known from context — do NOT invent. "
+            "Example: 'Pha Anvil 5SC nồng độ 0.1%, phun ướt đều 2 mặt lá. Đeo khẩu trang và găng tay khi phun.'"
         ),
     )
     # ── Chemical application safety fields (TREATMENT_APPLICATION only) ───────
@@ -255,11 +270,11 @@ class PlantEvent(BaseModel):
             "e.g. '200,000 VND' or '$5–$10'. Leave null if unknown."
         ),
     )
-    # ── Sub-tasks (optional step-by-step breakdown of this event) ──────────────
-    tasks: Optional[List["EventTask"]] = Field(
+    # ── Sub-tasks (step-by-step breakdown of this event) ──────────────
+    tasks: Optional[List[EventTask]] = Field(
         default=None,
         description=(
-            "Optional ordered list of sub-tasks that break this event into smaller steps. "
+            "Ordered list of sub-tasks that break this event into smaller steps. "
             "Include tasks when the event has multiple distinct actions "
             "(e.g. mixing, applying, cleaning equipment). "
             "Leave null for simple single-step events."
@@ -281,10 +296,10 @@ class Plan(BaseModel):
     )
     planName: str = Field(
         ...,
+        max_length=100,
         description=(
-            "Short, descriptive title for this plan. "
-            "e.g. 'Coffee Leaf Rust Treatment — Week 1' or 'Post-Harvest Pruning & Fertilisation Plan'. "
-            "Should clearly convey the primary objective and timeframe."
+            "Short, descriptive title (max 100 chars). "
+            "e.g. 'Kế hoạch trị rỉ sắt — 4 tuần' or 'Chăm sóc mùa khô — Tháng 1-3'."
         ),
     )
     diseaseName: str = Field(
@@ -304,15 +319,6 @@ class Plan(BaseModel):
             "'LOW' — cosmetic damage only, no yield impact; "
             "'MEDIUM' — yield risk if untreated; "
             "'HIGH' — risk of plant death or total crop loss."
-        ),
-    )
-    urgency: str = Field(
-        ...,
-        description=(
-            "Time sensitivity of the first action: "
-            "'IMMEDIATE' — must act within 24 hours; "
-            "'HIGH' — act within 3 days; "
-            "'NORMAL' — can wait until within the week."
         ),
     )
     source: Optional[PlanSourceEnum] = Field(
@@ -337,7 +343,7 @@ class Plan(BaseModel):
     # --- Action Plan ---
     schedule: List[PlantEvent] = Field(
         ...,
-        description="Chronological list of PlantEvent items ordered by daysFromNow (ascending).",
+        description="Chronological list of PlantEvent items ordered by daysFromStart (ascending).",
     )
 
     # --- Resources & Safety ---
@@ -361,10 +367,10 @@ class Plan(BaseModel):
     # --- Outcome Tracking ---
     successIndicators: str = Field(
         ...,
+        max_length=300,
         description=(
-            "Visual or measurable signs that the treatment is working. "
-            "e.g. 'Fungal spots stop spreading and turn grey/dry within 7 days. "
-            "No new lesions visible after second spray. Leaf colour returns to healthy green.'"
+            "1-2 sentences describing measurable signs of success (max 300 chars). "
+            "e.g. 'Vết bệnh ngừng lan, lá non không có đốm mới sau 2 tuần phun thuốc.'"
         ),
     )
     estimatedCost: Optional[str] = Field(

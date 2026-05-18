@@ -28,18 +28,25 @@ class ChatRepository:
         return cls._instance
 
     def serialize_document(self, doc: Any) -> Dict[str, Any]:
-        """Best-effort conversion of a document-like object to a JSON-safe dict."""
+        """Best-effort conversion of a document-like object to a JSON-safe dict.
+
+        Extracts ``point_id`` from metadata so it is available as a
+        top-level field on ``SourceDocument`` in plant-management-service.
+        """
         if isinstance(doc, dict):
+            metadata = doc.get("metadata") or {}
             return {
                 "page_content": doc.get("page_content", ""),
-                "metadata": doc.get("metadata", {}),
+                "metadata": metadata,
+                "point_id": metadata.get("point_id"),
             }
 
+        metadata = getattr(doc, "metadata", {}) or {}
         page_content = getattr(doc, "page_content", "")
-        metadata = getattr(doc, "metadata", {})
         return {
             "page_content": page_content,
             "metadata": metadata if isinstance(metadata, dict) else {},
+            "point_id": metadata.get("point_id") if isinstance(metadata, dict) else None,
         }
 
     def serialize_documents(self, raw_docs: List[Any]) -> List[Dict[str, Any]]:
@@ -117,10 +124,10 @@ class ChatRepository:
             if auth_header:
                 pm_client = get_plant_management_client()
                 pm_plan_id = pm_client.create_plan(
-                    rag_plan_id=mongo_plan_id,
-                    question=question,
                     generated_plan=generated_plan,
                     plan_source=plan_source,
+                    source_documents=source_documents,
+                    web_search_results=web_search_results,
                     auth_header=auth_header,
                 )
 

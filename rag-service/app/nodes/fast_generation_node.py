@@ -41,6 +41,10 @@ def fast_generation(state: GraphState) -> dict:
     documents = state.get("documents", [])
     env_state = state.get("env_state", {})
     language = state.get("language", "English")
+    # When a clarification round-trip occurred, original_question holds the
+    # intent-bearing query (e.g. "bệnh rỉ sắt điều trị bằng thuốc gì") while
+    # `question` is only the clarifying reply ("cây cà phê").
+    original_question = (state.get("original_question") or "").strip()
 
     # Build history: all messages except the last one (the current HumanMessage).
     # Truncate to the last _MAX_HISTORY_PAIRS * 2 messages to control token budget.
@@ -110,9 +114,19 @@ def fast_generation(state: GraphState) -> dict:
     # Format documents
     context = "\n\n".join([doc.page_content for doc in documents])
     
+    # Build the effective question for the model:
+    # if this is a clarification-answer turn, surface the original intent.
+    if original_question and original_question.lower() != question.lower():
+        effective_question = (
+            f"[Primary intent: {original_question}]\n"
+            f"[Clarification provided by user: {question}]"
+        )
+    else:
+        effective_question = question
+
     generation = chain.invoke({
         "context": context,
-        "question": question,
+        "question": effective_question,
         "env_context": env_context,
         "language": language,
         "history": history,

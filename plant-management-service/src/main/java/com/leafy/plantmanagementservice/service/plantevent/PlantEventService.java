@@ -27,7 +27,6 @@ public interface PlantEventService {
 
     Page<PlantEventResponse> getEventsByPlantIdAndPlanned(String plantId, boolean isPlanned, Pageable pageable);
 
-    Page<PlantEventResponse> getEventsBySourcePlanId(String sourcePlanId, Pageable pageable);
 
     Page<PlantEventResponse> getEventsByPlanApplyId(String planApplyId, Pageable pageable);
 
@@ -36,7 +35,7 @@ public interface PlantEventService {
     Page<PlantEventResponse> getEventsByFarmZoneId(String farmZoneId, Pageable pageable);
 
     List<PlantEventResponse> getEventsForCalendar(String profileId, String farmPlotId, String farmZoneId, String plantId,
-                                                   String sourcePlanId, String planApplyId,
+                                                   String planApplyId,
                                                    LocalDate startDate, LocalDate endDate);
 
     Page<PlantEventResponse> getAllEvents(EventType eventType, Boolean planned, String farmPlotId, String farmZoneId, Pageable pageable);

@@ -4,6 +4,8 @@ import com.leafy.plantmanagementservice.dto.request.plan.EmbeddedPlanEventReques
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
+import com.leafy.plantmanagementservice.model.enums.SeverityLevel;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -17,17 +19,16 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PlanCreateRequest {
 
-    /** UUID from the RAG service PlanDoc — links both records. */
-    String ragPlanId;
-
-    /** Original natural-language question the user sent to the RAG service. */
-    String question;
-
     /** Custom name for the plan */
     String planName;
 
     @Pattern(regexp = "^(websearch|documents)$", message = "source must be one of: websearch, documents")
     String source;
+
+    PlanSourceType sourceType;
+
+    List<com.leafy.plantmanagementservice.model.SourceDocument> sourceDocuments;
+    List<com.leafy.plantmanagementservice.model.WebSearchResult> webSearchResults;
 
     // ── Plant / Farm scope ────────────────────────────────────────────────────
 
@@ -42,9 +43,7 @@ public class PlanCreateRequest {
 
     Double confidenceScore;
 
-    String severityLevel;
-
-    String urgency;
+    SeverityLevel severityLevel;
 
     // ── Plan metadata ─────────────────────────────────────────────────────────
 

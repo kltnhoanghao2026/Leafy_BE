@@ -27,6 +27,10 @@ class PlanDoc(BaseModel):
             "Accepted values: `websearch`, `documents`."
         ),
     )
+    sourceType: str = Field(
+        default="RAG_GEN",
+        description="The origin type of this plan.",
+    )
     plan: Dict[str, Any] = Field(..., description="Full serialized Plan object.")
     source_documents: Optional[List[Dict[str, Any]]] = Field(
         None,

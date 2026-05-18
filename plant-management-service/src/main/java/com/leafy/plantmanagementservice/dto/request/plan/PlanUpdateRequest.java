@@ -1,5 +1,6 @@
 package com.leafy.plantmanagementservice.dto.request.plan;
 
+import com.leafy.plantmanagementservice.model.enums.SeverityLevel;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -21,9 +22,7 @@ public class PlanUpdateRequest {
 
     Double confidenceScore;
 
-    String severityLevel;
-
-    String urgency;
+    SeverityLevel severityLevel;
 
     // ── Plan metadata ─────────────────────────────────────────────────────────
 

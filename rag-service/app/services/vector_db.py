@@ -1,7 +1,7 @@
 import os
 import re
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import qdrant_client
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient, models as qdrant_models
@@ -190,11 +190,14 @@ class VectorStoreService:
             if offset is None:
                 break
         
-        # Convert to LangChain documents
+        # Convert to LangChain documents — include point ID in metadata so
+        # it is preserved across all downstream pipeline nodes (BM25 cache,
+        # reranker, planner) and can be serialised when saving source docs.
         documents = []
         for point in all_points:
             content = point.payload.get("page_content", "")
-            metadata = point.payload.get("metadata", {})
+            metadata = dict(point.payload.get("metadata") or {})
+            metadata["point_id"] = point.id   # expose Qdrant point ID in metadata
             documents.append(Document(page_content=content, metadata=metadata))
         
         return documents
@@ -217,26 +220,232 @@ class VectorStoreService:
         
         return self._bm25_index
     
+    # ── Metadata-enriched query helpers ─────────────────────────────────────────
+
+    def _build_metadata_search_text(self, metadata: dict) -> str:
+        """
+        Construct a compact search-enrichment string from chunk metadata.
+
+        This text is prepended to the user's query before embedding so that
+        metadata fields (section title, category, variety, filename, etc.)
+        contribute to the semantic search signal — useful when a chunk's body
+        text is too generic but its surrounding context is highly specific.
+
+        Example result:
+        "category agronomy variety coffee source rag_knowledge_nhen_do.md
+        section 2. Triệu Chứng Nhận Biết
+        path Nhện Đỏ Red Spider Mite Hại Cà Phê Triệu Chứng Phòng Trừ"
+        """
+        parts = []
+
+        cat = metadata.get("category", "")
+        if cat:
+            parts.append(f"category {cat}")
+
+        variety = metadata.get("variety", "")
+        if variety:
+            parts.append(f"variety {variety}")
+
+        src = metadata.get("source_file") or metadata.get("original_filename", "")
+        if src:
+            parts.append(f"source {src}")
+
+        section = metadata.get("section_title", "")
+        if section:
+            parts.append(f"section {section}")
+
+        path = metadata.get("section_full_path", "")
+        if path:
+            # Strip the heading from the full path to get the document title
+            parts.append(f"path {path}")
+
+        return " ".join(parts)
+
+    # ── Dense search with optional per-result metadata enrichment ──────────────
+
+    def _dense_search_raw(
+        self,
+        query: str,
+        k: int = 20,
+        user_id: Optional[str] = None,
+        with_vectors: bool = False,
+    ) -> List[dict]:
+        """
+        Low-level dense search that returns raw Qdrant hit dicts.
+
+        Returns ``List[dict]`` so callers can cheaply extract ``score``,
+        ``point_id``, and the full ``metadata`` payload without re-materialising
+        LangChain Document objects.
+        """
+        if user_id:
+            user_filter = qdrant_models.Filter(
+                should=[
+                    qdrant_models.FieldCondition(
+                        key="metadata.user_id",
+                        match=qdrant_models.MatchValue(value=user_id),
+                    ),
+                    qdrant_models.IsEmptyCondition(
+                        is_empty=qdrant_models.PayloadField(key="metadata.user_id")
+                    ),
+                ]
+            )
+            search_filter = user_filter
+        else:
+            search_filter = None
+
+        return self.client.query_points(
+            collection_name=self.collection_name,
+            query=self.embeddings.embed_query(query),
+            limit=k,
+            with_payload=True,
+            with_vectors=with_vectors,
+            query_filter=search_filter,
+        ).points
+
+    def search_with_point_ids(
+        self,
+        query: str,
+        k: int = 20,
+        user_id: Optional[str] = None,
+        with_vectors: bool = False,
+    ) -> List[Tuple[str, "Document"]]:
+        """
+        Perform dense vector search and return (point_id, Document) pairs.
+
+        Unlike ``hybrid_search``, this method does NOT apply BM25 or RRF — it
+        returns raw vector search hits so callers can capture the exact Qdrant
+        point IDs needed for source-document tracking.
+        """
+        from langchain_core.documents import Document
+
+        hits = self._dense_search_raw(query, k=k, user_id=user_id, with_vectors=with_vectors)
+
+        results: List[Tuple[str, Document]] = []
+        for hit in hits:
+            payload = hit.payload or {}
+            content = payload.get("page_content", "")
+            metadata = dict(payload.get("metadata") or {})
+            metadata["rerank_score"] = getattr(hit, "score", 0.0)
+            results.append((hit.id, Document(page_content=content, metadata=metadata)))
+        return results
+
+    def search_with_metadata_enrichment(
+        self,
+        query: str,
+        k: int = 20,
+        user_id: Optional[str] = None,
+    ) -> List[Tuple[str, "Document"]]:
+        """
+        Perform dense vector search where each chunk is retrieved using a
+        query augmented with its own metadata text.
+
+        Algorithm
+        ---------
+        1. Retrieve ``k`` candidates with standard dense search (no metadata text).
+        2. For every candidate, prepend the chunk's metadata context to the
+           original query and re-score with a second embedding call.
+        3. Sort by the metadata-enriched scores and return the top ``k`` pairs.
+
+        This lets semantically thin chunks (e.g. a single bullet point) be
+        retrieved when their section title or filename is highly relevant, even
+        if the body text alone would not rank highly.
+        """
+        from langchain_core.documents import Document
+
+        hits = self._dense_search_raw(query, k=k, user_id=user_id)
+        if not hits:
+            return []
+
+        results: List[Tuple[str, Document]] = []
+        for hit in hits:
+            payload = hit.payload or {}
+            content = payload.get("page_content", "")
+            metadata = dict(payload.get("metadata") or {})
+            metadata["rerank_score"] = getattr(hit, "score", 0.0)
+
+            meta_text = self._build_metadata_search_text(metadata)
+            enriched_query = f"{query} {meta_text}" if meta_text else query
+            enriched_embedding = self.embeddings.embed_query(enriched_query)
+
+            # Re-score this chunk against the enriched query
+            refetch = self.client.query_points(
+                collection_name=self.collection_name,
+                query=enriched_embedding,
+                limit=1,
+                with_payload=True,
+                with_vectors=False,
+                query_filter=qdrant_models.Filter(
+                    must=[
+                        qdrant_models.FieldCondition(
+                            key="id",
+                            match=qdrant_models.MatchValue(value=hit.id),
+                        )
+                    ]
+                ),
+            ).points
+
+            score = refetch[0].score if refetch else metadata["rerank_score"]
+            metadata["rerank_score"] = score
+            metadata["metadata_enriched_query"] = enriched_query
+            results.append((hit.id, Document(page_content=content, metadata=metadata)))
+
+        # Sort by enriched score descending
+        results.sort(key=lambda x: x[1].metadata.get("rerank_score", 0), reverse=True)
+        return results
+
+    # ── BM25 with metadata keywords ──────────────────────────────────────────
+
     def _bm25_search(self, query: str, k: int = 10, user_id: Optional[str] = None) -> List:
         """Perform BM25 sparse keyword search, optionally scoped to a user."""
         from langchain_core.documents import Document
-        
+
         # Lazy-load BM25 index
         if self._bm25_index is None:
             self._initialize_bm25()
-        
+
         # Guard: no documents in collection yet
         if self._bm25_index is None or not self._cached_documents:
             return []
-        
-        # Tokenize query
+
+        # ── Two-pass scoring ─────────────────────────────────────────────────
+        # Pass 1: raw text BM25 scores
         tokenized_query = query.lower().split()
-        
-        # Get BM25 scores over the full corpus
-        scores = self._bm25_index.get_scores(tokenized_query)
-        
-        # Walk top candidates in score order, applying user_id filter
-        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+        raw_scores = self._bm25_index.get_scores(tokenized_query)
+
+        # Pass 2: metadata keyword BM25 — tokenise every cached doc's metadata text
+        meta_scores = [0.0] * len(self._cached_documents)
+        if self._cached_documents:
+            # Build a lightweight in-memory BM25 index over metadata fields only
+            # (category, variety, source_file, section_title, section_full_path).
+            # This is cheap because it's just strings, not full chunk text.
+            try:
+                from rank_bm25 import BM25Okapi as BM25Meta
+                meta_corpus = [
+                    self._build_metadata_search_text(doc.metadata).lower()
+                    for doc in self._cached_documents
+                ]
+                # Only build if at least one doc has non-empty metadata
+                non_empty = [t for t in meta_corpus if t.strip()]
+                if non_empty:
+                    meta_bm25 = BM25Meta([t.split() for t in non_empty])
+                    # Align indices: map score to original doc position
+                    for idx, doc in enumerate(self._cached_documents):
+                        meta_text = meta_corpus[idx]
+                        if meta_text.strip():
+                            meta_tokens = meta_text.split()
+                            meta_scores[idx] = meta_bm25.get_scores(meta_tokens)[0]
+            except Exception as exc:
+                logger.warning("[BM25] Metadata BM25 index build failed (non-fatal): %s", exc)
+                meta_scores = [0.0] * len(self._cached_documents)
+
+        # Combine: 70 % text BM25 + 30 % metadata BM25
+        combined_scores = [
+            0.7 * raw_scores[i] + 0.3 * meta_scores[i]
+            for i in range(len(raw_scores))
+        ]
+
+        # Walk top candidates in combined score order, applying user_id filter
+        top_indices = sorted(range(len(combined_scores)), key=lambda i: combined_scores[i], reverse=True)
         results = []
         for i in top_indices:
             doc = self._cached_documents[i]
@@ -247,7 +456,7 @@ class VectorStoreService:
             if len(results) >= k:
                 break
         return results
-    
+
     def _reciprocal_rank_fusion(self, dense_results: List, sparse_results: List, k: int = 10) -> List:
         """
         Combine dense and sparse results using Reciprocal Rank Fusion.
@@ -325,6 +534,73 @@ class VectorStoreService:
         hybrid_results = self._reciprocal_rank_fusion(dense_results, sparse_results, k=final_k)
         
         return hybrid_results
+
+    def search_with_point_ids(
+        self,
+        query: str,
+        k: int = 20,
+        user_id: Optional[str] = None,
+        with_vectors: bool = False,
+    ) -> List[Tuple[str, "Document"]]:
+        """
+        Perform dense vector search and return (point_id, Document) pairs.
+
+        Unlike ``hybrid_search``, this method does NOT apply BM25 or RRF — it
+        returns raw vector search hits so callers can capture the exact Qdrant
+        point IDs needed for source-document tracking.
+
+        Parameters
+        ----------
+        query : str
+            Search query string.
+        k : int
+            Number of top results to return.
+        user_id : str, optional
+            When provided, restrict results to this user's documents plus
+            public/admin knowledge-base documents (no user_id field).
+        with_vectors : bool
+            Whether to include the full embedding vector in results.
+
+        Returns
+        -------
+        list[tuple[str, Document]]
+            List of (point_id, Document) pairs, one per search hit.
+        """
+        from langchain_core.documents import Document
+
+        if user_id:
+            user_filter = qdrant_models.Filter(
+                should=[
+                    qdrant_models.FieldCondition(
+                        key="metadata.user_id",
+                        match=qdrant_models.MatchValue(value=user_id),
+                    ),
+                    qdrant_models.IsEmptyCondition(
+                        is_empty=qdrant_models.PayloadField(key="metadata.user_id")
+                    ),
+                ]
+            )
+            search_filter = user_filter
+        else:
+            search_filter = None
+
+        search_results = self.client.query_points(
+            collection_name=self.collection_name,
+            query=self.embeddings.embed_query(query),
+            limit=k,
+            with_payload=True,
+            with_vectors=with_vectors,
+            query_filter=search_filter,
+        )
+
+        results: List[Tuple[str, Document]] = []
+        for hit in search_results.points:
+            payload = hit.payload or {}
+            content = payload.get("page_content", "")
+            metadata = dict(payload.get("metadata") or {})
+            metadata["rerank_score"] = getattr(hit, "score", 0.0)
+            results.append((hit.id, Document(page_content=content, metadata=metadata)))
+        return results
 
 # Global instance getter
 def get_vector_service():

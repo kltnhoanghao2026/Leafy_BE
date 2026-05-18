@@ -20,3 +20,5 @@ python-dotenv==1.0.1
 # Database
 pymongo==4.10.1
 
+# HTTP Client
+requests==2.31.0

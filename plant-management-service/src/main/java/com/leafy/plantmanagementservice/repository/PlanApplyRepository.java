@@ -16,6 +16,10 @@ public interface PlanApplyRepository extends MongoRepository<PlanApply, String> 
 
     Page<PlanApply> findByPlanId(String planId, Pageable pageable);
 
+    List<PlanApply> findByPlanIdAndAppliedById(String planId, String appliedById);
+
+    Page<PlanApply> findByPlanIdAndAppliedById(String planId, String appliedById, Pageable pageable);
+
     List<PlanApply> findByAppliedById(String appliedById);
 
     Page<PlanApply> findByAppliedById(String appliedById, Pageable pageable);

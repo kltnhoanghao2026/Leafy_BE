@@ -53,9 +53,18 @@ class ChatService:
             "refinement_count": 0,
             "refinement_guidance": "",
             "generated_plan": None,
-            "plant_id": None,
+            "plant_id": request.plant_id or None,
             "farm_plot_id": request.farm_plot_id or None,
             "farm_zone_id": request.farm_zone_id or None,
+            # Map frontend "planner" → internal "planning"; "auto" → None (use auto-routing)
+            "forced_route": (
+                "planning" if request.route == "planner"
+                else request.route if request.route not in (None, "auto")
+                else None
+            ),
+            # Dedicated Qdrant retrieval query (optional) — decoupled from the
+            # generation prompt.  Hybrid search prefers this over `question` when set.
+            "search_query": request.search_query or None,
         }
 
     def _build_chat_result(
@@ -156,6 +165,7 @@ class ChatService:
         request: ChatRequest,
         current_user: UserPrincipal,
         auth_header: Optional[str] = None,
+        save_conversation: bool = True,
     ) -> ChatResponse:
         """Execute non-streaming chat flow and return final response DTO."""
         thread_id = request.thread_id or str(uuid.uuid4())
@@ -171,12 +181,14 @@ class ChatService:
             logger.error("RAG pipeline error for user %s: %s", current_user.id, e, exc_info=True)
             raise AppException(ErrorCode.RAG_PIPELINE_ERROR, str(e))
 
-        saved_plan_id = self._chat_repository.persist_plan_if_any(
-            final_state,
-            user_id=current_user.id,
-            question=request.question,
-            auth_header=auth_header,
-        )
+        saved_plan_id = None
+        if save_conversation:
+            saved_plan_id = self._chat_repository.persist_plan_if_any(
+                final_state,
+                user_id=current_user.id,
+                question=request.question,
+                auth_header=auth_header,
+            )
 
         result = self._build_chat_result(
             final_state,
@@ -184,17 +196,18 @@ class ChatService:
             saved_plan_id=saved_plan_id,
         )
 
-        self._chat_repository.persist_conversation_turn(
-            user_id=current_user.id,
-            thread_id=thread_id,
-            question=request.question,
-            answer=result.answer,
-            final_state=final_state,
-            saved_plan_id=saved_plan_id,
-            rag_state="completed",
-            current_node="END",
-            step=None,
-        )
+        if save_conversation:
+            self._chat_repository.persist_conversation_turn(
+                user_id=current_user.id,
+                thread_id=thread_id,
+                question=request.question,
+                answer=result.answer,
+                final_state=final_state,
+                saved_plan_id=saved_plan_id,
+                rag_state="completed",
+                current_node="END",
+                step=None,
+            )
         return result
 
     async def stream_chat(

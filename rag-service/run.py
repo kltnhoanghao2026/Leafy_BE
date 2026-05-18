@@ -48,4 +48,10 @@ if __name__ == "__main__":
         instance_host=_get_ip(),
     )
 
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run(
+        "app.main:app", 
+        host="0.0.0.0", 
+        port=port, 
+        reload=True,
+        reload_excludes=["*.db", "*.db-journal", "checkpoints.db*"]
+    )

@@ -62,6 +62,27 @@ def delete_request(
     return ApiResponse.success(None)
 
 
+from pydantic import BaseModel
+
+class UpdatePlantRequest(BaseModel):
+    plantId: str | None
+
+@router.put("/requests/{diagnose_request_id}/plant", response_model=ApiResponse)
+def update_request_plant(
+    diagnose_request_id: str,
+    payload: UpdatePlantRequest,
+    current_user: UserPrincipal = Depends(get_current_user),
+):
+    """
+    Update the plantId for a specific diagnose request.
+    Only the owner or ADMIN may update it.
+    """
+    logger.info(f"PUT /diagnose/requests/{diagnose_request_id}/plant - user={current_user.id}")
+    plant_id = payload.plantId or ""
+    DiagnoseService.update_request_plant(diagnose_request_id, plant_id, current_user)
+    return ApiResponse.success(None)
+
+
 # ------------------------------------------------------------------ #
 #  DiagnoseResult endpoints                                            #
 # ------------------------------------------------------------------ #

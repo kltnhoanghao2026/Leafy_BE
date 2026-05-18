@@ -1,4 +1,4 @@
-package com.leafy.plantmanagementservice.controller;
+package com.leafy.plantmanagementservice.controller.internal;
 
 import com.leafy.common.dto.ApiResponse;
 import com.leafy.plantmanagementservice.dto.response.seeder.PlantSeederResponse;

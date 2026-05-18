@@ -46,4 +46,3 @@ def get_reranker_model() -> CrossEncoder:
     """Returns the cross-encoder reranker model."""
     model_name = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
     return CrossEncoder(model_name)
-

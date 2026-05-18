@@ -145,11 +145,6 @@ public class PlantEventServiceImpl implements PlantEventService {
         return plantEventMapper.toNestedResponsePage(plantEventRepository.findByPlantIdAndPlanned(plantId, isPlanned, pageable));
     }
 
-    @Override
-    public Page<PlantEventResponse> getEventsBySourcePlanId(String sourcePlanId, Pageable pageable) {
-        log.info("Fetching PlantEvents for sourcePlanId={}", sourcePlanId);
-        return plantEventMapper.toNestedResponsePage(plantEventRepository.findBySourcePlanId(sourcePlanId, pageable));
-    }
 
     @Override
     public Page<PlantEventResponse> getEventsByPlanApplyId(String planApplyId, Pageable pageable) {
@@ -182,24 +177,20 @@ public class PlantEventServiceImpl implements PlantEventService {
 
     @Override
     public List<PlantEventResponse> getEventsForCalendar(String targetProfileId, String farmPlotId, String farmZoneId, String plantId,
-                                                          String sourcePlanId, String planApplyId,
+                                                          String planApplyId,
                                                           LocalDate startDate, LocalDate endDate) {
-        log.info("Fetching calendar events: profileId={}, farmPlotId={}, farmZoneId={}, plantId={}, sourcePlanId={}, planApplyId={}, range=[{}, {}]",
-                targetProfileId, farmPlotId, farmZoneId, plantId, sourcePlanId, planApplyId, startDate, endDate);
+        log.info("Fetching calendar events: profileId={}, farmPlotId={}, farmZoneId={}, plantId={}, planApplyId={}, range=[{}, {}]",
+                targetProfileId, farmPlotId, farmZoneId, plantId, planApplyId, startDate, endDate);
 
         List<PlantEvent> events;
         boolean hasPlantId    = StringUtils.hasText(plantId);
         boolean hasPlotId     = StringUtils.hasText(farmPlotId);
         boolean hasZoneId     = StringUtils.hasText(farmZoneId);
-        boolean hasPlanId     = StringUtils.hasText(sourcePlanId);
         boolean hasApplyId    = StringUtils.hasText(planApplyId);
 
         if (hasApplyId) {
             // Most precise — filter by the exact PlanApply instance
             events = plantEventRepository.findByPlanApplyIdAndDateRange(planApplyId, startDate, endDate);
-        } else if (hasPlanId) {
-            // Filter directly by source plan — broad plan-scoped view
-            events = plantEventRepository.findBySourcePlanIdAndDateRange(sourcePlanId, startDate, endDate);
         } else if (hasPlantId) {
             // Most specific — filter by a single plant
             events = plantEventRepository.findByPlantIdAndDateRange(plantId, startDate, endDate);

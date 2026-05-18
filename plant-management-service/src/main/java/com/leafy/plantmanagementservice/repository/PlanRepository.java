@@ -12,7 +12,6 @@ import java.util.Optional;
 @Repository
 public interface PlanRepository extends MongoRepository<Plan, String> {
 
-    Page<Plan> findByUserId(String userId, Pageable pageable);
 
     Page<Plan> findByOwnerId(String ownerId, Pageable pageable);
 
@@ -20,7 +19,6 @@ public interface PlanRepository extends MongoRepository<Plan, String> {
 
     Page<Plan> findByOwnerIdOrCreatorId(String ownerId, String creatorId, Pageable pageable);
 
-    Optional<Plan> findByRagPlanId(String ragPlanId);
 
     // ── Public plan queries ───────────────────────────────────────────────────
 

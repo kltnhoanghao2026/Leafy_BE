@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # Fixed-size chunking parameters (characters, not BPE tokens)
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
+    # Markdown header-based chunking
+    MARKDOWN_CHUNK_SIZE: int = 2000
+    MARKDOWN_CHUNK_OVERLAP: int = 300
 
     # File-service (internal endpoint — no JWT required)
     FILE_SERVICE_URL: str = "http://localhost:8070"

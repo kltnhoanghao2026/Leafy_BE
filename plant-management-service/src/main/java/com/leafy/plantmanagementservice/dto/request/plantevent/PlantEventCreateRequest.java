@@ -41,8 +41,8 @@ public class PlantEventCreateRequest {
 
     String description;
 
-    @PositiveOrZero(message = "days_from_now must be zero or positive")
-    Integer daysFromNow;
+    @PositiveOrZero(message = "days_from_start must be zero or positive")
+    Integer daysFromStart;
 
     @PositiveOrZero(message = "duration_days must be zero or positive")
     Integer durationDays;
@@ -61,7 +61,6 @@ public class PlantEventCreateRequest {
     /**
      * Optional: link to the RAG-generated Plan that produced this event.
      */
-    String sourcePlanId;
 
     /** Optional: link to the PlanApply instance that produced this event. */
     String planApplyId;

@@ -17,6 +17,8 @@ class DiagnoseRequest:
     userId: str
     imageFileName: str
     imageContentType: str
+    fileId: str = ""
+    plantId: str = ""
     diagnoseRequestId: str = field(default_factory=lambda: str(uuid.uuid4()))
     timeStamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -26,5 +28,7 @@ class DiagnoseRequest:
             "userId": self.userId,
             "imageFileName": self.imageFileName,
             "imageContentType": self.imageContentType,
+            "fileId": self.fileId,
+            "plantId": self.plantId,
             "timeStamp": self.timeStamp,
         }

@@ -7,6 +7,7 @@ web search results for comprehensive answers.
 """
 
 import logging
+from datetime import datetime
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import AIMessage, SystemMessage
@@ -45,6 +46,9 @@ def deep_generation(state: GraphState) -> dict:
     refinement_guidance = state.get("refinement_guidance", "")
     env_state = state.get("env_state", {})
     language = state.get("language", "English")
+    # When a clarification round-trip occurred, original_question holds the
+    # intent-bearing query while `question` is only the clarifying reply.
+    original_question = (state.get("original_question") or "").strip()
 
     # Build history: all messages except the last one (the current HumanMessage).
     # Truncate to the last _MAX_HISTORY_PAIRS * 2 messages to control token budget.
@@ -95,12 +99,15 @@ def deep_generation(state: GraphState) -> dict:
         context_parts.append(f"=== Internal Knowledge ===\n{internal_context}")
     
     # Add web search results
+    # Prefer `raw_content` (full page text from Tavily) when available — it gives
+    # the LLM far richer agronomic detail than the short snippet in `content`.
     if web_results:
         web_context = "\n\n".join([
-            f"Web Source {i+1} ({result['url']}):\nTitle: {result['title']}\n{result['content']}"
+            f"Web Source {i+1} ({result['url']}):\nTitle: {result['title']}\n"
+            f"{result.get('raw_content') or result.get('content', '')}"
             for i, result in enumerate(web_results[:3])
         ])
-        context_parts.append(f"\n=== External Sources (2026) ===\n{web_context}")
+        context_parts.append(f"\n=== External Sources ({datetime.now().year}) ===\n{web_context}")
     
     full_context = "\n\n".join(context_parts)
     
@@ -157,9 +164,10 @@ def deep_generation(state: GraphState) -> dict:
 
     # Deep research prompt with conversation history
     base_system = (
-        "You are **Leafy**, a senior agronomist and researcher specialising in Vietnamese coffee "
-        "production (Robusta & Arabica) in the Central Highlands (Tây Nguyên). "
-        "You have access to both the internal knowledge base and the latest external sources.\n\n"
+        f"You are **Leafy**, a senior agronomist and researcher specialising in Vietnamese coffee "
+        f"production (Robusta & Arabica) in the Central Highlands (Tây Nguyên). "
+        f"You have access to both the internal knowledge base and the latest external sources. "
+        f"The current year is {datetime.now().year}.\n\n"
         "DOMAIN EXPERTISE:\n"
         "  • Diseases  : Leaf Rust (Hemileia vastatrix — races II, VI, XV prevalent in Vietnam), "
         "Brown Eye Spot (Cercospora coffeicola), Phytophthora Root Rot, "
@@ -199,9 +207,19 @@ def deep_generation(state: GraphState) -> dict:
     llm = get_gemini_pro(temperature=0.3)
     chain = prompt | llm | StrOutputParser()
     
+    # Build the effective question for the model:
+    # surface the original intent when this is a clarification-answer turn.
+    if original_question and original_question.lower() != question.lower():
+        effective_question = (
+            f"[Primary intent: {original_question}]\n"
+            f"[Clarification provided by user: {question}]"
+        )
+    else:
+        effective_question = question
+
     generation = chain.invoke({
         "context": full_context,
-        "question": question,
+        "question": effective_question,
         "safety_constraints": safety_constraints,
         "constrained_generation": constrained_generation,
         "language": language,

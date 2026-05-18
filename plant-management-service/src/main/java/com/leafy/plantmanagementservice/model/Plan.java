@@ -2,6 +2,8 @@ package com.leafy.plantmanagementservice.model;
 
 import com.leafy.common.model.BaseModel;
 import com.leafy.plantmanagementservice.model.EmbeddedPlanEvent;
+import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
+import com.leafy.plantmanagementservice.model.enums.SeverityLevel;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -38,9 +40,6 @@ public class Plan extends BaseModel {
 
     // ── Source tracking ───────────────────────────────────────────────────────
 
-    /** ID of the user who triggered the plan via the RAG chat endpoint. */
-    String userId;
-
     /** Profile ID of whoever created this plan (farmer or expert). */
     @Indexed
     String creatorId;
@@ -49,17 +48,11 @@ public class Plan extends BaseModel {
     @Indexed
     String ownerId;
 
-    /**
-     * {@code planId} UUID from the RAG service {@code PlanDoc}.
-     * Allows the AI service to later look up which Java plan corresponds to its record.
-     */
-    String ragPlanId;
-
-    /** Original natural-language question the user sent to the RAG service. */
-    String question;
-
     /** Evidence source used by the AI plan generator: websearch or documents. */
     String source;
+
+    List<SourceDocument> sourceDocuments;
+    List<WebSearchResult> webSearchResults;
 
     // ── Diagnosis ─────────────────────────────────────────────────────────────
 
@@ -73,10 +66,7 @@ public class Plan extends BaseModel {
     Double confidenceScore;
 
     /** Severity: {@code LOW}, {@code MEDIUM}, or {@code HIGH}. */
-    String severityLevel;
-
-    /** Time sensitivity: {@code IMMEDIATE}, {@code HIGH}, or {@code NORMAL}. */
-    String urgency;
+    SeverityLevel severityLevel;
 
     // ── Plan metadata ─────────────────────────────────────────────────────────
 
@@ -111,9 +101,8 @@ public class Plan extends BaseModel {
     boolean isPublic = false;
 
     /**
-     * {@code true} when the plan was created by an expert on behalf of a farmer
-     * (i.e. {@link #creatorId} differs from {@link #ownerId}).
+     * Source of this plan: USER_CREATED, CONSULTED, or RAG_GEN.
      */
     @Builder.Default
-    boolean isConsulted = false;
+    PlanSourceType sourceType = PlanSourceType.USER_CREATED;
 }

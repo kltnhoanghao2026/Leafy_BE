@@ -14,10 +14,12 @@ import com.leafy.plantmanagementservice.model.Species;
 import com.leafy.plantmanagementservice.model.Plan;
 import com.leafy.plantmanagementservice.model.PlanApply;
 import com.leafy.plantmanagementservice.model.enums.EventType;
+import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
 import com.leafy.plantmanagementservice.model.enums.PlantStatus;
 import com.leafy.plantmanagementservice.model.enums.PlanStatus;
 import com.leafy.plantmanagementservice.model.enums.TargetType;
 import com.leafy.plantmanagementservice.model.enums.TrackingGranularity;
+import com.leafy.plantmanagementservice.model.enums.SeverityLevel;
 import com.leafy.plantmanagementservice.repository.EventProgressRepository;
 import com.leafy.plantmanagementservice.repository.PlantEventRepository;
 import com.leafy.plantmanagementservice.repository.PlantRepository;
@@ -510,10 +512,11 @@ public class SeederServiceImpl implements SeederService {
                                   LocalDate today, Random random) {
         // Alternate planned (future) / actual (past)
         boolean planned = seqIndex % 2 == 0;
-        int dayOffset = planned ? (5 + seqIndex % 30) : -(1 + seqIndex % 60);
+        int calcOffset = planned ? (5 + seqIndex % 30) : -(1 + seqIndex % 60);
         int durationDays = 1 + (seqIndex % 7);
+        int daysFromStartVal = seqIndex % 30; // Enforce non-negative daysFromStart
 
-        LocalDate calcStart = today.plusDays(dayOffset);
+        LocalDate calcStart = today.plusDays(calcOffset);
         LocalDate calcEnd = calcStart.plusDays(durationDays);
 
         // Completed: only past events can be completed (~70% chance for past events)
@@ -524,12 +527,6 @@ public class SeederServiceImpl implements SeederService {
         String description = "Auto-seeded " + eventType.name().toLowerCase().replace('_', ' ')
                 + " event #" + (seqIndex + 1);
 
-        // ~20% of events have a sourcePlanId (simulating RAG-generated plans)
-        // Must be a valid 24-character hex string because Plan uses @MongoId(FieldType.OBJECT_ID)
-        String sourcePlanId = (seqIndex % 5 == 0)
-                ? String.format("5eed0000000000000000%04x", seqIndex + 1)
-                : null;
-
         PlantEvent.PlantEventBuilder builder = PlantEvent.builder()
                 .plantId(plant.getId())
                 .farmPlotId(plant.getFarmPlotId())
@@ -538,13 +535,12 @@ public class SeederServiceImpl implements SeederService {
                 .targetType(TargetType.PLANT)   // plant-scoped events always target an individual plant
                 .note(note)
                 .description(description)
-                .daysFromNow(dayOffset)
+                .daysFromStart(daysFromStartVal)
                 .durationDays(durationDays)
                 .planned(planned)
                 .completed(completed)
                 .calculatedStartDate(calcStart)
-                .calculatedEndDate(calcEnd)
-                .sourcePlanId(sourcePlanId);
+                .calculatedEndDate(calcEnd);
 
         // Chemical safety fields — only for TREATMENT_APPLICATION
         if (eventType == EventType.TREATMENT_APPLICATION) {
@@ -649,9 +645,11 @@ public class SeederServiceImpl implements SeederService {
                                              EventType eventType, TrackingGranularity granularity,
                                              int seqIndex, LocalDate today) {
         boolean planned = seqIndex % 2 == 0;
-        int dayOffset = planned ? (5 + seqIndex % 30) : -(1 + seqIndex % 60);
+        int calcOffset = planned ? (5 + seqIndex % 30) : -(1 + seqIndex % 60);
         int durationDays = 1 + (seqIndex % 7);
-        LocalDate calcStart = today.plusDays(dayOffset);
+        int daysFromStartVal = seqIndex % 30; // Enforce non-negative daysFromStart
+
+        LocalDate calcStart = today.plusDays(calcOffset);
         LocalDate calcEnd = calcStart.plusDays(durationDays);
 
         String[] noteOptions = EVENT_NOTES.getOrDefault(eventType, new String[]{"Seeded event for " + eventType});
@@ -671,7 +669,7 @@ public class SeederServiceImpl implements SeederService {
                 .targetType(targetType)
                 .note(note)
                 .description(description)
-                .daysFromNow(dayOffset)
+                .daysFromStart(daysFromStartVal)
                 .durationDays(durationDays)
                 .planned(planned)
                 .completed(false)
@@ -740,11 +738,15 @@ public class SeederServiceImpl implements SeederService {
             String successInd     = disease[4];
             String planName       = "Kế hoạch " + diseaseName.split("\\(")[0].trim() + " - " + (i + 1);
 
+            String applyId = new org.bson.types.ObjectId().toString();
+
             // Link up to 3 events per plan as template events
             List<PlantEvent> linkedEvents = plantEvents.subList(0, Math.min(3, plantEvents.size()));
             linkedEvents.forEach(e -> {
-                e.setSourcePlanId(planId);
-                eventsToUpdate.add(e);
+                if (applyStatus != null) {
+                    e.setPlanApplyId(applyId);
+                    eventsToUpdate.add(e);
+                }
             });
 
             // Build EmbeddedPlanEvent list from the linked PlantEvents (up to 3)
@@ -754,7 +756,7 @@ public class SeederServiceImpl implements SeederService {
                             .targetType(e.getTargetType())   // carry scope from the source PlantEvent
                             .note(e.getNote())
                             .description(e.getDescription())
-                            .daysFromNow(e.getDaysFromNow())
+                            .daysFromStart(e.getDaysFromStart())
                             .durationDays(e.getDurationDays())
                             .phiDays(e.getPhiDays())
                             .ppeRequired(e.getPpeRequired())
@@ -764,19 +766,22 @@ public class SeederServiceImpl implements SeederService {
                             .build())
                     .collect(java.util.stream.Collectors.toList());
 
+            PlanSourceType[] types = PlanSourceType.values();
+            PlanSourceType sourceType = types[i % types.length];
+            
+            String ragId = sourceType == PlanSourceType.RAG_GEN ? "rag-" + planId : null;
+            String src = sourceType == PlanSourceType.RAG_GEN ? "RAG-SEEDER" : null;
+
             Plan plan = Plan.builder()
                     .id(planId)
                     .creatorId(ownerProfileId)
                     .ownerId(ownerProfileId)
-                    .isConsulted(false)
-                    .ragPlanId("rag-" + planId)
+                    .sourceType(sourceType)
                     .planName(planName)
-                    .question("Cách xử lý " + diseaseName + " cho cây " + plantId + "?")
-                    .source("RAG-SEEDER")
+                    .source(src)
                     .diseaseName(diseaseName)
                     .confidenceScore(0.75 + (i % 10) * 0.02)
-                    .severityLevel(severityLevel)
-                    .urgency(urgency)
+                    .severityLevel(SeverityLevel.valueOf(severityLevel.toUpperCase()))
                     .requiredInputs(List.of(requiredInput, "Bình phun 16L", "Bảo hộ lao động (găng tay, khẩu trang)"))
                     .safetyWarnings(List.of(
                         "Đeo đầy đủ bảo hộ lao động khi phun thuốc",
@@ -794,6 +799,7 @@ public class SeederServiceImpl implements SeederService {
             // Create a PlanApply for plans that have an apply status (non-PENDING)
             if (applyStatus != null) {
                 PlanApply apply = PlanApply.builder()
+                        .id(applyId)
                         .planId(planId)
                         .appliedById(ownerProfileId)
                         .plantId(plantId)

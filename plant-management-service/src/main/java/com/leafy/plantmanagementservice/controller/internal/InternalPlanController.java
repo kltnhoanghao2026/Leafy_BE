@@ -1,4 +1,4 @@
-package com.leafy.plantmanagementservice.controller;
+package com.leafy.plantmanagementservice.controller.internal;
 
 import com.leafy.common.dto.ApiResponse;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanResponse;
@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;

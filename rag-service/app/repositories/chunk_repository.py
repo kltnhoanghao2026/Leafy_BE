@@ -58,6 +58,10 @@ class ChunkRepository:
         self._collection.create_index(
             [("metadata.section", pymongo.ASCENDING)],
         )
+        # Fast lookup by Qdrant point ID (for chunk retrieval by vector ID)
+        self._collection.create_index(
+            [("point_id", pymongo.ASCENDING)],
+        )
 
         logger.info("ChunkRepository initialized — collection: %s", _COLLECTION_NAME)
 
@@ -68,6 +72,7 @@ class ChunkRepository:
         document_id: str,
         chunks: List[Dict[str, Any]],
         source_file: str,
+        point_ids: Optional[List[str]] = None,
     ) -> int:
         """
         Persist a batch of chunks to MongoDB.
@@ -80,6 +85,9 @@ class ChunkRepository:
             Each dict must contain ``text`` (str) and ``metadata`` (dict).
         source_file : str
             Original filename for human reference.
+        point_ids : list[str], optional
+            Qdrant point IDs corresponding to each chunk, in order.
+            If provided, stored alongside each chunk for later retrieval by vector ID.
 
         Returns
         -------
@@ -91,11 +99,13 @@ class ChunkRepository:
 
         docs = []
         for i, chunk in enumerate(chunks):
+            point_id = point_ids[i] if point_ids and i < len(point_ids) else None
             docs.append(
                 {
                     "document_id": document_id,
                     "chunk_id": str(uuid.uuid4()),
                     "chunk_index": i,
+                    "point_id": point_id,
                     "text": chunk["text"],
                     "metadata": {
                         **chunk.get("metadata", {}),
@@ -150,6 +160,27 @@ class ChunkRepository:
             query["metadata.section"] = section
         return list(
             self._collection.find(query, {"_id": 0}).sort("chunk_index", pymongo.ASCENDING)
+        )
+
+    def find_by_point_ids(self, point_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Retrieve chunks by their Qdrant point IDs.
+
+        Parameters
+        ----------
+        point_ids : list[str]
+            List of Qdrant point IDs to look up.
+
+        Returns
+        -------
+        list[dict]
+            Chunks matching any of the given point IDs, sorted by chunk_index.
+        """
+        return list(
+            self._collection.find(
+                {"point_id": {"$in": point_ids}},
+                {"_id": 0},
+            ).sort("chunk_index", pymongo.ASCENDING)
         )
 
 

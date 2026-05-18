@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Any, List, Dict
+from typing import Literal, Optional, Any, List, Dict
 
 
 class ChatRequest(BaseModel):
@@ -8,7 +8,7 @@ class ChatRequest(BaseModel):
         description="The natural-language question to send to the RAG pipeline.",
         examples=["What are the common diseases affecting corn crops?"],
         min_length=1,
-        max_length=2000,
+        max_length=8000,  # Increased to support long plan-generation directives
     )
     language: Optional[str] = Field(
         "English",
@@ -42,6 +42,33 @@ class ChatRequest(BaseModel):
         ),
         examples=["abc123def456abc123def456"],
     )
+    plant_id: Optional[str] = Field(
+        None,
+        description="Plant ID to associate with the treatment plan.",
+        examples=["plant123"],
+    )
+    route: Optional[Literal["auto", "fast", "deep", "planner"]] = Field(
+        "auto",
+        description=(
+            "Route selection override. "
+            "'auto' (default) lets the router decide automatically based on question content. "
+            "'fast' forces Gemini Flash without web search. "
+            "'deep' forces web search + Gemini Pro. "
+            "'planner' forces the treatment plan generation path."
+        ),
+        examples=["auto", "fast", "deep", "planner"],
+    )
+    search_query: Optional[str] = Field(
+        None,
+        description=(
+            "Optional dedicated Qdrant retrieval query, decoupled from `question`. "
+            "When provided, hybrid_search uses this string for vector/BM25 search "
+            "instead of `question`. Useful when `question` is in English but the "
+            "knowledge base is in Vietnamese (e.g. pass the disease name in Vietnamese "
+            "so the retrieval is accurate while generation stays in the target language)."
+        ),
+        examples=["bệnh rỉ sắt cà phê điều trị phòng trừ"],
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -51,6 +78,8 @@ class ChatRequest(BaseModel):
                 "thread_id": "user-42-session-abc123",
                 "farm_plot_id": "abc123def456abc123def456",
                 "farm_zone_id": None,
+                "plant_id": "plant123",
+                "route": "auto",
             }
         }
     }

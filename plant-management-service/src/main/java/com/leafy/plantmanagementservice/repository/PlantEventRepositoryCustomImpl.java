@@ -185,18 +185,7 @@ public class PlantEventRepositoryCustomImpl implements PlantEventRepositoryCusto
         return mongoTemplate.find(new Query(criteria), PlantEvent.class);
     }
 
-    @Override
-    public List<PlantEvent> findBySourcePlanIdAndDateRange(
-            String sourcePlanId,
-            java.time.LocalDate startDate,
-            java.time.LocalDate endDate
-    ) {
-        Criteria criteria = new Criteria().andOperator(
-                buildDateOverlapCriteria(startDate, endDate),
-                Criteria.where("sourcePlanId").is(sourcePlanId)
-        );
-        return mongoTemplate.find(new Query(criteria), PlantEvent.class);
-    }
+
 
     @Override
     public List<PlantEvent> findByPlanApplyIdAndDateRange(

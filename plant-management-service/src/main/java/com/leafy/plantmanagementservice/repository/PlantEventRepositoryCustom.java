@@ -83,16 +83,6 @@ public interface PlantEventRepositoryCustom {
     );
 
     /**
-     * Calendar events linked to a specific plan (by sourcePlanId) that overlap the date range.
-     * Handles null calculatedEndDate (treated as single-day events).
-     */
-    List<PlantEvent> findBySourcePlanIdAndDateRange(
-            String sourcePlanId,
-            java.time.LocalDate startDate,
-            java.time.LocalDate endDate
-    );
-
-    /**
      * Calendar events linked to a specific PlanApply instance (by planApplyId) that overlap the date range.
      */
     List<PlantEvent> findByPlanApplyIdAndDateRange(

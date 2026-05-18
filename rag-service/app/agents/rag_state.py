@@ -60,41 +60,39 @@ class GraphState(TypedDict, total=False):
     # Incoming bearer token propagated from request for internal gateway lookups
     authorization: Optional[str]
     
-    # Phase 2: Advanced Retrieval
-    candidate_docs: Optional[List[Document]]
-    reranked_docs: Optional[List[Document]]
-    
-    # Phase 1.5: Intent Classification (pre-retrieval)
+    # ── Phase 1.5: Intent Classification ──
     # "direct" → short-circuits to direct node → END
     # "agriculture_query" → full RAG pipeline
     intent: Optional[str]
 
-    # Phase 1.6: Clarification Check
+    # ── Phase 1.6: Clarification Check ──
     # True when the question is too vague to answer usefully.
     # The pipeline short-circuits to clarification_response → END.
     needs_clarification: Optional[bool]
+    
     # The follow-up question sent back to the user (empty string when not needed).
     clarification_question: Optional[str]
-    # Set True by check_clarification when the original vague question contained
-    # planning/scheduling intent. The router reads this on the NEXT turn (after the
-    # user provides the missing crop/context) to force the planning path even though
-    # the user's reply alone has no planning keywords (e.g. just "cây cà phê").
-    pending_planning_intent: Optional[bool]
+    
+    # The original intent-bearing question saved when clarification is triggered.
+    # E.g. "Tạo kế hoạch trị bệnh rỉ sét cho tôi" is stored here so the planner
+    # can reconstruct the true planning objective even when the current `question`
+    # is just a clarification reply like "cây cà phê".
+    original_question: Optional[str]
 
-    # Phase 3: Routing
+    # ── Phase 3: Routing ──
     path_type: Optional[str]
     confidence_score: Optional[float]
     completeness_score: Optional[float]
     web_search_results: Optional[List[Dict]]
     
-    # Phase 4: Safety
+    # ── Phase 4: Safety ──
     safety_passed: Optional[bool]
     safety_issues: Optional[List[str]]
     refinement_count: Optional[int]
     refinement_guidance: Optional[str]
     regulatory_flags: Optional[List[str]]
 
-    # Phase 5: Treatment Planning
+    # ── Phase 5: Treatment Planning ──
     generated_plan: Optional[Dict[str, Any]]
     plant_id: Optional[str]
 
@@ -103,3 +101,19 @@ class GraphState(TypedDict, total=False):
     # Caller-supplied context to seed env resolution without requiring plant_id in question
     farm_plot_id: Optional[str]
     farm_zone_id: Optional[str]
+
+    # Client-supplied route override — set from ChatRequest.route by ChatService.
+    # Values: "fast" | "deep" | "planning" | None (None means auto-route).
+    # When set, router_node short-circuits ALL automatic routing logic (Priority 0).
+    forced_route: Optional[str]
+
+    # Optional dedicated Qdrant retrieval query — decoupled from `question`.
+    # When set (e.g. by the plan controller using Vietnamese disease keywords),
+    # hybrid_search_node uses this for vector/BM25 search instead of `question`.
+    # Falls back to `question` if not provided.
+    search_query: Optional[str]
+
+    # Qdrant point IDs for all dense search results, in order.
+    # Set by hybrid_search_node so downstream nodes (reranker, planner, serialiser)
+    # can include raw point IDs in the saved sourceDocuments for the chunk viewer.
+    retrieved_point_ids: Optional[List[str]]

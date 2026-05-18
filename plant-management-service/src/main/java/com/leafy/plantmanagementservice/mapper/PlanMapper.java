@@ -19,20 +19,19 @@ import java.util.List;
 public interface PlanMapper {
 
     @Mapping(target = "id",        ignore = true)
-    @Mapping(target = "userId",    ignore = true)
     @Mapping(target = "creatorId", ignore = true)
     @Mapping(target = "ownerId",   ignore = true)
     @Mapping(target = "events",    ignore = true)   // set manually in PlanServiceImpl
     Plan toEntity(PlanCreateRequest request);
 
     @Mapping(target = "isPublic",    expression = "java(plan.isPublic())")
-    @Mapping(target = "isConsulted", expression = "java(plan.isConsulted())")
+    @Mapping(target = "sourceType",  expression = "java(plan.getSourceType())")
     @Mapping(target = "applyCount",  ignore = true)
     @Mapping(target = "applies",     ignore = true)
     PlanResponse toResponse(Plan plan);
 
     @Mapping(target = "isPublic",    expression = "java(plan.isPublic())")
-    @Mapping(target = "isConsulted", expression = "java(plan.isConsulted())")
+    @Mapping(target = "sourceType",  expression = "java(plan.getSourceType())")
     @Mapping(target = "applyCount",  ignore = true)
     @Mapping(target = "applies",     ignore = true)
     List<PlanResponse> toResponseList(List<Plan> plans);
