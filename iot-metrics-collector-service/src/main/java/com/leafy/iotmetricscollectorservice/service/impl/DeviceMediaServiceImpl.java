@@ -4,11 +4,13 @@ import com.leafy.iotmetricscollectorservice.dto.media.CameraCaptureRequest;
 import com.leafy.iotmetricscollectorservice.dto.media.CameraCaptureResponse;
 import com.leafy.iotmetricscollectorservice.dto.media.CaptureQuality;
 import com.leafy.iotmetricscollectorservice.dto.media.CaptureResolution;
+import com.leafy.iotmetricscollectorservice.dto.media.DeviceMediaAnalysisResponse;
 import com.leafy.iotmetricscollectorservice.dto.media.DeviceMediaEventResponse;
 import com.leafy.iotmetricscollectorservice.dto.media.ImageMetaPayload;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
 import com.leafy.iotmetricscollectorservice.integration.mqtt.CameraCaptureMqttPublisher;
 import com.leafy.iotmetricscollectorservice.model.DeviceMediaEvent;
+import com.leafy.iotmetricscollectorservice.model.DeviceMediaAnalysis;
 import com.leafy.iotmetricscollectorservice.model.IoTDevice;
 import com.leafy.iotmetricscollectorservice.model.enums.DeviceMediaEventStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.MediaType;
@@ -16,7 +18,9 @@ import com.leafy.iotmetricscollectorservice.model.enums.ProvisioningStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.TriggerType;
 import com.leafy.iotmetricscollectorservice.model.ref.FileRef;
 import com.leafy.iotmetricscollectorservice.repository.DeviceMediaEventRepository;
+import com.leafy.iotmetricscollectorservice.repository.DeviceMediaAnalysisRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
+import com.leafy.iotmetricscollectorservice.service.DeviceMediaAnalysisJobQueue;
 import jakarta.persistence.EntityManager;
 import java.time.Duration;
 import java.time.Instant;
@@ -27,6 +31,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -37,7 +43,9 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
 
     private final IoTDeviceRepository ioTDeviceRepository;
     private final DeviceMediaEventRepository deviceMediaEventRepository;
+    private final DeviceMediaAnalysisRepository deviceMediaAnalysisRepository;
     private final CameraCaptureMqttPublisher cameraCaptureMqttPublisher;
+    private final DeviceMediaAnalysisJobQueue deviceMediaAnalysisJobQueue;
     private final EntityManager entityManager;
 
     @Override
@@ -141,7 +149,31 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
             event.setSizeBytes(payload.getSizeBytes());
             event.setCapturedAt(metadataTime);
         }
-        deviceMediaEventRepository.save(event);
+        DeviceMediaEvent saved = deviceMediaEventRepository.save(event);
+        if (successful) {
+            enqueueAnalysisAfterCommit(saved.getId());
+        }
+    }
+
+    private void enqueueAnalysisAfterCommit(UUID mediaEventId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    enqueueAnalysis(mediaEventId);
+                }
+            });
+            return;
+        }
+        enqueueAnalysis(mediaEventId);
+    }
+
+    private void enqueueAnalysis(UUID mediaEventId) {
+        try {
+            deviceMediaAnalysisJobQueue.enqueueUploadedMedia(mediaEventId);
+        } catch (RuntimeException exception) {
+            log.warn("Automatic disease detection failed to enqueue. mediaEventId={}", mediaEventId, exception);
+        }
     }
 
     private String resolveImageMetaError(ImageMetaPayload payload) {
@@ -220,6 +252,32 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
         response.setCommandSentAt(event.getCommandSentAt());
         response.setUploadedAt(event.getUploadedAt());
         response.setCapturedAt(event.getCapturedAt());
+        response.setAnalysis(deviceMediaAnalysisRepository.findByMediaEventId(event.getId())
+            .map(this::toAnalysisResponse)
+            .orElse(null));
+        return response;
+    }
+
+    private DeviceMediaAnalysisResponse toAnalysisResponse(DeviceMediaAnalysis analysis) {
+        DeviceMediaAnalysisResponse response = new DeviceMediaAnalysisResponse();
+        response.setId(analysis.getId());
+        response.setMediaEventId(analysis.getMediaEvent() != null ? analysis.getMediaEvent().getId() : null);
+        response.setAlertEventId(analysis.getAlertEvent() != null ? analysis.getAlertEvent().getId() : null);
+        response.setFileId(analysis.getFileId());
+        response.setDeviceUid(analysis.getDeviceUid());
+        response.setRequestId(analysis.getRequestId());
+        response.setTriggerType(analysis.getTriggerType());
+        response.setStatus(analysis.getStatus() != null ? analysis.getStatus().name() : null);
+        response.setDiseaseDetected(analysis.isDiseaseDetected());
+        response.setSeverity(analysis.getSeverity());
+        response.setDiseaseType(analysis.getDiseaseType());
+        response.setDiseaseName(analysis.getDiseaseName());
+        response.setConfidence(analysis.getConfidence());
+        response.setNotes(analysis.getNotes());
+        response.setFileUrl(analysis.getFileUrl());
+        response.setCapturedAt(analysis.getCapturedAt());
+        response.setAnalyzedAt(analysis.getAnalyzedAt());
+        response.setError(analysis.getError());
         return response;
     }
 }

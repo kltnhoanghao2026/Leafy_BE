@@ -19,7 +19,7 @@ seed:
     base-url: ${SEED_PROFILE_BASE_URL:http://localhost:8087}
     page-size: ${SEED_PROFILE_PAGE_SIZE:50}
   farm:
-    base-url: ${SEED_FARM_BASE_URL:http://localhost:8083}
+    base-url: ${SEED_FARM_BASE_URL:http://localhost:8086}
   auth-headers:
     user-id: ${SEED_AUTH_HEADER_USER_ID:iot-test-data-service}
     email: ${SEED_AUTH_HEADER_EMAIL:iot-test-data-service@leafy.local}

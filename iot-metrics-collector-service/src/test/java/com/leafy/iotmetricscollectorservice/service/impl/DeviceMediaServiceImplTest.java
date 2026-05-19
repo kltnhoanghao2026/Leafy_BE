@@ -21,7 +21,9 @@ import com.leafy.iotmetricscollectorservice.model.enums.TriggerType;
 import com.leafy.iotmetricscollectorservice.model.ref.FileRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.DeviceMediaEventRepository;
+import com.leafy.iotmetricscollectorservice.repository.DeviceMediaAnalysisRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
+import com.leafy.iotmetricscollectorservice.service.DeviceMediaAnalysisJobQueue;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.List;
@@ -44,7 +46,13 @@ class DeviceMediaServiceImplTest {
     private DeviceMediaEventRepository deviceMediaEventRepository;
 
     @Mock
+    private DeviceMediaAnalysisRepository deviceMediaAnalysisRepository;
+
+    @Mock
     private CameraCaptureMqttPublisher cameraCaptureMqttPublisher;
+
+    @Mock
+    private DeviceMediaAnalysisJobQueue deviceMediaAnalysisJobQueue;
 
     @Mock
     private EntityManager entityManager;
@@ -53,7 +61,14 @@ class DeviceMediaServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new DeviceMediaServiceImpl(ioTDeviceRepository, deviceMediaEventRepository, cameraCaptureMqttPublisher, entityManager);
+        service = new DeviceMediaServiceImpl(
+            ioTDeviceRepository,
+            deviceMediaEventRepository,
+            deviceMediaAnalysisRepository,
+            cameraCaptureMqttPublisher,
+            deviceMediaAnalysisJobQueue,
+            entityManager
+        );
     }
 
     @Test
@@ -124,6 +139,7 @@ class DeviceMediaServiceImplTest {
         DeviceMediaEvent event = new DeviceMediaEvent();
         event.setRequestId("request-1");
         when(deviceMediaEventRepository.findByRequestId("request-1")).thenReturn(Optional.of(event));
+        when(deviceMediaEventRepository.save(any(DeviceMediaEvent.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ImageMetaPayload payload = new ImageMetaPayload();
         payload.setRequestId("request-1");
@@ -145,6 +161,7 @@ class DeviceMediaServiceImplTest {
         assertThat(event.getContentType()).isEqualTo("image/jpeg");
         assertThat(event.getSizeBytes()).isEqualTo(123L);
         verify(deviceMediaEventRepository).save(event);
+        verify(deviceMediaAnalysisJobQueue).enqueueUploadedMedia(event.getId());
     }
 
     @Test
@@ -152,6 +169,7 @@ class DeviceMediaServiceImplTest {
         DeviceMediaEvent event = new DeviceMediaEvent();
         event.setRequestId("request-1");
         when(deviceMediaEventRepository.findByRequestId("request-1")).thenReturn(Optional.of(event));
+        when(deviceMediaEventRepository.save(any(DeviceMediaEvent.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ImageMetaPayload payload = new ImageMetaPayload();
         payload.setRequestId("request-1");
@@ -172,6 +190,7 @@ class DeviceMediaServiceImplTest {
         assertThat(event.getSizeBytes()).isEqualTo(456L);
         assertThat(event.getFile().getId()).isEqualTo("file-1");
         verify(deviceMediaEventRepository).save(event);
+        verify(deviceMediaAnalysisJobQueue).enqueueUploadedMedia(event.getId());
     }
 
     @Test
