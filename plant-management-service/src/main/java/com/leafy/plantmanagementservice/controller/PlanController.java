@@ -11,6 +11,7 @@ import com.leafy.plantmanagementservice.dto.request.plan.PlanUpdateRequest;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanApplyResponse;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanResponse;
 import com.leafy.plantmanagementservice.dto.response.plant.BulkOperationResult;
+import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
 import com.leafy.plantmanagementservice.model.enums.PlanStatus;
 import com.leafy.plantmanagementservice.service.plan.PlanService;
 import jakarta.validation.Valid;
@@ -81,11 +82,15 @@ public class PlanController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESC") String sortDir,
-            @RequestParam(required = false) String search) {
-        log.info("GET /plans/me search={}", search);
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String sourceType) {
+        log.info("GET /plans/me search={} sourceType={}", search, sourceType);
         Sort sort = sortDir.equalsIgnoreCase("ASC") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
-        return ResponseEntity.ok(ApiResponse.success(planService.getMyPlans(search, pageable)));
+        PlanSourceType st = (sourceType != null && !sourceType.isBlank())
+                ? PlanSourceType.valueOf(sourceType.toUpperCase())
+                : null;
+        return ResponseEntity.ok(ApiResponse.success(planService.getMyPlans(search, st, pageable)));
     }
 
     @GetMapping("/public")
@@ -94,11 +99,15 @@ public class PlanController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESC") String sortDir,
-            @RequestParam(required = false) String search) {
-        log.info("GET /plans/public search={}", search);
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String sourceType) {
+        log.info("GET /plans/public search={} sourceType={}", search, sourceType);
         Sort sort = sortDir.equalsIgnoreCase("ASC") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
-        return ResponseEntity.ok(ApiResponse.success(planService.getPublicPlans(search, pageable)));
+        PlanSourceType st = (sourceType != null && !sourceType.isBlank())
+                ? PlanSourceType.valueOf(sourceType.toUpperCase())
+                : null;
+        return ResponseEntity.ok(ApiResponse.success(planService.getPublicPlans(search, st, pageable)));
     }
 
     // ── My applies ────────────────────────────────────────────────────────────
@@ -144,6 +153,13 @@ public class PlanController {
             @RequestParam PlanStatus status) {
         log.info("PATCH /plans/applies/{}/status → {}", applyId, status);
         return ResponseEntity.ok(ApiResponse.success(planService.updateApplyStatus(applyId, status)));
+    }
+
+    @PostMapping("/applies/{applyId}/cancel")
+    public ResponseEntity<ApiResponse<PlanApplyResponse>> cancelApply(
+            @PathVariable String applyId) {
+        log.info("POST /plans/applies/{}/cancel", applyId);
+        return ResponseEntity.ok(ApiResponse.success(planService.cancelApply(applyId)));
     }
 
     // ── Visibility ────────────────────────────────────────────────────────────

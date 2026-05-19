@@ -26,12 +26,13 @@ public class Plant extends BaseModel {
     PlantStatus plantStatus;
     String nickName;
     String tagCode;
-    String batchNumber;
     String motherPlantId;
     LocalDateTime plantingDate;
+
     LocalDateTime germinationDate;
     LocalDateTime actualHarvestDate;
     Double totalYieldKg;
+    String batchNumber;
 
     // Relationships
     String speciesId;

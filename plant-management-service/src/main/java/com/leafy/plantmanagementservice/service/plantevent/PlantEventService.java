@@ -42,9 +42,18 @@ public interface PlantEventService {
 
     void deleteEvent(String eventId);
 
+    /**
+     * Deletes all incomplete events (completed = false) belonging to a PlanApply,
+     * including their cascade of child events and associated progress entries.
+     * Completed events are intentionally preserved.
+     */
+    void deleteIncompleteEventsByPlanApplyId(String planApplyId);
+
     Page<PlantEventResponse> getConsultingPlantEvents(String expertProfileId, String farmerProfileId, String plantId, Pageable pageable);
 
     PlantEventResponse createConsultingPlantEvent(String expertProfileId, String farmerProfileId, PlantEventCreateRequest request);
+
+    List<PlantEventResponse> getConsultingCalendarEvents(String expertProfileId, String farmerProfileId, LocalDate startDate, LocalDate endDate);
 
     /**
      * Toggle the {@code completed} flag of a single task inside an event.

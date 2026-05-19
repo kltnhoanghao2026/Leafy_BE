@@ -3,6 +3,7 @@ package com.leafy.plantmanagementservice.client;
 import com.leafy.plantmanagementservice.client.dto.ExternalApiResponse;
 import com.leafy.plantmanagementservice.client.dto.PagedResponse;
 import com.leafy.plantmanagementservice.client.dto.ProfileSummary;
+import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +32,12 @@ public interface ProfileServiceClient {
     ExternalApiResponse<Boolean> validateConsulting(
             @RequestParam("expertProfileId") String expertProfileId,
             @RequestParam("farmerProfileId") String farmerProfileId);
+
+    @GetMapping("/internal/profiles/consulting/validate-with-toggle")
+    ExternalApiResponse<Boolean> validateConsultingWithToggle(
+            @RequestParam("expertProfileId") String expertProfileId,
+            @RequestParam("farmerProfileId") String farmerProfileId,
+            @RequestParam("dataType") ConsultingDataType dataType);
 
     @GetMapping("/internal/profiles/consulting/farmers")
     ExternalApiResponse<List<String>> getConsultingFarmerIds(

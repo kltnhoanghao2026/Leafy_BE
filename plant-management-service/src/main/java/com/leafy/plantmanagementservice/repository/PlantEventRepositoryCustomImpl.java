@@ -250,6 +250,32 @@ public class PlantEventRepositoryCustomImpl implements PlantEventRepositoryCusto
     }
 
     @Override
+    public Map<String, Long> countByEventTypeForProfile(
+            List<String> farmPlotIds, List<String> farmZoneIds, List<String> plantIds,
+            LocalDate startDate, LocalDate endDate) {
+        Criteria scopeCriteria = buildProfileScopeCriteria(farmPlotIds, farmZoneIds, plantIds);
+        Criteria dateCriteria = buildDateOverlapCriteria(startDate, endDate);
+
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(new Criteria().andOperator(scopeCriteria, dateCriteria)),
+                Aggregation.group("eventType").count().as("count")
+        );
+
+        AggregationResults<Document> results = mongoTemplate.aggregate(
+                aggregation, "plant_events", Document.class);
+
+        Map<String, Long> breakdown = new LinkedHashMap<>();
+        for (Document doc : results.getMappedResults()) {
+            String type = doc.getString("_id");
+            Long count = doc.get("count", Number.class).longValue();
+            if (type != null) {
+                breakdown.put(type, count);
+            }
+        }
+        return breakdown;
+    }
+
+    @Override
     public long countProfileEventsFiltered(
             List<String> farmPlotIds, List<String> farmZoneIds, List<String> plantIds,
             LocalDate startDate, LocalDate endDate, Boolean completed, boolean overdue) {

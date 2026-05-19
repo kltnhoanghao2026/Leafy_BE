@@ -1,5 +1,6 @@
 package com.leafy.profileservice.dto.request.profile;
 
+import com.leafy.profileservice.dto.request.preferences.UserPreferenceRequest;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -40,4 +41,6 @@ public class InternalCreateProfileRequest {
     Double latitude;
 
     Double longitude;
+
+    UserPreferenceRequest userPreference;
 }

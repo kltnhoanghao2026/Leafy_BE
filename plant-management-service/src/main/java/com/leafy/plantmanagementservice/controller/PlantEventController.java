@@ -215,7 +215,6 @@ public class PlantEventController {
     // ── Consulting (Expert access) ─────────────────────────────────────────
 
     @GetMapping("/consulting")
-    @PreAuthorize("hasRole('EXPERT')")
     public ResponseEntity<ApiResponse<Page<PlantEventResponse>>> getConsultingPlantEvents(
             @RequestParam String farmerProfileId,
             @RequestParam String plantId,
@@ -231,7 +230,6 @@ public class PlantEventController {
     }
 
     @PostMapping("/consulting")
-    @PreAuthorize("hasRole('EXPERT')")
     public ResponseEntity<ApiResponse<PlantEventResponse>> createConsultingPlantEvent(
             @RequestParam String farmerProfileId,
             @Valid @RequestBody PlantEventCreateRequest request) {
@@ -239,6 +237,17 @@ public class PlantEventController {
         String expertProfileId = ServiceSecurityUtils.getCurrentProfileId();
         PlantEventResponse response = plantEventService.createConsultingPlantEvent(expertProfileId, farmerProfileId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @GetMapping("/consulting/calendar")
+    public ResponseEntity<ApiResponse<List<PlantEventResponse>>> getConsultingCalendarEvents(
+            @RequestParam String farmerProfileId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        log.info("GET /plant-events/consulting/calendar - farmerProfileId={}, range=[{}, {}]", farmerProfileId, startDate, endDate);
+        String expertProfileId = ServiceSecurityUtils.getCurrentProfileId();
+        List<PlantEventResponse> events = plantEventService.getConsultingCalendarEvents(expertProfileId, farmerProfileId, startDate, endDate);
+        return ResponseEntity.ok(ApiResponse.success(events));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

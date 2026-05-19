@@ -7,11 +7,7 @@ public record NotificationSettingsUpdateRequest(
         Boolean notifyNewMessageFromDirect,
         Boolean previewNewMessageFromDirect,
         Boolean notifyNewMessageFromGroup,
-        Boolean notifyCall,
         Boolean notifyNewPostFromFriend,
-        Boolean notifyDOB,
-        Boolean notifyNewMessage,
-        Boolean shakeOnNewMessage,
-        Boolean previewNewMessage
+        Boolean notifyNewMessage
 ) {
 }

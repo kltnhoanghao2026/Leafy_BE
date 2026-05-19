@@ -11,6 +11,7 @@ import com.leafy.plantmanagementservice.dto.request.plan.PlanUpdateRequest;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanApplyResponse;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanResponse;
 import com.leafy.plantmanagementservice.dto.response.plant.BulkOperationResult;
+import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
 import com.leafy.plantmanagementservice.model.enums.PlanStatus;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -68,8 +69,8 @@ public class PlanServiceIndexingDecorator implements PlanService {
     }
 
     @Override
-    public Page<PlanResponse> getMyPlans(String search, Pageable pageable) {
-        return delegate.getMyPlans(search, pageable);
+    public Page<PlanResponse> getMyPlans(String search, PlanSourceType sourceType, Pageable pageable) {
+        return delegate.getMyPlans(search, sourceType, pageable);
     }
 
     @Override
@@ -78,8 +79,8 @@ public class PlanServiceIndexingDecorator implements PlanService {
     }
 
     @Override
-    public Page<PlanResponse> getPublicPlans(String search, Pageable pageable) {
-        return delegate.getPublicPlans(search, pageable);
+    public Page<PlanResponse> getPublicPlans(String search, PlanSourceType sourceType, Pageable pageable) {
+        return delegate.getPublicPlans(search, sourceType, pageable);
     }
 
     @Override
@@ -146,6 +147,11 @@ public class PlanServiceIndexingDecorator implements PlanService {
     @Override
     public PlanApplyResponse updateApplyStatus(String applyId, PlanStatus newStatus) {
         return delegate.updateApplyStatus(applyId, newStatus);
+    }
+
+    @Override
+    public PlanApplyResponse cancelApply(String applyId) {
+        return delegate.cancelApply(applyId);
     }
 
     @Override

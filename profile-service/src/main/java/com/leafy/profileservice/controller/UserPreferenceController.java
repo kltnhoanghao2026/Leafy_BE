@@ -9,13 +9,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
  * REST Controller for User Preference management
- * Provides endpoints for managing user preferences with optimized MongoDB
- * queries
+ * Provides endpoints for managing user preferences with optimized MongoDB queries
  */
 @RestController
 @RequestMapping("/preferences")
@@ -65,20 +63,6 @@ public class UserPreferenceController {
     }
 
     /**
-     * Update security settings
-     *
-     * @param request the update request
-     * @return updated preferences
-     */
-    @PatchMapping("/security")
-    public ResponseEntity<ApiResponse<UserPreferenceResponse>> updateSecuritySettings(
-            @Valid @RequestBody SecuritySettingsUpdateRequest request) {
-        log.info("PATCH /preferences/security - Updating security settings");
-        UserPreferenceResponse response = userPreferenceService.updateSecuritySettings(request);
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    /**
      * Update privacy settings
      *
      * @param request the update request
@@ -89,20 +73,6 @@ public class UserPreferenceController {
             @Valid @RequestBody PrivacySettingsUpdateRequest request) {
         log.info("PATCH /preferences/privacy - Updating privacy settings");
         UserPreferenceResponse response = userPreferenceService.updatePrivacySettings(request);
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    /**
-     * Update sync settings
-     *
-     * @param request the update request
-     * @return updated preferences
-     */
-    @PatchMapping("/sync")
-    public ResponseEntity<ApiResponse<UserPreferenceResponse>> updateSyncSettings(
-            @Valid @RequestBody SyncSettingsUpdateRequest request) {
-        log.info("PATCH /preferences/sync - Updating sync settings");
-        UserPreferenceResponse response = userPreferenceService.updateSyncSettings(request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -121,20 +91,6 @@ public class UserPreferenceController {
     }
 
     /**
-     * Update message settings
-     *
-     * @param request the update request
-     * @return updated preferences
-     */
-    @PatchMapping("/message")
-    public ResponseEntity<ApiResponse<UserPreferenceResponse>> updateMessageSettings(
-            @Valid @RequestBody MessageSettingsUpdateRequest request) {
-        log.info("PATCH /preferences/message - Updating message settings");
-        UserPreferenceResponse response = userPreferenceService.updateMessageSettings(request);
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    /**
      * Update notification settings
      *
      * @param request the update request
@@ -145,20 +101,6 @@ public class UserPreferenceController {
             @Valid @RequestBody NotificationSettingsUpdateRequest request) {
         log.info("PATCH /preferences/notification - Updating notification settings");
         UserPreferenceResponse response = userPreferenceService.updateNotificationSettings(request);
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    /**
-     * Update utilities settings
-     *
-     * @param request the update request
-     * @return updated preferences
-     */
-    @PatchMapping("/utilities")
-    public ResponseEntity<ApiResponse<UserPreferenceResponse>> updateUtilitiesSettings(
-            @Valid @RequestBody UtilitiesSettingsUpdateRequest request) {
-        log.info("PATCH /preferences/utilities - Updating utilities settings");
-        UserPreferenceResponse response = userPreferenceService.updateUtilitiesSettings(request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -183,6 +125,20 @@ public class UserPreferenceController {
     public ResponseEntity<ApiResponse<UserPreference.PrivacySettings>> getPrivacySettings() {
         log.info("GET /preferences/privacy - Getting privacy settings");
         UserPreference.PrivacySettings response = userPreferenceService.getPrivacySettings();
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * Get privacy settings by profile ID (for experts viewing consulted farmers)
+     *
+     * @param profileId the profile ID
+     * @return privacy settings (sharing toggles only)
+     */
+    @GetMapping("/profile/{profileId}/privacy")
+    public ResponseEntity<ApiResponse<UserPreference.PrivacySettings>> getPrivacySettingsByProfileId(
+            @PathVariable String profileId) {
+        log.info("GET /preferences/profile/{} - Getting privacy settings by profile ID", profileId);
+        UserPreference.PrivacySettings response = userPreferenceService.getPrivacySettingsByProfileId(profileId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

@@ -3,6 +3,7 @@ package com.leafy.profileservice.service.connection;
 import com.leafy.profileservice.dto.response.profile.UserConnectionResponse;
 import com.leafy.profileservice.dto.response.profile.ConsultationRequestResponse;
 import com.leafy.profileservice.dto.response.profile.ProfileResponse;
+import com.leafy.profileservice.model.enums.ConsultingDataType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -33,4 +34,20 @@ public interface UserConnectionService {
     boolean isActiveConsultation(String expertProfileId, String farmerProfileId);
 
     List<String> getConsultingFarmerIds(String expertProfileId);
+
+    /**
+     * Checks whether an expert has access to a specific data type of a farmer.
+     * Access is granted if:
+     * 1. An ACCEPTED consultation exists, AND
+     * 2. The farmer's sharing toggle is true.
+     * 
+     * Note: The farmer's privacy toggle takes precedence. Even if an access request is APPROVED,
+     * access is denied if the farmer has set the sharing toggle to false.
+     *
+     * @param expertProfileId the expert's profile ID
+     * @param farmerProfileId the farmer's profile ID
+     * @param dataType the data type being accessed
+     * @return true if access is granted, false otherwise
+     */
+    boolean hasDataAccessForConsulting(String expertProfileId, String farmerProfileId, ConsultingDataType dataType);
 }

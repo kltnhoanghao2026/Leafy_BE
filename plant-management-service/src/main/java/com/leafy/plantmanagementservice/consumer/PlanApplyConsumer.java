@@ -136,6 +136,7 @@ public class PlanApplyConsumer {
         // Update PlanApply with generated event IDs and ACTIVE status
         apply.setPlantEventIds(createdEventIds);
         apply.setStatus(PlanStatus.ACTIVE);
+        apply.setCanCancel(true);
         planApplyRepository.save(apply);
 
         kafkaTemplate.send(kafkaTopicProperties.getSystemEvents().getPlanApplied(), planId, new PlanAppliedEvent(planId));

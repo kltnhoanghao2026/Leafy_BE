@@ -103,6 +103,18 @@ public interface PlantEventRepositoryCustom {
     );
 
     /**
+     * Count events grouped by {@code eventType} for a user's profile scope,
+     * scoped to a specific date range.
+     */
+    Map<String, Long> countByEventTypeForProfile(
+            List<String> farmPlotIds,
+            List<String> farmZoneIds,
+            List<String> plantIds,
+            LocalDate startDate,
+            LocalDate endDate
+    );
+
+    /**
      * Count events matching profile scope + optional date + optional completion filter.
      *
      * @param farmPlotIds  user's farm plot IDs

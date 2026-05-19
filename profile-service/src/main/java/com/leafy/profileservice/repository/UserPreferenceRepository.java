@@ -96,44 +96,15 @@ public class UserPreferenceRepository {
     }
 
     /**
-     * Update security settings using dot notation
-     */
-    public boolean updateSecuritySettings(String userId, UserPreference.SecuritySettings settings) {
-        Query query = new Query(Criteria.where("userId").is(userId));
-        Update update = new Update()
-                .set("userPreference.securitySettings.twoFactorEnabled", settings.isTwoFactorEnabled());
-        
-        UpdateResult result = mongoTemplate.updateFirst(query, update, COLLECTION_NAME);
-        return result.getModifiedCount() > 0;
-    }
-
-    /**
      * Update privacy settings using dot notation
      */
     public boolean updatePrivacySettings(String userId, UserPreference.PrivacySettings settings) {
         Query query = new Query(Criteria.where("userId").is(userId));
         Update update = new Update()
-                .set("userPreference.privacySettings.showDob", settings.getShowDob())
-                .set("userPreference.privacySettings.showActiveStatus", settings.isShowActiveStatus())
-                .set("userPreference.privacySettings.showReadStatus", settings.isShowReadStatus())
-                .set("userPreference.privacySettings.canText", settings.getCanText())
-                .set("userPreference.privacySettings.canCall", settings.getCanCall())
-                .set("userPreference.privacySettings.showPosts", settings.isShowPosts())
-                .set("userPreference.privacySettings.showPostAfter", settings.getShowPostAfter())
-                .set("userPreference.privacySettings.allowSearchOnPhoneNumber", settings.isAllowSearchOnPhoneNumber());
-        
-        UpdateResult result = mongoTemplate.updateFirst(query, update, COLLECTION_NAME);
-        return result.getModifiedCount() > 0;
-    }
-
-    /**
-     * Update sync settings using dot notation
-     */
-    public boolean updateSyncSettings(String userId, UserPreference.SyncSettings settings) {
-        Query query = new Query(Criteria.where("userId").is(userId));
-        Update update = new Update()
-                .set("userPreference.syncSettings.syncSuggestion", settings.isSyncSuggestion())
-                .set("userPreference.syncSettings.showSyncProgress", settings.isShowSyncProgress());
+                .set("userPreference.privacySettings.shareFarmPlotsWithConsultants", settings.isShareFarmPlotsWithConsultants())
+                .set("userPreference.privacySettings.sharePlantsWithConsultants", settings.isSharePlantsWithConsultants())
+                .set("userPreference.privacySettings.sharePlantEventsWithConsultants", settings.isSharePlantEventsWithConsultants())
+                .set("userPreference.privacySettings.sharePlansWithConsultants", settings.isSharePlansWithConsultants());
         
         UpdateResult result = mongoTemplate.updateFirst(query, update, COLLECTION_NAME);
         return result.getModifiedCount() > 0;
@@ -152,18 +123,6 @@ public class UserPreferenceRepository {
     }
 
     /**
-     * Update message settings using dot notation
-     */
-    public boolean updateMessageSettings(String userId, UserPreference.MessageSettings settings) {
-        Query query = new Query(Criteria.where("userId").is(userId));
-        Update update = new Update()
-                .set("userPreference.messageSettings.quickResponseEnable", settings.isQuickResponseEnable());
-        
-        UpdateResult result = mongoTemplate.updateFirst(query, update, COLLECTION_NAME);
-        return result.getModifiedCount() > 0;
-    }
-
-    /**
      * Update notification settings using dot notation
      */
     public boolean updateNotificationSettings(String userId, UserPreference.NotificationSettings settings) {
@@ -172,24 +131,8 @@ public class UserPreferenceRepository {
                 .set("userPreference.notificationSettings.notifyNewMessageFromDirect", settings.isNotifyNewMessageFromDirect())
                 .set("userPreference.notificationSettings.previewNewMessageFromDirect", settings.isPreviewNewMessageFromDirect())
                 .set("userPreference.notificationSettings.notifyNewMessageFromGroup", settings.isNotifyNewMessageFromGroup())
-                .set("userPreference.notificationSettings.notifyCall", settings.isNotifyCall())
                 .set("userPreference.notificationSettings.notifyNewPostFromFriend", settings.isNotifyNewPostFromFriend())
-                .set("userPreference.notificationSettings.notifyDOB", settings.isNotifyDOB())
-                .set("userPreference.notificationSettings.notifyNewMessage", settings.isNotifyNewMessage())
-                .set("userPreference.notificationSettings.shakeOnNewMessage", settings.isShakeOnNewMessage())
-                .set("userPreference.notificationSettings.previewNewMessage", settings.isPreviewNewMessage());
-        
-        UpdateResult result = mongoTemplate.updateFirst(query, update, COLLECTION_NAME);
-        return result.getModifiedCount() > 0;
-    }
-
-    /**
-     * Update utilities settings using dot notation
-     */
-    public boolean updateUtilitiesSettings(String userId, UserPreference.UtilitiesSettings settings) {
-        Query query = new Query(Criteria.where("userId").is(userId));
-        Update update = new Update()
-                .set("userPreference.utilitiesSettings.stickerSuggestion", settings.isStickerSuggestion());
+                .set("userPreference.notificationSettings.notifyNewMessage", settings.isNotifyNewMessage());
         
         UpdateResult result = mongoTemplate.updateFirst(query, update, COLLECTION_NAME);
         return result.getModifiedCount() > 0;

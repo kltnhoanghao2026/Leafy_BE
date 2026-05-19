@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -68,12 +67,22 @@ public class AgricultureStatsServiceImpl implements AgricultureStatsService {
         // ── 3. Event stats ────────────────────────────────────────────────────
         LocalDate today = LocalDate.now();
         LocalDate weekLater = today.plusDays(7);
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
 
         // Today's events
         long todayEvents = plantEventRepository.countProfileEventsFiltered(
                 plotIds, zoneIds, plantIds, today, today, null, false);
         long todayCompleted = plantEventRepository.countProfileEventsFiltered(
                 plotIds, zoneIds, plantIds, today, today, true, false);
+
+        // This month events
+        long monthEvents = plantEventRepository.countProfileEventsFiltered(
+                plotIds, zoneIds, plantIds, monthStart, monthEnd, null, false);
+        long monthCompleted = plantEventRepository.countProfileEventsFiltered(
+                plotIds, zoneIds, plantIds, monthStart, monthEnd, true, false);
+        long monthPending = plantEventRepository.countProfileEventsFiltered(
+                plotIds, zoneIds, plantIds, monthStart, monthEnd, false, false);
 
         // Upcoming 7 days (excluding today)
         long upcoming7d = plantEventRepository.countProfileEventsFiltered(
@@ -89,11 +98,17 @@ public class AgricultureStatsServiceImpl implements AgricultureStatsService {
         long totalPending = plantEventRepository.countProfileEventsFiltered(
                 plotIds, zoneIds, plantIds, null, null, false, false);
 
-        // Event type breakdown
+        // Event type breakdown (overall)
         Map<String, Long> eventsByTypeLong = plantEventRepository.countByEventTypeForProfile(
                 plotIds, zoneIds, plantIds);
         Map<String, Integer> eventsByType = new LinkedHashMap<>();
         eventsByTypeLong.forEach((k, v) -> eventsByType.put(k, v.intValue()));
+
+        // Event type breakdown (this month)
+        Map<String, Long> monthEventsByTypeLong = plantEventRepository.countByEventTypeForProfile(
+                plotIds, zoneIds, plantIds, monthStart, monthEnd);
+        Map<String, Integer> monthEventsByType = new LinkedHashMap<>();
+        monthEventsByTypeLong.forEach((k, v) -> monthEventsByType.put(k, v.intValue()));
 
         // ── 4. Plan stats ─────────────────────────────────────────────────────
         long totalPlans = planRepository.countByOwnerIdAndActiveTrue(profileId);
@@ -130,11 +145,15 @@ public class AgricultureStatsServiceImpl implements AgricultureStatsService {
                 .archivedPlants(archivedPlants)
                 .todayEvents((int) todayEvents)
                 .todayCompletedEvents((int) todayCompleted)
+                .monthEvents((int) monthEvents)
+                .monthCompletedEvents((int) monthCompleted)
+                .monthPendingEvents((int) monthPending)
                 .upcomingEvents7d((int) upcoming7d)
                 .overdueEvents((int) overdue)
                 .totalCompletedEvents((int) totalCompleted)
                 .totalPendingEvents((int) totalPending)
                 .eventsByType(eventsByType)
+                .monthEventsByType(monthEventsByType)
                 .totalPlans((int) totalPlans)
                 .activePlanApplies((int) activePlanApplies)
                 .completedPlanApplies((int) completedPlanApplies)

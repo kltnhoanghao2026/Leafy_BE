@@ -5,9 +5,11 @@ import com.leafy.common.exception.ErrorCode;
 import com.leafy.plantmanagementservice.dto.request.farmzone.CreateFarmZoneRequest;
 import com.leafy.plantmanagementservice.dto.request.farmzone.UpdateFarmZoneRequest;
 import com.leafy.plantmanagementservice.dto.response.farmzone.FarmZoneResponse;
+import com.leafy.plantmanagementservice.model.FarmPlot;
 import com.leafy.plantmanagementservice.utils.ConsultingAccessHelper;
 import com.leafy.plantmanagementservice.mapper.FarmZoneMapper;
 import com.leafy.plantmanagementservice.model.FarmZone;
+import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
 import com.leafy.plantmanagementservice.model.enums.FarmZoneStatus;
 import com.leafy.plantmanagementservice.repository.FarmPlotRepository;
 import com.leafy.plantmanagementservice.repository.FarmZoneRepository;
@@ -53,10 +55,10 @@ public class FarmZoneServiceImpl implements FarmZoneService {
 
     @Override
     public List<FarmZoneResponse> getByFarmPlotAsConsulting(String farmPlotId, String expertProfileId) {
-        farmPlotRepository.findByIdAndActiveTrue(farmPlotId)
+        FarmPlot farmPlot = farmPlotRepository.findByIdAndActiveTrue(farmPlotId)
                 .orElseThrow(() -> new AppException(ErrorCode.FARM_PLOT_NOT_FOUND));
-        // Access validation is done via the farm plot's owner, but zone access is derived from plot access.
-        // The expert must already have consulting access to the farm plot's owner — validated at plot level.
+        // Zone access is derived from farm plot access — gate with FARM_PLOTS data type.
+        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmPlot.getOwnerProfileId(), ConsultingDataType.FARM_PLOTS);
         return farmZoneMapper.toResponseList(
                 farmZoneRepository.findByFarmPlotIdAndActiveTrue(farmPlotId));
     }

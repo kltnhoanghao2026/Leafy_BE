@@ -15,11 +15,7 @@ import lombok.experimental.FieldDefaults;
 public class UserPreferenceRequest {
 
     UserPreference.GeneralSettings generalSettings;
-    UserPreference.SecuritySettings securitySettings;
     UserPreference.PrivacySettings privacySettings;
-    UserPreference.SyncSettings syncSettings;
     UserPreference.AppearanceSettings appearanceSettings;
-    UserPreference.MessageSettings messageSettings;
     UserPreference.NotificationSettings notificationSettings;
-    UserPreference.UtilitiesSettings utilitiesSettings;
 }

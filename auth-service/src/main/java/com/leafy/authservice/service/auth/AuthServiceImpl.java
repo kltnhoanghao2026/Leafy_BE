@@ -160,10 +160,34 @@ public class AuthServiceImpl implements AuthService {
 
         String profileId = null;
         try {
+            ProfileCreateRequest.UserPreferenceDto defaultPreference = ProfileCreateRequest.UserPreferenceDto.builder()
+                    .generalSettings(ProfileCreateRequest.GeneralSettingsDto.builder()
+                            .showAllFriends(false)
+                            .languageEn(false)
+                            .build())
+                    .privacySettings(ProfileCreateRequest.PrivacySettingsDto.builder()
+                            .shareFarmPlotsWithConsultants(true)
+                            .sharePlantsWithConsultants(true)
+                            .sharePlantEventsWithConsultants(true)
+                            .sharePlansWithConsultants(true)
+                            .build())
+                    .appearanceSettings(ProfileCreateRequest.AppearanceSettingsDto.builder()
+                            .theme(true)
+                            .build())
+                    .notificationSettings(ProfileCreateRequest.NotificationSettingsDto.builder()
+                            .notifyNewMessageFromDirect(true)
+                            .previewNewMessageFromDirect(true)
+                            .notifyNewMessageFromGroup(true)
+                            .notifyNewPostFromFriend(true)
+                            .notifyNewMessage(true)
+                            .build())
+                    .build();
+
             ProfileCreateRequest profileRequest = ProfileCreateRequest.builder()
                     .userId(savedUser.getId())
                     .fullName(savedUser.getEmail().split("@")[0])
                     .role("FARMER") // match UserRole.FARMER in profile-service
+                    .userPreference(defaultPreference)
                     .build();
 
             var profileResponse = profileServiceClient.createProfile(profileRequest);

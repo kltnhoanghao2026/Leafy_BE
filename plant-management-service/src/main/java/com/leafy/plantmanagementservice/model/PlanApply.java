@@ -89,4 +89,13 @@ public class PlanApply extends BaseModel {
     /** Current status of this application. Defaults to {@link PlanStatus#PENDING}. */
     @Builder.Default
     PlanStatus status = PlanStatus.PENDING;
+
+    /**
+     * Whether this application can be cancelled.
+     * Defaults to {@code true} when a new apply is created.
+     * Set to {@code false} after the user successfully cancels it,
+     * or when the apply reaches a terminal state (COMPLETED/CANCELLED).
+     */
+    @Builder.Default
+    Boolean canCancel = true;
 }

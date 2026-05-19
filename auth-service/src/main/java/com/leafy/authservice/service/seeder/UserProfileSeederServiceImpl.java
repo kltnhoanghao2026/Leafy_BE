@@ -85,6 +85,31 @@ public class UserProfileSeederServiceImpl implements UserProfileSeederService {
             try {
                 int mod = i % 10;
                 int geoIdx = i % GEO_COORDS.length;
+
+                // Default preferences for seeded profiles
+                ProfileCreateRequest.UserPreferenceDto defaultPreference = ProfileCreateRequest.UserPreferenceDto.builder()
+                        .generalSettings(ProfileCreateRequest.GeneralSettingsDto.builder()
+                                .showAllFriends(false)
+                                .languageEn(false)
+                                .build())
+                        .privacySettings(ProfileCreateRequest.PrivacySettingsDto.builder()
+                                .shareFarmPlotsWithConsultants(true)
+                                .sharePlantsWithConsultants(true)
+                                .sharePlantEventsWithConsultants(true)
+                                .sharePlansWithConsultants(true)
+                                .build())
+                        .appearanceSettings(ProfileCreateRequest.AppearanceSettingsDto.builder()
+                                .theme(true)
+                                .build())
+                        .notificationSettings(ProfileCreateRequest.NotificationSettingsDto.builder()
+                                .notifyNewMessageFromDirect(true)
+                                .previewNewMessageFromDirect(true)
+                                .notifyNewMessageFromGroup(true)
+                                .notifyNewPostFromFriend(true)
+                                .notifyNewMessage(true)
+                                .build())
+                        .build();
+
                 ProfileCreateRequest profileRequest = ProfileCreateRequest.builder()
                         .userId(savedUser.getId())
                         .fullName(savedUser.getEmail().split("@")[0])
@@ -96,6 +121,7 @@ public class UserProfileSeederServiceImpl implements UserProfileSeederService {
                         .wardCode(WARD_CODES[mod])
                         .latitude(GEO_COORDS[geoIdx][0])
                         .longitude(GEO_COORDS[geoIdx][1])
+                        .userPreference(defaultPreference)
                         .build();
 
                 var profileResponse = profileServiceClient.createProfile(profileRequest);

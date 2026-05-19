@@ -19,6 +19,9 @@ public enum NotificationType {
     CONSULT_REQUEST,    // Someone sent you a consultation request (or accepted yours)
     PLAN_CONSULTING_CREATED, // An expert created a treatment plan for you via consulting
     PLAN_APPLIED,            // A treatment plan was successfully applied to your target
+    CONSULTING_DATA_ACCESS_REQUEST,    // An expert requested access to a specific data type
+    CONSULTING_DATA_ACCESS_APPROVED,  // A farmer approved your data access request
+    CONSULTING_DATA_ACCESS_DENIED,    // A farmer denied your data access request
 
     // ── Messaging ──────────────────────────────────────────
     DIRECT_MESSAGE,     // Someone sent you a direct/group chat message (FCM push only)

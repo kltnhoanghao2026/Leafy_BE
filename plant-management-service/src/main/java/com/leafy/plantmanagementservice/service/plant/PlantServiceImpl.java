@@ -14,6 +14,7 @@ import com.leafy.plantmanagementservice.dto.request.plant.PlantUpdateRequest;
 import com.leafy.plantmanagementservice.dto.response.plant.PlantResponse;
 import com.leafy.plantmanagementservice.mapper.PlantMapper;
 import com.leafy.plantmanagementservice.model.Plant;
+import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
 import com.leafy.plantmanagementservice.model.enums.PlantStatus;
 import com.leafy.plantmanagementservice.repository.PlantRepository;
 import lombok.RequiredArgsConstructor;
@@ -170,7 +171,7 @@ public class PlantServiceImpl implements PlantService {
     @Override
     public Page<PlantResponse> getConsultingPlants(String expertProfileId, String farmerProfileId, Pageable pageable) {
         log.info("Expert {} fetching consulting plants for farmer {}", expertProfileId, farmerProfileId);
-        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId);
+        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId, ConsultingDataType.PLANTS);
         return plantRepository.findByOwnerProfileId(farmerProfileId, pageable)
                 .map(plantMapper::toResponse);
     }
@@ -179,7 +180,7 @@ public class PlantServiceImpl implements PlantService {
     public PlantResponse getConsultingPlantById(String plantId, String expertProfileId) {
         log.info("Expert {} fetching consulting plant {}", expertProfileId, plantId);
         Plant plant = getPlantEntityById(plantId);
-        consultingAccessHelper.requireConsultingAccess(expertProfileId, plant.getOwnerProfileId());
+        consultingAccessHelper.requireConsultingAccess(expertProfileId, plant.getOwnerProfileId(), ConsultingDataType.PLANTS);
         return plantMapper.toResponse(plant);
     }
 

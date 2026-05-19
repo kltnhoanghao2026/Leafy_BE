@@ -10,6 +10,7 @@ import com.leafy.plantmanagementservice.mapper.PlantEventMapper;
 import com.leafy.plantmanagementservice.model.EventTask;
 import com.leafy.plantmanagementservice.model.Plant;
 import com.leafy.plantmanagementservice.model.PlantEvent;
+import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
 import com.leafy.plantmanagementservice.model.enums.EventType;
 import com.leafy.common.utils.ServiceSecurityUtils;
 import com.leafy.plantmanagementservice.dto.response.farmplot.FarmPlotResponse;
@@ -176,6 +177,43 @@ public class PlantEventServiceImpl implements PlantEventService {
     }
 
     @Override
+    @Transactional
+    public void deleteIncompleteEventsByPlanApplyId(String planApplyId) {
+        log.info("Deleting incomplete events for planApplyId={}", planApplyId);
+        List<PlantEvent> incompleteEvents = plantEventRepository.findByPlanApplyIdAndCompletedFalse(planApplyId);
+        if (incompleteEvents.isEmpty()) {
+            log.info("No incomplete events found for planApplyId={}", planApplyId);
+            return;
+        }
+
+        // Recursively collect all events to delete (parent + children chain)
+        List<String> allEventIds = collectAllEventIdsRecursive(incompleteEvents);
+        log.info("Collected {} events to delete for planApplyId={}", allEventIds.size(), planApplyId);
+
+        // Delete all associated progress entries first
+        for (String eventId : allEventIds) {
+            eventProgressService.deleteByEventId(eventId);
+        }
+
+        // Delete all events
+        plantEventRepository.deleteAllById(allEventIds);
+        log.info("Deleted {} events for planApplyId={}", allEventIds.size(), planApplyId);
+    }
+
+    private List<String> collectAllEventIdsRecursive(List<PlantEvent> events) {
+        List<String> allIds = new java.util.ArrayList<>();
+        for (PlantEvent event : events) {
+            allIds.add(event.getId());
+            // Recursively collect children
+            List<PlantEvent> children = plantEventRepository.findByParentPlantEventId(event.getId());
+            if (!children.isEmpty()) {
+                allIds.addAll(collectAllEventIdsRecursive(children));
+            }
+        }
+        return allIds;
+    }
+
+    @Override
     public List<PlantEventResponse> getEventsForCalendar(String targetProfileId, String farmPlotId, String farmZoneId, String plantId,
                                                           String planApplyId,
                                                           LocalDate startDate, LocalDate endDate) {
@@ -283,7 +321,7 @@ public class PlantEventServiceImpl implements PlantEventService {
     @Override
     public Page<PlantEventResponse> getConsultingPlantEvents(String expertProfileId, String farmerProfileId, String plantId, Pageable pageable) {
         log.info("Expert {} fetching consulting plant events for farmer {}, plantId={}", expertProfileId, farmerProfileId, plantId);
-        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId);
+        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId, ConsultingDataType.PLANT_EVENTS);
         if (StringUtils.hasText(plantId)) {
             Plant plant = plantRepository.findById(plantId)
                     .orElseThrow(() -> new AppException(ErrorCode.PLANT_NOT_FOUND));
@@ -300,7 +338,7 @@ public class PlantEventServiceImpl implements PlantEventService {
     @Transactional
     public PlantEventResponse createConsultingPlantEvent(String expertProfileId, String farmerProfileId, PlantEventCreateRequest request) {
         log.info("Expert {} creating consulting plant event for farmer {}", expertProfileId, farmerProfileId);
-        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId);
+        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId, ConsultingDataType.PLANT_EVENTS);
         if (StringUtils.hasText(request.getPlantId())) {
             Plant plant = plantRepository.findById(request.getPlantId())
                     .orElseThrow(() -> new AppException(ErrorCode.PLANT_NOT_FOUND));
@@ -311,6 +349,50 @@ public class PlantEventServiceImpl implements PlantEventService {
         validateEventTarget(request);
         PlantEvent event = plantEventMapper.toEntity(request);
         return plantEventMapper.toResponse(plantEventRepository.save(event));
+    }
+
+    @Override
+    public List<PlantEventResponse> getConsultingCalendarEvents(String expertProfileId, String farmerProfileId, LocalDate startDate, LocalDate endDate) {
+        log.info("Expert {} fetching consulting calendar events for farmer {}, range=[{}, {}]",
+                expertProfileId, farmerProfileId, startDate, endDate);
+        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId, ConsultingDataType.PLANT_EVENTS);
+
+        // ── Resolve farmer's farm plots ────────────────────────────────────
+        List<String> plotIds = new java.util.ArrayList<>();
+        List<FarmPlotResponse> plots = farmPlotService.getByOwner(farmerProfileId);
+        if (plots != null) {
+            plotIds = plots.stream()
+                    .map(FarmPlotResponse::getId)
+                    .filter(id -> id != null && !id.isBlank())
+                    .toList();
+        }
+
+        // ── Resolve all zone IDs within those plots ────────────────────────
+        List<String> zoneIds = new java.util.ArrayList<>();
+        for (String plotId : plotIds) {
+            try {
+                farmZoneService.getByFarmPlot(plotId).stream()
+                        .map(FarmZoneResponse::getId)
+                        .filter(id -> id != null && !id.isBlank())
+                        .forEach(zoneIds::add);
+            } catch (Exception e) {
+                log.warn("Could not resolve zones for plot={}: {}", plotId, e.getMessage());
+            }
+        }
+
+        // ── Resolve all plant IDs within those plots and zones ────────────
+        List<String> plantIds = plotIds.isEmpty() && zoneIds.isEmpty()
+                ? List.of()
+                : plantRepository.findByFarmPlotIdInOrFarmZoneIdIn(plotIds, zoneIds).stream()
+                        .map(Plant::getId)
+                        .toList();
+
+        if (plotIds.isEmpty() && zoneIds.isEmpty() && plantIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<PlantEvent> events = plantEventRepository.findProfileCalendarEvents(plotIds, zoneIds, plantIds, startDate, endDate);
+        return plantEventMapper.toResponseList(events);
     }
 
     private PlantEvent getEventEntityById(String eventId) {

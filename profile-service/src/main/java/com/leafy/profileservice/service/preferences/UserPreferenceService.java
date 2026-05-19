@@ -33,28 +33,12 @@ public interface UserPreferenceService {
     UserPreferenceResponse updateGeneralSettings(GeneralSettingsUpdateRequest request);
 
     /**
-     * Update security settings for current user
-     *
-     * @param request the update request
-     * @return updated preferences
-     */
-    UserPreferenceResponse updateSecuritySettings(SecuritySettingsUpdateRequest request);
-
-    /**
      * Update privacy settings for current user
      *
      * @param request the update request
      * @return updated preferences
      */
     UserPreferenceResponse updatePrivacySettings(PrivacySettingsUpdateRequest request);
-
-    /**
-     * Update sync settings for current user
-     *
-     * @param request the update request
-     * @return updated preferences
-     */
-    UserPreferenceResponse updateSyncSettings(SyncSettingsUpdateRequest request);
 
     /**
      * Update appearance settings for current user
@@ -65,28 +49,12 @@ public interface UserPreferenceService {
     UserPreferenceResponse updateAppearanceSettings(AppearanceSettingsUpdateRequest request);
 
     /**
-     * Update message settings for current user
-     *
-     * @param request the update request
-     * @return updated preferences
-     */
-    UserPreferenceResponse updateMessageSettings(MessageSettingsUpdateRequest request);
-
-    /**
      * Update notification settings for current user
      *
      * @param request the update request
      * @return updated preferences
      */
     UserPreferenceResponse updateNotificationSettings(NotificationSettingsUpdateRequest request);
-
-    /**
-     * Update utilities settings for current user
-     *
-     * @param request the update request
-     * @return updated preferences
-     */
-    UserPreferenceResponse updateUtilitiesSettings(UtilitiesSettingsUpdateRequest request);
 
     /**
      * Get general settings for current user
@@ -101,6 +69,14 @@ public interface UserPreferenceService {
      * @return privacy settings
      */
     UserPreference.PrivacySettings getPrivacySettings();
+
+    /**
+     * Get privacy settings by profile ID (for experts viewing consulted farmers)
+     *
+     * @param profileId the profile ID
+     * @return privacy settings
+     */
+    UserPreference.PrivacySettings getPrivacySettingsByProfileId(String profileId);
 
     /**
      * Get notification settings for current user

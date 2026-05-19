@@ -43,6 +43,9 @@ public class PlanApplyResponse {
     // ── Lifecycle ────────────────────────────────────────────────────────────
     PlanStatus status;
 
+    /** Whether this application can be cancelled by the user. */
+    Boolean canCancel;
+
     // ── Audit fields ─────────────────────────────────────────────────────────
     LocalDateTime createdAt;
     LocalDateTime lastModifiedAt;

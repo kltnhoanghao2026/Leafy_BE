@@ -9,6 +9,7 @@ import com.leafy.plantmanagementservice.dto.response.farmplot.FarmPlotResponse;
 import com.leafy.plantmanagementservice.utils.ConsultingAccessHelper;
 import com.leafy.plantmanagementservice.mapper.FarmPlotMapper;
 import com.leafy.plantmanagementservice.model.FarmPlot;
+import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
 import com.leafy.plantmanagementservice.model.enums.FarmPlotStatus;
 import com.leafy.plantmanagementservice.repository.FarmPlotRepository;
 import com.leafy.plantmanagementservice.repository.FarmZoneRepository;
@@ -53,7 +54,7 @@ public class FarmPlotServiceImpl implements FarmPlotService {
 
     @Override
     public List<FarmPlotResponse> getByOwnerAsConsulting(String farmerProfileId, String expertProfileId) {
-        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId);
+        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId, ConsultingDataType.FARM_PLOTS);
         return farmPlotMapper.toResponseList(
                 farmPlotRepository.findByOwnerProfileIdAndActiveTrue(farmerProfileId));
     }
@@ -61,7 +62,7 @@ public class FarmPlotServiceImpl implements FarmPlotService {
     @Override
     public FarmPlotResponse getByIdAsConsulting(String farmPlotId, String expertProfileId) {
         FarmPlot farmPlot = getActiveFarmPlot(farmPlotId);
-        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmPlot.getOwnerProfileId());
+        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmPlot.getOwnerProfileId(), ConsultingDataType.FARM_PLOTS);
         return farmPlotMapper.toResponse(farmPlot);
     }
 

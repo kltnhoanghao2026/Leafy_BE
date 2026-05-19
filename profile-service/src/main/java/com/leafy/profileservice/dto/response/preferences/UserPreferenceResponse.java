@@ -15,13 +15,9 @@ import lombok.experimental.FieldDefaults;
 public class UserPreferenceResponse {
 
     UserPreference.GeneralSettings generalSettings;
-    UserPreference.SecuritySettings securitySettings;
     UserPreference.PrivacySettings privacySettings;
-    UserPreference.SyncSettings syncSettings;
     UserPreference.AppearanceSettings appearanceSettings;
-    UserPreference.MessageSettings messageSettings;
     UserPreference.NotificationSettings notificationSettings;
-    UserPreference.UtilitiesSettings utilitiesSettings;
 
     /**
      * Create response from UserPreference entity
@@ -33,13 +29,9 @@ public class UserPreferenceResponse {
 
         return UserPreferenceResponse.builder()
                 .generalSettings(userPreference.getGeneralSettings())
-                .securitySettings(userPreference.getSecuritySettings())
                 .privacySettings(userPreference.getPrivacySettings())
-                .syncSettings(userPreference.getSyncSettings())
                 .appearanceSettings(userPreference.getAppearanceSettings())
-                .messageSettings(userPreference.getMessageSettings())
                 .notificationSettings(userPreference.getNotificationSettings())
-                .utilitiesSettings(userPreference.getUtilitiesSettings())
                 .build();
     }
 }

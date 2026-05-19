@@ -38,8 +38,16 @@ public class AgricultureStatsResponse {
     int totalCompletedEvents;
     int totalPendingEvents;
 
+    // ── This Month Stats ─────────────────────────────────────────────────────
+    int monthEvents;
+    int monthCompletedEvents;
+    int monthPendingEvents;
+
     // ── Event Type Breakdown ─────────────────────────────────────────────────
     Map<String, Integer> eventsByType;
+
+    // ── This Month Event Type Breakdown ─────────────────────────────────────
+    Map<String, Integer> monthEventsByType;
 
     // ── Plan Stats ───────────────────────────────────────────────────────────
     int totalPlans;

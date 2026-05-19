@@ -3,6 +3,7 @@ package com.leafy.plantmanagementservice.utils;
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
 import com.leafy.plantmanagementservice.client.ProfileServiceClient;
+import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -36,6 +37,30 @@ public class ConsultingAccessHelper {
             throw e;
         } catch (Exception e) {
             log.warn("Consulting validation failed for expert={}, farmer={}: {}", expertProfileId, farmerProfileId, e.getMessage());
+            throw new AppException(ErrorCode.AUTH_UNAUTHORIZED);
+        }
+    }
+
+    /**
+     * Validates that the given expert has access to a specific data type of the given farmer.
+     * Checks both the farmer's sharing toggle and any approved access requests.
+     * Throws {@link AppException} with {@code AUTH_UNAUTHORIZED} if access is denied.
+     */
+    public void requireConsultingAccess(String expertProfileId, String farmerProfileId, ConsultingDataType dataType) {
+        try {
+            Boolean valid = profileServiceClient
+                    .validateConsultingWithToggle(expertProfileId, farmerProfileId, dataType)
+                    .getData();
+            if (!Boolean.TRUE.equals(valid)) {
+                log.warn("Consulting data access denied: expert={}, farmer={}, dataType={}",
+                        expertProfileId, farmerProfileId, dataType);
+                throw new AppException(ErrorCode.AUTH_UNAUTHORIZED);
+            }
+        } catch (AppException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("Consulting validation with toggle failed for expert={}, farmer={}, dataType={}: {}",
+                    expertProfileId, farmerProfileId, dataType, e.getMessage());
             throw new AppException(ErrorCode.AUTH_UNAUTHORIZED);
         }
     }

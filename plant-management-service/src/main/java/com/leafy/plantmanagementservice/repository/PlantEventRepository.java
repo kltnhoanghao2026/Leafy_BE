@@ -40,4 +40,7 @@ public interface PlantEventRepository extends MongoRepository<PlantEvent, String
             List<String> farmPlotIds, LocalDate rangeEnd, LocalDate rangeStart);
 
     List<PlantEvent> findByParentPlantEventId(String parentPlantEventId);
+
+    /** Find all events for a PlanApply that are NOT completed. */
+    List<PlantEvent> findByPlanApplyIdAndCompletedFalse(String planApplyId);
 }

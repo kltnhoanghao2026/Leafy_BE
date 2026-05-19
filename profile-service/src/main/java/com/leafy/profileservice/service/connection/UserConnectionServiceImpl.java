@@ -7,8 +7,10 @@ import com.leafy.common.event.profile.UserConnectionEvent;
 import com.leafy.common.publisher.RawNotificationEventPublisher;
 import com.leafy.profileservice.dto.response.profile.UserConnectionResponse;
 import com.leafy.profileservice.model.Profile;
+import com.leafy.profileservice.model.UserPreference;
 import com.leafy.profileservice.model.UserConnection;
 import com.leafy.profileservice.model.enums.ConsultationStatus;
+import com.leafy.profileservice.model.enums.ConsultingDataType;
 import com.leafy.profileservice.repository.ProfileRepository;
 import com.leafy.profileservice.repository.UserConnectionRepository;
 import com.leafy.profileservice.service.stream.ProfileEventPublisher;
@@ -229,6 +231,33 @@ public class UserConnectionServiceImpl implements UserConnectionService {
                 .stream()
                 .map(UserConnection::getFollowerId)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean hasDataAccessForConsulting(String expertProfileId, String farmerProfileId, ConsultingDataType dataType) {
+        if (!isActiveConsultation(expertProfileId, farmerProfileId)) {
+            return false;
+        }
+
+        Profile farmerProfile = profileRepository.findById(farmerProfileId).orElse(null);
+        if (farmerProfile == null || farmerProfile.getUserPreference() == null) {
+            return false;
+        }
+
+        UserPreference.PrivacySettings privacy = farmerProfile.getUserPreference().getPrivacySettings();
+        if (privacy == null) {
+            return false;
+        }
+
+        boolean toggleEnabled = switch (dataType) {
+            case FARM_PLOTS -> privacy.isShareFarmPlotsWithConsultants();
+            case PLANTS -> privacy.isSharePlantsWithConsultants();
+            case PLANT_EVENTS -> privacy.isSharePlantEventsWithConsultants();
+            case PLANS -> privacy.isSharePlansWithConsultants();
+        };
+
+        // Farmer's privacy toggle takes precedence - if false, deny access regardless of any access requests
+        return toggleEnabled;
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────

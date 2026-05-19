@@ -20,6 +20,7 @@ import com.leafy.plantmanagementservice.mapper.PlanApplyMapper;
 import com.leafy.plantmanagementservice.mapper.PlanMapper;
 import com.leafy.plantmanagementservice.model.Plan;
 import com.leafy.plantmanagementservice.model.PlanApply;
+import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
 import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
 import com.leafy.plantmanagementservice.model.enums.PlanStatus;
 import com.leafy.plantmanagementservice.repository.PlanApplyRepository;
@@ -55,6 +56,7 @@ public class PlanServiceImpl implements PlanService {
     ConsultingAccessHelper consultingAccessHelper;
     ProfileServiceClient profileServiceClient;
     RawNotificationEventPublisher notificationPublisher;
+    com.leafy.plantmanagementservice.service.plantevent.PlantEventService plantEventService;
 
     @Override
     @Transactional
@@ -114,6 +116,7 @@ public class PlanServiceImpl implements PlanService {
                 .excludedPlantIds(request.getExcludedPlantIds())
                 .excludedFarmZoneIds(request.getExcludedFarmZoneIds())
                 .status(PlanStatus.APPLYING)
+                .canCancel(true)
                 .build();
         apply = planApplyRepository.save(apply);
 
@@ -177,13 +180,18 @@ public class PlanServiceImpl implements PlanService {
     }
 
     @Override
-    public Page<PlanResponse> getMyPlans(String search, Pageable pageable) {
+    public Page<PlanResponse> getMyPlans(String search, PlanSourceType sourceType, Pageable pageable) {
         String profileId = ServiceSecurityUtils.getCurrentProfileId();
         boolean hasSearch = search != null && !search.isBlank();
+        boolean hasSourceType = sourceType != null;
 
         Page<Plan> page;
-        if (hasSearch) {
+        if (hasSearch && hasSourceType) {
+            page = planRepository.findByOwnerOrCreatorAndSearchAndSourceType(profileId, sourceType, search, pageable);
+        } else if (hasSearch) {
             page = planRepository.findByOwnerOrCreatorAndSearch(profileId, search, pageable);
+        } else if (hasSourceType) {
+            page = planRepository.findByOwnerIdOrCreatorIdAndSourceType(profileId, profileId, sourceType, pageable);
         } else {
             page = planRepository.findByOwnerIdOrCreatorId(profileId, profileId, pageable);
         }
@@ -191,12 +199,17 @@ public class PlanServiceImpl implements PlanService {
     }
 
     @Override
-    public Page<PlanResponse> getPublicPlans(String search, Pageable pageable) {
+    public Page<PlanResponse> getPublicPlans(String search, PlanSourceType sourceType, Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
+        boolean hasSourceType = sourceType != null;
 
         Page<Plan> page;
-        if (hasSearch) {
+        if (hasSearch && hasSourceType) {
+            page = planRepository.findPublicBySearchAndSourceType(sourceType, search, pageable);
+        } else if (hasSearch) {
             page = planRepository.findPublicBySearch(search, pageable);
+        } else if (hasSourceType) {
+            page = planRepository.findByIsPublicTrueAndSourceType(sourceType, pageable);
         } else {
             page = planRepository.findByIsPublicTrue(pageable);
         }
@@ -240,7 +253,7 @@ public class PlanServiceImpl implements PlanService {
     @Override
     public Page<PlanResponse> getConsultingPlans(String expertProfileId, String farmerProfileId, Pageable pageable) {
         log.info("Expert {} fetching consulting plans for farmer {}", expertProfileId, farmerProfileId);
-        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId);
+        consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId, ConsultingDataType.PLANS);
         return enrichPage(planRepository.findByOwnerId(farmerProfileId, pageable)
                 .map(planMapper::toResponse));
     }
@@ -430,7 +443,40 @@ public class PlanServiceImpl implements PlanService {
         PlanApply apply = planApplyRepository.findById(applyId)
                 .orElseThrow(() -> new AppException(ErrorCode.PLAN_NOT_FOUND));
         apply.setStatus(newStatus);
+        // Prevent further cancellation once in a terminal state
+        if (newStatus == PlanStatus.COMPLETED || newStatus == PlanStatus.CANCELLED) {
+            apply.setCanCancel(false);
+        }
         return planApplyMapper.toResponse(planApplyRepository.save(apply));
+    }
+
+    @Override
+    @Transactional
+    public PlanApplyResponse cancelApply(String applyId) {
+        log.info("Cancelling PlanApply id={}", applyId);
+        PlanApply apply = planApplyRepository.findById(applyId)
+                .orElseThrow(() -> new AppException(ErrorCode.PLAN_NOT_FOUND));
+
+        // Validate: only ACTIVE applies with canCancel=true can be cancelled
+        if (apply.getStatus() != PlanStatus.ACTIVE) {
+            log.warn("Cannot cancel PlanApply id={}: status is {} (expected ACTIVE)", applyId, apply.getStatus());
+            throw new AppException(ErrorCode.PLAN_NOT_FOUND);
+        }
+        if (!Boolean.TRUE.equals(apply.getCanCancel())) {
+            log.warn("Cannot cancel PlanApply id={}: canCancel is false", applyId);
+            throw new AppException(ErrorCode.PLAN_NOT_FOUND);
+        }
+
+        // 1. Delete all incomplete events (cascade to children) — completed events are preserved
+        plantEventService.deleteIncompleteEventsByPlanApplyId(applyId);
+
+        // 2. Mark the apply as cancelled and prevent re-cancellation
+        apply.setStatus(PlanStatus.CANCELLED);
+        apply.setCanCancel(false);
+        PlanApply saved = planApplyRepository.save(apply);
+        log.info("PlanApply id={} is now CANCELLED", applyId);
+
+        return planApplyMapper.toResponse(saved);
     }
 
     @Override

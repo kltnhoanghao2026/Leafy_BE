@@ -1,5 +1,6 @@
 package com.leafy.profileservice.mapper;
 
+import com.leafy.profileservice.dto.request.preferences.UserPreferenceRequest;
 import com.leafy.profileservice.dto.request.profile.ProfileCreateRequest;
 import com.leafy.profileservice.dto.request.profile.ProfileUpdateRequest;
 import com.leafy.profileservice.dto.response.profile.ProfileDetailsResponse;
@@ -8,6 +9,7 @@ import com.leafy.profileservice.model.Profile;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
@@ -27,7 +29,21 @@ public interface ProfileMapper {
      */
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "isVerified", ignore = true)
+    @Mapping(target = "userPreference", source = "userPreference", qualifiedByName = "mapUserPreference")
     Profile toEntity(ProfileCreateRequest request);
+
+    @Named("mapUserPreference")
+    default com.leafy.profileservice.model.UserPreference mapUserPreference(UserPreferenceRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return com.leafy.profileservice.model.UserPreference.builder()
+                .generalSettings(request.getGeneralSettings())
+                .privacySettings(request.getPrivacySettings())
+                .appearanceSettings(request.getAppearanceSettings())
+                .notificationSettings(request.getNotificationSettings())
+                .build();
+    }
 
     /**
      * Map Profile entity to ProfileResponse

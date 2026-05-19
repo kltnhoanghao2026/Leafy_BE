@@ -1,6 +1,7 @@
 package com.leafy.profileservice.controller.internal;
 
 import com.leafy.common.dto.ApiResponse;
+import com.leafy.profileservice.model.enums.ConsultingDataType;
 import com.leafy.profileservice.service.connection.UserConnectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,24 @@ public class ConsultingInternalController {
             @RequestParam String expertProfileId,
             @RequestParam String farmerProfileId) {
         boolean valid = userConnectionService.isActiveConsultation(expertProfileId, farmerProfileId);
+        return ResponseEntity.ok(ApiResponse.success(valid));
+    }
+
+    /**
+     * Validate that an expert has access to a specific data type of a consulted farmer.
+     * Checks both the farmer's sharing toggle and any approved access requests.
+     *
+     * @param expertProfileId  the profile ID of the expert
+     * @param farmerProfileId  the profile ID of the farmer
+     * @param dataType         the data type being accessed (FARM_PLOTS, PLANTS, PLANT_EVENTS, PLANS)
+     * @return true if access is granted, false otherwise
+     */
+    @GetMapping("/validate-with-toggle")
+    public ResponseEntity<ApiResponse<Boolean>> validateConsultingWithToggle(
+            @RequestParam String expertProfileId,
+            @RequestParam String farmerProfileId,
+            @RequestParam ConsultingDataType dataType) {
+        boolean valid = userConnectionService.hasDataAccessForConsulting(expertProfileId, farmerProfileId, dataType);
         return ResponseEntity.ok(ApiResponse.success(valid));
     }
 

@@ -73,6 +73,12 @@ public class ProfileServiceImpl implements ProfileService {
         Profile profile = profileMapper.toEntity(request);
         profile.setActive(true);
 
+        // Set default UserPreference if not provided
+        if (profile.getUserPreference() == null) {
+            profile.setUserPreference(new com.leafy.profileservice.model.UserPreference());
+            log.debug("No userPreference provided, using default settings");
+        }
+
         Profile savedProfile = profileRepository.save(profile);
         log.info("Profile created successfully with ID: {}", savedProfile.getId());
 
@@ -104,6 +110,15 @@ public class ProfileServiceImpl implements ProfileService {
                 .longitude(request.getLongitude())
                 .isVerified(false)
                 .build();
+
+        // Set userPreference if provided, otherwise use defaults
+        if (request.getUserPreference() != null) {
+            profile.setUserPreference(mapUserPreferenceRequest(request.getUserPreference()));
+        } else {
+            profile.setUserPreference(new com.leafy.profileservice.model.UserPreference());
+            log.debug("No userPreference provided in internal creation, using default settings");
+        }
+
         profile.setActive(true);
 
         Profile savedProfile = profileRepository.save(profile);
@@ -115,6 +130,16 @@ public class ProfileServiceImpl implements ProfileService {
         response.setEmail(request.getEmail());
         response.setPhoneNumber(request.getPhoneNumber());
         return response;
+    }
+
+    private com.leafy.profileservice.model.UserPreference mapUserPreferenceRequest(
+            com.leafy.profileservice.dto.request.preferences.UserPreferenceRequest request) {
+        return com.leafy.profileservice.model.UserPreference.builder()
+                .generalSettings(request.getGeneralSettings())
+                .privacySettings(request.getPrivacySettings())
+                .appearanceSettings(request.getAppearanceSettings())
+                .notificationSettings(request.getNotificationSettings())
+                .build();
     }
 
     @Override
