@@ -44,7 +44,9 @@ app:
     topics:
       alert-triggered: ${IOT_ALERT_TRIGGERED_TOPIC:iot.alert.triggered}
   mqtt:
-    url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+    url: ${MQTT_BROKER_URL:tcp://137.66.4.201:1883}
+    username: ${MQTT_USERNAME:admin}
+    password: ${MQTT_PASSWORD:admin}
     client-id: ${MQTT_CLIENT_ID:iot-metrics-collector-service}
     topics:
       - coffee/prod/devices/+/telemetry

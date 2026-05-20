@@ -20,13 +20,29 @@ public class PahoMqttClientAdapter implements MqttClientAdapter {
     @Override
     public void publish(String topic, String payload, int qos) {
         try {
-            MqttAsyncClient mqttClient = getClient();
-            MqttMessage message = new MqttMessage(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            message.setQos(qos);
-            mqttClient.publish(topic, message).waitForCompletion(seedProperties.getMqtt().getCompletionTimeout().toMillis());
+            publishOnce(topic, payload, qos);
         } catch (MqttException exception) {
-            throw new IllegalStateException("Failed to publish MQTT message to topic " + topic, exception);
+            log.warn(
+                "MQTT publish failed for topic {}. Resetting publisher client and retrying once. reasonCode={}",
+                topic,
+                exception.getReasonCode(),
+                exception
+            );
+            resetClient();
+            try {
+                publishOnce(topic, payload, qos);
+            } catch (MqttException retryException) {
+                resetClient();
+                throw new IllegalStateException("Failed to publish MQTT message to topic " + topic, retryException);
+            }
         }
+    }
+
+    private void publishOnce(String topic, String payload, int qos) throws MqttException {
+        MqttAsyncClient mqttClient = getClient();
+        MqttMessage message = new MqttMessage(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        message.setQos(qos);
+        mqttClient.publish(topic, message).waitForCompletion(seedProperties.getMqtt().getCompletionTimeout().toMillis());
     }
 
     private synchronized MqttAsyncClient getClient() throws MqttException {
@@ -48,5 +64,18 @@ public class PahoMqttClientAdapter implements MqttClientAdapter {
         client.connect(options).waitForCompletion(seedProperties.getMqtt().getCompletionTimeout().toMillis());
         log.info("Connected MQTT publisher client to {}", seedProperties.getMqtt().getUrl());
         return client;
+    }
+
+    private synchronized void resetClient() {
+        if (client == null) {
+            return;
+        }
+        try {
+            client.close(true);
+        } catch (MqttException exception) {
+            log.debug("Failed to close stale MQTT publisher client", exception);
+        } finally {
+            client = null;
+        }
     }
 }
