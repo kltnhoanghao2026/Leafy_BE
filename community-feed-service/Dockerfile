@@ -7,12 +7,12 @@ COPY pom.xml ./
 COPY common/pom.xml ./common/
 COPY common/src ./common/src
 
-# Copy notification-service module
-COPY notification-service/pom.xml ./notification-service/
-COPY notification-service/src ./notification-service/src
+# Copy community-feed-service module
+COPY community-feed-service/pom.xml ./community-feed-service/
+COPY community-feed-service/src ./community-feed-service/src
 
 # Build the application
-RUN mvn -f notification-service/pom.xml clean package -DskipTests
+RUN mvn -f community-feed-service/pom.xml clean package -DskipTests
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
@@ -23,14 +23,14 @@ RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 
 # Copy the built jar from build stage
-COPY --from=build /app/notification-service/target/*.jar app.jar
+COPY --from=build /app/community-feed-service/target/*.jar app.jar
 
 # Expose the port
-EXPOSE 8095
+EXPOSE 8090
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8095/actuator/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8090/actuator/health || exit 1
 
 # Run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]

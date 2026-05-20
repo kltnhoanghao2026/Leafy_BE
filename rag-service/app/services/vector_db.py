@@ -43,7 +43,7 @@ class VectorStoreService:
         return cls._instance
     
     def _initialize(self):
-        self.qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
+        self.qdrant_url = os.getenv("QDRANT_URL", "http://qdrant:6333")
         self.qdrant_api_key = os.getenv("QDRANT_API_KEY", None)
         self.collection_name = _DEFAULT_COLLECTION
         

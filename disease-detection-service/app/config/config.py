@@ -37,8 +37,8 @@ class Config(BaseConfig):
     MODEL_INPUT_SIZE: tuple[int, int] = (224, 224)
     MODEL_TOP_K: int = 3  # Top K predictions to return
 
-    # File Service settings
-    FILE_SERVICE_URL: str = "http://localhost:8084/internal/files"
+    # File Service settings (from environment)
+    FILE_SERVICE_URL: str = "http://file-service:8084/internal/files"
 
     # Logging
     LOG_LEVEL: str = "INFO"
@@ -46,19 +46,21 @@ class Config(BaseConfig):
     # TensorFlow settings
     TF_CPP_MIN_LOG_LEVEL: str = "2"  # Suppress TF warnings
 
-    # MongoDB settings (read from backend/.env)
-    MONGODB_HOST: str = "localhost"
+    # MongoDB settings (from environment variables - no hardcoded defaults for prod)
+    MONGODB_HOST: str = "mongodb"
     MONGODB_PORT: int = 27017
     MONGODB_USERNAME: str = "admin"
-    MONGODB_PASSWORD: str = "admin123"
+    MONGODB_PASSWORD: str = ""  # No default - must be set via environment
     MONGODB_DATABASE_DISEASE: str = "leafy_disease"
 
     @property
     def MONGODB_URI(self) -> str:
-        return (
-            f"mongodb://{self.MONGODB_USERNAME}:{self.MONGODB_PASSWORD}"
-            f"@{self.MONGODB_HOST}:{self.MONGODB_PORT}"
-        )
+        if self.MONGODB_USERNAME and self.MONGODB_PASSWORD:
+            return (
+                f"mongodb://{self.MONGODB_USERNAME}:{self.MONGODB_PASSWORD}"
+                f"@{self.MONGODB_HOST}:{self.MONGODB_PORT}"
+            )
+        return f"mongodb://{self.MONGODB_HOST}:{self.MONGODB_PORT}"
 
 
 class TestConfig(Config):
@@ -74,6 +76,10 @@ class DevConfig(Config):
     )
     LOG_LEVEL: str = "DEBUG"
     PORT: int = 8000
+    # Development defaults (use docker-compose service names)
+    MONGODB_HOST: str = "localhost"
+    MONGODB_PASSWORD: str = "admin123"  # Only for local dev
+    eureka_server: str = "http://localhost:8761/eureka/"  # Local Eureka for dev
 
 
 class ProdConfig(Config):
@@ -81,7 +87,8 @@ class ProdConfig(Config):
     model_config = SettingsConfigDict(
         env_file=[_BACKEND_ENV, ".env"], env_prefix="PROD_", extra="ignore"
     )
-    LOG_LEVEL: str = "INFO"
+    LOG_LEVEL: str = "WARNING"
+    FILE_SERVICE_URL: str = "http://file-service:8084/internal/files"
     # In production, you might want to load model from a specific path
     # MODEL_PATH: str = "/app/models/mobilenetv2.keras"
 

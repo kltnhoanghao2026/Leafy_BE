@@ -11,7 +11,7 @@ _BACKEND_ENV = os.path.join(
 class Settings(BaseSettings):
     app_name: str = "disease-classification-service"
     server_port: int = 8088
-    eureka_server: str = "http://localhost:8761/eureka/"
+    eureka_server: str = "http://discovery-server:8761/eureka/"
 
     model_config = SettingsConfigDict(
         env_file=_BACKEND_ENV,
