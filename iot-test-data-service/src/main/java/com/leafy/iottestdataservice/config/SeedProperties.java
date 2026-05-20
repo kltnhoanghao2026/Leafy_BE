@@ -35,7 +35,7 @@ public class SeedProperties {
     @Getter
     @Setter
     public static class Farm {
-        private String baseUrl = "http://localhost:8083";
+        private String baseUrl = "http://localhost:8086";
     }
 
     @Getter

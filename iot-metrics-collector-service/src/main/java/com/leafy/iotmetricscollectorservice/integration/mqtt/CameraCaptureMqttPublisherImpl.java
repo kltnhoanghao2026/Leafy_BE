@@ -7,6 +7,7 @@ import com.leafy.iotmetricscollectorservice.dto.media.CameraCaptureRequest;
 import com.leafy.iotmetricscollectorservice.integration.mqtt.payload.CameraCaptureMqttPayload;
 import com.leafy.iotmetricscollectorservice.model.DeviceMediaEvent;
 import com.leafy.iotmetricscollectorservice.model.IoTDevice;
+import com.leafy.iotmetricscollectorservice.model.enums.TriggerType;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -52,6 +53,7 @@ public class CameraCaptureMqttPublisherImpl implements CameraCaptureMqttPublishe
         CameraCaptureMqttPayload payload = new CameraCaptureMqttPayload();
         payload.setRequestId(mediaEvent.getRequestId());
         payload.setDeviceUid(device.getDeviceUid());
+        payload.setTriggerType(resolveTriggerType(mediaEvent));
         payload.setRequestedAt(mediaEvent.getRequestedAt());
         payload.setResolution(request.getResolution().name());
         payload.setQuality(request.getQuality().name());
@@ -61,6 +63,12 @@ public class CameraCaptureMqttPublisherImpl implements CameraCaptureMqttPublishe
         upload.setEndpoint(fileUploadEndpoint);
         payload.setUpload(upload);
         return payload;
+    }
+
+    private String resolveTriggerType(DeviceMediaEvent mediaEvent) {
+        return mediaEvent.getTriggerType() != null && !mediaEvent.getTriggerType().isBlank()
+            ? mediaEvent.getTriggerType()
+            : TriggerType.MANUAL.name();
     }
 
     private String buildCaptureTopic(String deviceUid) {

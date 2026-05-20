@@ -271,4 +271,20 @@ public class TelemetryQueryException extends RuntimeException {
             "Device media event not found: " + mediaEventId
         );
     }
+
+    public static TelemetryQueryException cameraScheduleNotFound(UUID scheduleId) {
+        return new TelemetryQueryException(
+            HttpStatus.NOT_FOUND,
+            4633,
+            "Device camera schedule not found: " + scheduleId
+        );
+    }
+
+    public static TelemetryQueryException invalidCameraSchedule(String message) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4634,
+            "Invalid camera schedule: " + message
+        );
+    }
 }

@@ -25,4 +25,5 @@ public class DeviceMediaEventResponse {
     private Instant commandSentAt;
     private Instant uploadedAt;
     private Instant capturedAt;
+    private DeviceMediaAnalysisResponse analysis;
 }

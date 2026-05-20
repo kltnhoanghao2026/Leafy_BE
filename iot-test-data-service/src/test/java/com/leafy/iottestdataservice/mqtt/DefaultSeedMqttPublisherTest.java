@@ -2,7 +2,9 @@ package com.leafy.iottestdataservice.mqtt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leafy.iottestdataservice.config.SeedProperties;
+import com.leafy.iottestdataservice.dto.mqtt.CameraCaptureCommandPayload;
 import com.leafy.iottestdataservice.dto.mqtt.ConfigAckPayload;
+import com.leafy.iottestdataservice.dto.mqtt.ImageMetaPayload;
 import com.leafy.iottestdataservice.dto.mqtt.StatusPayload;
 import com.leafy.iottestdataservice.dto.mqtt.TelemetryPayload;
 import java.time.Instant;
@@ -80,5 +82,60 @@ class DefaultSeedMqttPublisherTest {
         assertTrue(payloadCaptor.getValue().contains("\"configVersion\":7"));
         assertTrue(payloadCaptor.getValue().contains("\"success\":false"));
         assertTrue(payloadCaptor.getValue().contains("\"error\":\"simulated\""));
+    }
+
+    @Test
+    void publishCameraCaptureCommandUsesExpectedTopicAndTriggerType() {
+        SeedProperties seedProperties = new SeedProperties();
+        seedProperties.getMqtt().setProduct("coffee");
+        seedProperties.getMqtt().setNamespaceEnv("prod");
+        ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().build();
+        DefaultSeedMqttPublisher publisher = new DefaultSeedMqttPublisher(seedProperties, objectMapper, mqttClientAdapter);
+
+        publisher.publishCameraCaptureCommand(
+            "camera-device",
+            new CameraCaptureCommandPayload("request-1", "camera-device", "SCHEDULED", Instant.parse("2026-05-15T08:00:00Z"), "VGA", "MEDIUM")
+        );
+
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mqttClientAdapter).publish(eq("coffee/prod/devices/camera-device/camera/capture"), payloadCaptor.capture(), eq(1));
+        assertTrue(payloadCaptor.getValue().contains("\"requestId\":\"request-1\""));
+        assertTrue(payloadCaptor.getValue().contains("\"triggerType\":\"SCHEDULED\""));
+        assertTrue(payloadCaptor.getValue().contains("\"resolution\":\"VGA\""));
+    }
+
+    @Test
+    void publishImageMetaUsesExpectedTopicAndCollectorMetadataShape() {
+        SeedProperties seedProperties = new SeedProperties();
+        seedProperties.getMqtt().setProduct("coffee");
+        seedProperties.getMqtt().setNamespaceEnv("prod");
+        ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().build();
+        DefaultSeedMqttPublisher publisher = new DefaultSeedMqttPublisher(seedProperties, objectMapper, mqttClientAdapter);
+
+        publisher.publishImageMeta(
+            "camera-device",
+            new ImageMetaPayload(
+                "camera-device",
+                "request-1",
+                "MANUAL",
+                Instant.parse("2026-05-15T08:00:00Z"),
+                Instant.parse("2026-05-15T08:00:00Z"),
+                "SUCCESS",
+                true,
+                "mock-file-1",
+                "image/jpeg",
+                12345L,
+                640,
+                480,
+                null,
+                null
+            )
+        );
+
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mqttClientAdapter).publish(eq("coffee/prod/devices/camera-device/image/meta"), payloadCaptor.capture(), eq(1));
+        assertTrue(payloadCaptor.getValue().contains("\"status\":\"SUCCESS\""));
+        assertTrue(payloadCaptor.getValue().contains("\"fileId\":\"mock-file-1\""));
+        assertTrue(payloadCaptor.getValue().contains("\"sizeBytes\":12345"));
     }
 }
