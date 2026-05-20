@@ -1,0 +1,256 @@
+services:
+  # ===========================================
+  # DATA STORAGE
+  # ===========================================
+  mongodb:
+    image: mongo:7.0
+    container_name: leafy-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - leafy-network
+
+  postgresql:
+    image: postgres:16-alpine
+    container_name: leafy-postgresql
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: leafy_iot_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    networks:
+      - leafy-network
+
+  # ===========================================
+  # MESSAGE QUEUE & CACHING
+  # ===========================================
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: leafy-iot-mqtt
+    restart: unless-stopped
+    ports:
+      - "${IOT_MQTT_PORT:-1883}:1883"
+    healthcheck:
+      test: [ "CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -t '$$SYS/broker/version' -C 1 -W 3 >/dev/null 2>&1 || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - leafy-network
+
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: leafy-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:9093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - leafy-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: leafy-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: leafy-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    networks:
+      - leafy-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: leafy-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass redis123
+    volumes:
+      - redis_data:/data
+    networks:
+      - leafy-network
+
+  # ===========================================
+  # SEARCH & ANALYTICS
+  # ===========================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: leafy-elasticsearch
+    restart: unless-stopped
+    command: >
+      sh -c "if [ ! -d \"plugins/analysis-icu\" ]; then bin/elasticsearch-plugin install --batch analysis-icu; fi &&
+             /usr/local/bin/docker-entrypoint.sh elasticsearch"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -vq '\"status\":\"red\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.0
+    container_name: leafy-kibana
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    networks:
+      - leafy-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  fluent-bit:
+    image: fluent/fluent-bit:3.2
+    container_name: leafy-fluent-bit
+    restart: unless-stopped
+    ports:
+      - "2020:2020"
+    volumes:
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log/host:ro
+    networks:
+      - leafy-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:2020/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ===========================================
+  # VECTOR DATABASE
+  # ===========================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: leafy-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # CI/CD INFRASTRUCTURE
+  # ===========================================
+  jenkins:
+    image: jenkins/jenkins:lts-jdk21
+    container_name: leafy-jenkins
+    restart: unless-stopped
+    environment:
+      JENKINS_OPTS: "--prefix=/jenkins"
+      JENKINS_SLAVE_AGENT_PORT: 50000
+      DOCKER_HOST: tcp://docker:2376
+      DOCKER_TLS_CERTS_DIR: /certs/client
+    privileged: true
+    user: root
+    ports:
+      - "${JENKINS_PORT:-8080}:8080"
+      - "${JENKINS_AGENT_PORT:-50000}:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - jenkins_docker_certs:/certs/client:ro
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  docker-dind:
+    image: docker:24-dind
+    container_name: leafy-docker-dind
+    restart: unless-stopped
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTS_DIR: /certs/client
+      DOCKER_DRIVER: overlay2
+    volumes:
+      - jenkins_docker_certs:/certs/client
+      - jenkins_docker_data:/var/lib/docker
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "docker info || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+networks:
+  leafy-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  mongodb_config:
+  kafka_data:
+  redis_data:
+  postgresql_data:
+  elasticsearch_data:
+  qdrant_data:
+  jenkins_home:
+  jenkins_docker_certs:
+  jenkins_docker_data:

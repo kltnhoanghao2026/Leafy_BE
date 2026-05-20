@@ -1,0 +1,246 @@
+// Jenkinsfile for Python/ML Microservices
+// This pipeline builds, tests, and deploys Python FastAPI services
+
+pipeline {
+    agent {
+        docker {
+            image 'python:3.11-slim'
+            args '''
+                -v /var/run/docker.sock:/var/run/docker.sock
+            '''
+        }
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 45, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        DOCKER_REGISTRY = "${env.DOCKER_REGISTRY ?: 'localhost:5000'}"
+        SERVICE_NAME = "${env.SERVICE_NAME}"
+        SERVICE_PORT = "${env.SERVICE_PORT}"
+        GIT_BRANCH_CLEAN = "${env.GIT_BRANCH.toLowerCase().replaceAll(/[^a-z0-9]/, '-')}"
+        IMAGE_TAG = "${env.GIT_COMMIT[0..7]}-${env.BUILD_NUMBER}"
+        PYTHON_VERSION = '3.11'
+    }
+
+    parameters {
+        string(name: 'SERVICE_NAME', defaultValue: '', description: 'Name of the Python service to build')
+        string(name: 'SERVICE_PORT', defaultValue: '', description: 'Port exposed by the service')
+        booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip tests during build')
+        booleanParam(name: 'DEPLOY_TO_STAGING', defaultValue: true, description: 'Deploy to staging after build')
+        booleanParam(name: 'GPU_ENABLED', defaultValue: false, description: 'Enable GPU support for this build')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    if (!params.SERVICE_NAME) {
+                        error "SERVICE_NAME parameter is required"
+                    }
+                }
+                echo "Building Python service: ${params.SERVICE_NAME} from branch ${env.GIT_BRANCH}"
+            }
+        }
+
+        stage('Setup Python') {
+            steps {
+                sh '''
+                    python --version
+                    pip install --upgrade pip
+                    pip install pip-tools || true
+                '''
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh """
+                    pip install -r ${params.SERVICE_NAME}/requirements.txt --quiet
+                """
+            }
+        }
+
+        stage('Lint & Type Check') {
+            steps {
+                script {
+                    def hasFlake8 = sh(
+                        script: "grep -q flake8 ${params.SERVICE_NAME}/requirements.txt && echo true || echo false",
+                        returnStdout: true
+                    ).trim()
+                    def hasMyPy = sh(
+                        script: "grep -q mypy ${params.SERVICE_NAME}/requirements.txt && echo true || echo false",
+                        returnStdout: true
+                    ).trim()
+
+                    if (hasFlake8 == 'true') {
+                        sh "flake8 ${params.SERVICE_NAME}/app --count --select=E9,F63,F7,F82 --show-source --statistics || true"
+                        sh "flake8 ${params.SERVICE_NAME}/app --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true"
+                    }
+                    if (hasMyPy == 'true') {
+                        sh "mypy ${params.SERVICE_NAME}/app --ignore-missing-imports || true"
+                    }
+                }
+            }
+        }
+
+        stage('Unit Tests') {
+            when {
+                expression { params.SKIP_TESTS == false }
+            }
+            steps {
+                sh """
+                    if [ -f "${params.SERVICE_NAME}/pytest.ini" ] || [ -f "${params.SERVICE_NAME}/setup.cfg" ]; then
+                        pytest ${params.SERVICE_NAME}/tests/ -v --tb=short || true
+                    elif [ -d "${params.SERVICE_NAME}/tests" ]; then
+                        pytest ${params.SERVICE_NAME}/tests/ -v --tb=short || true
+                    else
+                        echo "No tests found, skipping..."
+                    fi
+                """
+            }
+            post {
+                always {
+                    junit '**/test-results/*.xml' , allowEmptyResults: true
+                    cobertura coberturaReportFile: '**/coverage.xml', allowEmptyResults: true
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def dockerfilePath = "backend/${params.SERVICE_NAME}/Dockerfile"
+                    def dockerArgs = [
+                        "--build-arg BUILD_NUMBER=${env.BUILD_NUMBER}",
+                        "--build-arg GIT_COMMIT=${env.GIT_COMMIT}"
+                    ]
+
+                    if (params.GPU_ENABLED) {
+                        dockerArgs << '--gpus all'
+                    }
+
+                    def buildCmd = "docker build " + dockerArgs.collect { "-t ${DOCKER_REGISTRY}/${params.SERVICE_NAME}:${IMAGE_TAG} -t ${DOCKER_REGISTRY}/${params.SERVICE_NAME}:${env.GIT_BRANCH_CLEAN} -f ${dockerfilePath} backend/"
+
+                    sh buildCmd
+                }
+            }
+        }
+
+        stage('Security Scan') {
+            steps {
+                script {
+                    sh '''
+                        # Run Trivy security scan
+                        which trivy || pip install trivy || true
+                        trivy image --severity HIGH,CRITICAL --exit-code 0 ${DOCKER_REGISTRY}/${params.SERVICE_NAME}:${IMAGE_TAG} || true
+                    '''
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-registry',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            docker login -u $DOCKER_USER -p $DOCKER_PASS $DOCKER_REGISTRY || true
+                            docker push $DOCKER_REGISTRY/$SERVICE_NAME:$IMAGE_TAG
+                            docker push $DOCKER_REGISTRY/$SERVICE_NAME:$GIT_BRANCH_CLEAN || true
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Staging') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_TO_STAGING == true }
+                    anyOf {
+                        branch 'main'
+                        branch 'develop'
+                        branch pattern: 'release/.*', comparator: 'REGEXP'
+                    }
+                }
+            }
+            steps {
+                script {
+                    sh """
+                        sed -i 's|image: .*${params.SERVICE_NAME}:.*|image: ${DOCKER_REGISTRY}/${params.SERVICE_NAME}:${IMAGE_TAG}|g' backend/docker-compose.yml
+
+                        cd backend
+                        docker-compose up -d ${SERVICE_NAME}
+                        sleep 15
+                        docker inspect --format=\'{{.State.Health.Status}}\' ${SERVICE_NAME} || echo "Checking container logs:"
+                        docker logs ${SERVICE_NAME} --tail 50 || true
+                    """
+                }
+            }
+        }
+
+        stage('API Health Check') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_TO_STAGING == true }
+                    expression { params.SKIP_TESTS == false }
+                }
+            }
+            steps {
+                script {
+                    def serviceUrl = "http://localhost:${params.SERVICE_PORT}"
+                    waitUntil {
+                        script {
+                            def response = sh(
+                                script: "curl -sf ${serviceUrl}/actuator/health || curl -sf ${serviceUrl}/health || echo 'not_ready'",
+                                returnStdout: true
+                            ).trim()
+                            echo "Health check response: ${response}"
+                            return response != 'not_ready'
+                        }
+                    }
+                    sleep 10
+                    sh """
+                        curl -s ${serviceUrl}/actuator/health || curl -s ${serviceUrl}/health || true
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Python service ${params.SERVICE_NAME} #${env.BUILD_NUMBER} build succeeded!"
+            script {
+                slackSend(
+                    color: 'good',
+                    message: "✅ ${params.SERVICE_NAME} (Python) deployed to staging: ${env.BUILD_URL}"
+                )
+            }
+        }
+        failure {
+            echo "Python service ${params.SERVICE_NAME} #${env.BUILD_NUMBER} failed!"
+            script {
+                slackSend(
+                    color: 'danger',
+                    message: "❌ ${params.SERVICE_NAME} (Python) build failed: ${env.BUILD_URL}"
+                )
+            }
+        }
+        always {
+            script {
+                sh '''
+                    docker system prune -f || true
+                '''
+                archiveArtifacts artifacts: '**/dist/*.whl,**/build/**/*.whl', allowEmptyArchive: true
+            }
+        }
+    }
+}

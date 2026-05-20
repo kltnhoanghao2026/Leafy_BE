@@ -108,18 +108,6 @@ services:
     networks:
       - leafy-network
 
-  mosquitto:
-    image: eclipse-mosquitto:2
-    container_name: leafy-mosquitto
-    ports:
-      - "1884:1883"
-      - "9001:9001"
-    volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-      - mosquitto_data:/mosquitto/data
-      - mosquitto_log:/mosquitto/log
-    restart: unless-stopped
-
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
     container_name: leafy-elasticsearch
@@ -768,8 +756,6 @@ volumes:
   postgresql_data:
   elasticsearch_data:
   postgresql_farm_data:
-  mosquitto_data:
-  mosquitto_log:
   qdrant_data:
   jenkins_home:
   jenkins_docker_certs:
