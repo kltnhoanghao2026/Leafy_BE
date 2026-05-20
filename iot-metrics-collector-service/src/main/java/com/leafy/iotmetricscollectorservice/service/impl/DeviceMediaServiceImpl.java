@@ -141,7 +141,7 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
             event.setHeight(payload.getHeight());
             event.setError(null);
             if (payload.getFileId() != null && !payload.getFileId().isBlank()) {
-                event.setFile(entityManager.getReference(FileRef.class, payload.getFileId()));
+                event.setFile(ensureFileRef(payload.getFileId()));
             }
         } else {
             event.setStatus(DeviceMediaEventStatus.FAILED.name());
@@ -174,6 +174,18 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
         } catch (RuntimeException exception) {
             log.warn("Automatic disease detection failed to enqueue. mediaEventId={}", mediaEventId, exception);
         }
+    }
+
+    private FileRef ensureFileRef(String fileId) {
+        FileRef existing = entityManager.find(FileRef.class, fileId);
+        if (existing != null) {
+            return existing;
+        }
+
+        FileRef fileRef = new FileRef();
+        fileRef.setId(fileId);
+        entityManager.persist(fileRef);
+        return fileRef;
     }
 
     private String resolveImageMetaError(ImageMetaPayload payload) {

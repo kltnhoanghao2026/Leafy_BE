@@ -345,6 +345,17 @@ spring:
                     name: iotMetricsCollectorServiceCircuitBreaker
                     fallbackUri: forward:/fallback/iot-metrics-collector-service
 
+            - id: iot-metrics-collector-service-admin-camera
+              uri: lb://iot-metrics-collector-service
+              predicates:
+                - Path=/api/admin/camera/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: iotMetricsCollectorServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/iot-metrics-collector-service
+
               #OpenAPI Documentation for IOT Metrics Collector Service
             - id: iot-metrics-collector-service-openapi
               uri: lb://iot-metrics-collector-service

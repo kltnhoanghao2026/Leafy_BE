@@ -58,4 +58,5 @@ app:
     connection-timeout: 10
     keep-alive-interval: 20
   file-service:
-    upload-url: ${FILE_SERVICE_UPLOAD_URL:http://localhost:8080/files/upload}
+    internal-upload-url: ${FILE_SERVICE_INTERNAL_UPLOAD_URL:http://localhost:8084/internal/files/upload}
+    presigned-url-template: ${FILE_SERVICE_PRESIGNED_URL_TEMPLATE:http://localhost:8084/internal/files/presigned-url/%s}
