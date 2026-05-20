@@ -153,6 +153,26 @@ services:
     networks:
       - leafy-network
 
+  fluent-bit:
+    image: fluent/fluent-bit:3.2
+    container_name: iot-fluent-bit
+    restart: unless-stopped
+    ports:
+      - "2021:2020"  # IoT Fluent Bit metrics (different host port)
+    volumes:
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log/host:ro
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:2020/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 networks:
   leafy-network:
     driver: bridge

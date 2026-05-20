@@ -1,0 +1,84 @@
+# ===========================================
+# CLUSTER 2: Data Infrastructure
+# EC2 Instance: ec2-data (Database & Cache)
+# ===========================================
+# Services: MongoDB, PostgreSQL, Redis
+# Ports exposed: 27017, 5432, 6379
+
+services:
+  # ===========================================
+  # DATA STORES
+  # ===========================================
+  mongodb:
+    image: mongo:7.0
+    container_name: leafy-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --eval 'db.adminCommand({ping:1})' --quiet || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  postgresql:
+    image: postgres:16-alpine
+    container_name: leafy-postgresql
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: leafy_iot_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: leafy-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass redis123 --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a redis123 ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  leafy-network:
+    name: leafy-network
+    external: true
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  postgresql_data:
+    driver: local
+  redis_data:
+    driver: local

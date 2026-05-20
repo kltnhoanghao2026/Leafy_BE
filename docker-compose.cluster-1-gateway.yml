@@ -1,0 +1,125 @@
+# ===========================================
+# CLUSTER 1: Gateway & Core Services
+# EC2 Instance: ec2-gateway (Public-facing)
+# ===========================================
+# Services: API Gateway, Auth, Discovery, Config
+# Ports exposed: 8060, 8081, 8761, 8888
+
+services:
+  # ===========================================
+  # SERVICE REGISTRY (Must start first)
+  # ===========================================
+  discovery-server:
+    image: ${DOCKER_REGISTRY:-leafy-registry}/discovery-server:${IMAGE_TAG:-latest}
+    container_name: discovery-server
+    hostname: discovery-server
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT_DISCOVERY:-8761}:8761"
+    environment:
+      - JAVA_OPTS=-Deureka.instance.hostname=discovery-server
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8761 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  config-server:
+    image: ${DOCKER_REGISTRY:-leafy-registry}/config-server:${IMAGE_TAG:-latest}
+    container_name: config-server
+    hostname: config-server
+    restart: unless-stopped
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT_CONFIG: ${SERVER_PORT_CONFIG:-8888}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      HOSTNAME: config-server
+    ports:
+      - "${SERVER_PORT_CONFIG:-8888}:8888"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8888/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ===========================================
+  # GATEWAY & AUTH
+  # ===========================================
+  api-gateway:
+    image: ${DOCKER_REGISTRY:-leafy-registry}/api-gateway:${IMAGE_TAG:-latest}
+    container_name: api-gateway
+    hostname: api-gateway
+    restart: unless-stopped
+    environment:
+      SERVER_PORT_GATEWAY: ${SERVER_PORT_GATEWAY:-8060}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      HOSTNAME: api-gateway
+      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: redis123
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: 27017
+      MONGODB_USERNAME: admin
+      MONGODB_PASSWORD: admin123
+      ELASTICSEARCH_URIS: http://${ELASTICSEARCH_HOST:-elasticsearch}:9200
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_HOST:-kafka}:29092
+    ports:
+      - "${SERVER_PORT_GATEWAY:-8060}:8060"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8060/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  auth-service:
+    image: ${DOCKER_REGISTRY:-leafy-registry}/auth-service:${IMAGE_TAG:-latest}
+    container_name: auth-service
+    hostname: auth-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT_AUTH: ${SERVER_PORT_AUTH:-8081}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      HOSTNAME: auth-service
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: 27017
+      MONGODB_DATABASE_AUTH: leafy_auth
+      MONGODB_USERNAME: admin
+      MONGODB_PASSWORD: admin123
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: redis123
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION:-86400000}
+      JWT_REFRESH_WEB_EXPIRATION: ${JWT_REFRESH_WEB_EXPIRATION:-604800000}
+      JWT_REFRESH_MOBILE_EXPIRATION: ${JWT_REFRESH_MOBILE_EXPIRATION:-2592000000}
+    ports:
+      - "${SERVER_PORT_AUTH:-8081}:8081"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8081/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+networks:
+  leafy-network:
+    name: leafy-network
+    external: true
+    driver: bridge
