@@ -44,7 +44,9 @@ app:
     topics:
       alert-triggered: ${IOT_ALERT_TRIGGERED_TOPIC:iot.alert.triggered}
   mqtt:
-    url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+    url: ${MQTT_BROKER_URL:tcp://137.66.4.201:1883}
+    username: ${MQTT_USERNAME:admin}
+    password: ${MQTT_PASSWORD:admin}
     client-id: ${MQTT_CLIENT_ID:iot-metrics-collector-service}
     topics:
       - coffee/prod/devices/+/telemetry
@@ -58,4 +60,9 @@ app:
     connection-timeout: 10
     keep-alive-interval: 20
   file-service:
-    upload-url: ${FILE_SERVICE_UPLOAD_URL:http://localhost:8080/files/upload}
+#    upload-url: ${FILE_SERVICE_UPLOAD_URL:http://file-service:8084/internal/files/upload}
+#    internal-upload-url: ${FILE_SERVICE_INTERNAL_UPLOAD_URL:http://localhost:8084/internal/files/upload}
+#    presigned-url-template: ${FILE_SERVICE_PRESIGNED_URL_TEMPLATE:http://localhost:8084/internal/files/presigned-url/%s}
+    upload-url: http://192.168.1.3:8084/internal/files/upload
+    internal-upload-url: http://192.168.1.3:8084/internal/files/upload
+    presigned-url-template: http://192.168.1.3:8084/internal/files/presigned-url/%s

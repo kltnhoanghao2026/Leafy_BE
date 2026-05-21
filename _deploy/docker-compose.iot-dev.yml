@@ -105,7 +105,9 @@ services:
       DB_NAME: ${DB_NAME:-leafy_iot_db}
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres123}
-      MQTT_BROKER_URL: tcp://mqtt-broker:1883
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-tcp://137.66.4.201:1883}
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-admin}
       MQTT_CLIENT_ID: iot-metrics-collector-service
     ports:
       - "${SERVER_PORT_IOT:-8091}:8091"
@@ -139,7 +141,9 @@ services:
       SEED_DATASOURCE_USERNAME: ${DB_USERNAME:-postgres}
       SEED_DATASOURCE_PASSWORD: ${DB_PASSWORD:-postgres123}
       SEED_COLLECTOR_BASE_URL: ${SEED_COLLECTOR_BASE_URL:-http://iot-metrics-collector-service:8091}
-      SEED_MQTT_URL: tcp://mqtt-broker:1883
+      SEED_MQTT_URL: ${SEED_MQTT_URL:-tcp://137.66.4.201:1883}
+      SEED_MQTT_USERNAME: ${SEED_MQTT_USERNAME:-admin}
+      SEED_MQTT_PASSWORD: ${SEED_MQTT_PASSWORD:-admin}
       SEED_MQTT_PRODUCT: ${SEED_MQTT_PRODUCT:-coffee}
       SEED_MQTT_ENV: ${SEED_MQTT_ENV:-prod}
     ports:

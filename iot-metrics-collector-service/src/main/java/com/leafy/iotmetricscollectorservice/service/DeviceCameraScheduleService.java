@@ -16,6 +16,11 @@ public interface DeviceCameraScheduleService {
     List<DeviceCameraScheduleResponse> listSchedules();
 
     /**
+     * Lists schedules for one device UID.
+     */
+    List<DeviceCameraScheduleResponse> listSchedulesForDevice(String deviceUid);
+
+    /**
      * Gets a single camera schedule.
      */
     DeviceCameraScheduleResponse getSchedule(UUID scheduleId);
@@ -39,6 +44,26 @@ public interface DeviceCameraScheduleService {
      * Runs a schedule immediately with a SCHEDULED trigger.
      */
     DeviceCameraScheduleResponse runNow(UUID scheduleId);
+
+    /**
+     * Creates a schedule scoped to a device path for client/mobile workflows.
+     */
+    DeviceCameraScheduleResponse createScheduleForDevice(String deviceUid, DeviceCameraScheduleRequest request);
+
+    /**
+     * Updates a schedule only when it belongs to the requested device UID.
+     */
+    DeviceCameraScheduleResponse updateScheduleForDevice(String deviceUid, UUID scheduleId, DeviceCameraScheduleRequest request);
+
+    /**
+     * Deletes a schedule only when it belongs to the requested device UID.
+     */
+    void deleteScheduleForDevice(String deviceUid, UUID scheduleId);
+
+    /**
+     * Runs a schedule only when it belongs to the requested device UID.
+     */
+    DeviceCameraScheduleResponse runScheduleNow(String deviceUid, UUID scheduleId);
 
     /**
      * Triggers all schedules that are due at the current time.

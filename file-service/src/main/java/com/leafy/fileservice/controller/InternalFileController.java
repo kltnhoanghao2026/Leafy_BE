@@ -65,4 +65,27 @@ public class InternalFileController {
                             .body(ApiResponse.error(9999, "Failed to upload file", null)));
                 });
     }
+
+    /**
+     * Generate a presigned download URL for internally uploaded files.
+     *
+     * @param fileId the file ID
+     * @param expirationMinutes expiration time in minutes
+     * @return presigned download URL
+     */
+    @GetMapping("/presigned-url/{fileId}")
+    public Mono<ResponseEntity<ApiResponse<String>>> generatePresignedUrlInternal(
+            @PathVariable String fileId,
+            @RequestParam(defaultValue = "60") int expirationMinutes) {
+        log.info("GET /internal/files/presigned-url/{} - system presigned URL", fileId);
+
+        return fileService.getFileById(fileId)
+                .flatMap(fileResponse -> s3Service.generatePresignedUrl(fileResponse.getS3Key(), expirationMinutes))
+                .map(url -> ResponseEntity.ok(ApiResponse.success(url)))
+                .onErrorResume(error -> {
+                    log.error("Error generating internal presigned URL: {}", error.getMessage(), error);
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(ApiResponse.error(9999, "Failed to generate presigned URL", null)));
+                });
+    }
 }

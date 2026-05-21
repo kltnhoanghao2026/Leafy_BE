@@ -20,6 +20,7 @@ import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,8 +45,8 @@ public class AdminCameraBatchServiceImpl implements AdminCameraBatchService {
         if (deviceUid == null || deviceUid.isBlank()) {
             throw new IllegalArgumentException("deviceUid is required");
         }
-        IoTDevice device = deviceRepository.findByDeviceUid(deviceUid)
-            .orElseThrow(() -> new IllegalArgumentException("Unknown deviceUid: " + deviceUid));
+        IoTDevice device = resolveDevice(deviceUid)
+            .orElseThrow(() -> new IllegalArgumentException("Unknown deviceUid or deviceId: " + deviceUid));
         if (files == null || files.length == 0) {
             throw new IllegalArgumentException("At least one image file is required");
         }
@@ -61,6 +62,19 @@ public class AdminCameraBatchServiceImpl implements AdminCameraBatchService {
         response.setUploadedAt(Instant.now());
         response.setItems(items);
         return response;
+    }
+
+    private Optional<IoTDevice> resolveDevice(String deviceUidOrId) {
+        Optional<IoTDevice> byDeviceUid = deviceRepository.findByDeviceUid(deviceUidOrId);
+        if (byDeviceUid.isPresent()) {
+            return byDeviceUid;
+        }
+
+        try {
+            return deviceRepository.findById(UUID.fromString(deviceUidOrId));
+        } catch (IllegalArgumentException ignored) {
+            return Optional.empty();
+        }
     }
 
     private AdminCameraUploadItemResponse uploadOne(IoTDevice device, boolean autoDetect, MultipartFile file) {
@@ -108,8 +122,20 @@ public class AdminCameraBatchServiceImpl implements AdminCameraBatchService {
         event.setCommandSentAt(now);
         event.setUploadedAt(now);
         event.setCapturedAt(now);
-        event.setFile(entityManager.getReference(FileRef.class, uploaded.getId()));
+        event.setFile(ensureFileRef(uploaded.getId()));
         return mediaEventRepository.save(event);
+    }
+
+    private FileRef ensureFileRef(String fileId) {
+        FileRef existing = entityManager.find(FileRef.class, fileId);
+        if (existing != null) {
+            return existing;
+        }
+
+        FileRef fileRef = new FileRef();
+        fileRef.setId(fileId);
+        entityManager.persist(fileRef);
+        return fileRef;
     }
 
     private DeviceMediaEventResponse toMediaResponse(DeviceMediaEvent event) {

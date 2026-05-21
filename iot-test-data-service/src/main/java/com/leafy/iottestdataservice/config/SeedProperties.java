@@ -49,11 +49,11 @@ public class SeedProperties {
     @Getter
     @Setter
     public static class Mqtt {
-        private String url = "tcp://localhost:1883";
-        private String username;
-        private String password;
+        private String url = "tcp://137.66.4.201:1883";
+        private String username = "admin";
+        private String password = "admin";
         private String product = "coffee";
-        private String namespaceEnv = "local";
+        private String namespaceEnv = "prod";
         private int qos = 1;
         private Duration completionTimeout = Duration.ofSeconds(5);
     }
