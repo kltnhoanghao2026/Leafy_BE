@@ -34,3 +34,17 @@ elasticsearch:
     enabled: ${ELASTICSEARCH_MONITORING_ENABLED:true}
     log-slow-operations: ${ELASTICSEARCH_LOG_SLOW_OPERATIONS:true}
     slow-operation-threshold-ms: ${ELASTICSEARCH_SLOW_OPERATION_THRESHOLD_MS:1000}
+
+  kafka:
+    enabled: ${KAFKA_ENABLED:true}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: search-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3

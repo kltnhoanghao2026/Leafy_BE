@@ -1,10 +1,10 @@
 package com.leafy.apigateway.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leafy.apigateway.client.AuthServiceClient;
 import com.leafy.apigateway.config.PublicEndpointsConfig;
 import com.leafy.common.dto.ApiResponse;
 import com.leafy.common.exception.ErrorCode;
-import com.leafy.common.utils.JwtUtil;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +17,6 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
@@ -34,7 +33,7 @@ import java.util.Optional;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
-    JwtUtil jwtUtil;
+    AuthServiceClient authServiceClient;
 
     @Qualifier("reactiveRedisTemplate")
     ReactiveRedisTemplate<String, String> redisTemplate;
@@ -43,12 +42,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     MessageSource messageSource;
     ObjectMapper objectMapper;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil,
+    public JwtAuthenticationFilter(AuthServiceClient authServiceClient,
                                    @Qualifier("reactiveRedisTemplate") ReactiveRedisTemplate<String, String> redisTemplate,
                                    PublicEndpointsConfig publicEndpointsConfig,
                                    MessageSource messageSource,
                                    ObjectMapper objectMapper) {
-        this.jwtUtil = jwtUtil;
+        this.authServiceClient = authServiceClient;
         this.redisTemplate = redisTemplate;
         this.publicEndpointsConfig = publicEndpointsConfig;
         this.messageSource = messageSource;
@@ -77,70 +76,61 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return onError(exchange, ErrorCode.AUTH_UNAUTHENTICATED);
         }
 
-        // Validate token signature and expiration
-        try {
-            if (!jwtUtil.validateToken(token)) {
-                return onError(exchange, ErrorCode.JWT_INVALID_TOKEN);
-            }
-        } catch (Exception e) {
-            log.error("JWT validation error: {}", e.getMessage());
-            return onError(exchange, ErrorCode.JWT_INVALID_TOKEN);
-        }
-
-        // Verify this is an access token
-        String tokenType = jwtUtil.extractTokenType(token);
-        if (!"access".equals(tokenType)) {
-            log.warn("Attempted to use non-access token for authentication");
-            return onError(exchange, ErrorCode.JWT_INVALID_TOKEN);
-        }
-
-        // Extract JTI for blacklist check
-        String jti = jwtUtil.extractJti(token);
-        if (jti == null) {
-            log.error("Token missing JTI claim");
-            return onError(exchange, ErrorCode.JWT_INVALID_TOKEN);
-        }
-
-        // Check if access token is blacklisted using correct Redis key pattern
-        String blacklistKey = "blacklist:access:" + jti;
-        return redisTemplate.hasKey(blacklistKey)
-                .flatMap(exists -> {
-                    if (Boolean.TRUE.equals(exists)) {
-                        log.warn("Attempted to use blacklisted token - JTI: {}", jti);
-                        return onError(exchange, ErrorCode.TOKEN_REVOKED);
+        // Validate token by calling auth-service
+        return authServiceClient.validateToken(token)
+                .flatMap(validationResult -> {
+                    if (!validationResult.isValid()) {
+                        log.warn("Token validation failed: {} - {}",
+                                validationResult.getErrorCode(), validationResult.getErrorMessage());
+                        return onError(exchange, mapErrorCodeToErrorCode(validationResult.getErrorCode()));
                     }
 
-                    // Extract user information and add to request headers for common SecurityContextFilter
-                    String userId = jwtUtil.extractUserId(token);
-                    String email = jwtUtil.extractEmail(token);
-                    String role = jwtUtil.extractRole(token);
-                    String deviceId = jwtUtil.extractDeviceId(token);
-                    String profileId = jwtUtil.extractProfileId(token);
-                    long remainingTtl = jwtUtil.getRemainingTtl(token);
+                    // Check if access token is blacklisted in Redis
+                    String jti = validationResult.getJti();
+                    String blacklistKey = "blacklist:access:" + jti;
+                    return redisTemplate.hasKey(blacklistKey)
+                            .flatMap(exists -> {
+                                if (Boolean.TRUE.equals(exists)) {
+                                    log.warn("Attempted to use blacklisted token - JTI: {}", jti);
+                                    return onError(exchange, ErrorCode.TOKEN_REVOKED);
+                                }
 
-                    // Extract User-Agent and X-Device-ID from original request
-                    String userAgent = request.getHeaders().getFirst("User-Agent");
-                    String requestDeviceId = request.getHeaders().getFirst("X-Device-ID");
+                                // Build request headers with user information from auth-service
+                                ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
+                                        .header("X-User-Id", validationResult.getUserId())
+                                        .header("X-User-Email", validationResult.getEmail() != null ? validationResult.getEmail() : "")
+                                        .header("X-User-Roles", validationResult.getRole() != null ? validationResult.getRole() : "")
+                                        .header("X-JWT-Id", jti)
+                                        .header("X-Device-Id", validationResult.getDeviceId() != null ? validationResult.getDeviceId() : "")
+                                        .header("X-Profile-Id", validationResult.getProfileId() != null ? validationResult.getProfileId() : "")
+                                        .header("X-Remaining-TTL", String.valueOf(validationResult.getRemainingTtl()))
+                                        .header("User-Agent", request.getHeaders().getFirst("User-Agent"))
+                                        .header("X-Device-ID", request.getHeaders().getFirst("X-Device-ID"))
+                                        .build();
 
-                    ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
-                            .header("X-User-Id", userId)
-                            .header("X-User-Email", email != null ? email : "")
-                            .header("X-User-Roles", role != null ? role : "")
-                            .header("X-JWT-Id", jti)
-                            .header("X-Device-Id", deviceId != null ? deviceId : "")
-                            .header("X-Profile-Id", profileId != null ? profileId : "")
-                            .header("X-Remaining-TTL", String.valueOf(remainingTtl))
-                            .header("User-Agent", userAgent != null ? userAgent : "")
-                            .header("X-Device-ID", requestDeviceId != null ? requestDeviceId : "")
-                            .build();
-
-                    log.debug("Authenticated user - ID: {}, Role: {}, Device: {}", userId, role, deviceId);
-                    return chain.filter(exchange.mutate().request(modifiedRequest).build());
+                                log.debug("Authenticated user - ID: {}, Role: {}, Device: {}",
+                                        validationResult.getUserId(), validationResult.getRole(), validationResult.getDeviceId());
+                                return chain.filter(exchange.mutate().request(modifiedRequest).build());
+                            });
                 })
                 .onErrorResume(e -> {
-                    log.error("Error checking token blacklist: {}", e.getMessage());
+                    log.error("Error during token validation: {}", e.getMessage());
                     return onError(exchange, ErrorCode.SYS_UNCATEGORIZED);
                 });
+    }
+
+    private ErrorCode mapErrorCodeToErrorCode(String errorCode) {
+        if (errorCode == null) {
+            return ErrorCode.JWT_INVALID_TOKEN;
+        }
+        return switch (errorCode) {
+            case "INVALID_TOKEN", "INVALID_SIGNATURE" -> ErrorCode.JWT_INVALID_TOKEN;
+            case "INVALID_TOKEN_TYPE" -> ErrorCode.JWT_INVALID_TOKEN;
+            case "MISSING_JTI" -> ErrorCode.JWT_INVALID_TOKEN;
+            case "TOKEN_REVOKED" -> ErrorCode.TOKEN_REVOKED;
+            case "VALIDATION_ERROR" -> ErrorCode.JWT_INVALID_TOKEN;
+            default -> ErrorCode.JWT_INVALID_TOKEN;
+        };
     }
 
     /**
@@ -168,7 +158,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         Locale locale = Optional.ofNullable(
                 exchange.getRequest().getHeaders().getFirst(HttpHeaders.ACCEPT_LANGUAGE))
                 .map(Locale::forLanguageTag)
-                .orElse(new Locale("vi"));
+                .orElseGet(() -> Locale.of("vi"));
         String message = messageSource.getMessage(errorCode.getMessageKey(), null, errorCode.getMessageKey(), locale);
         log.error("Authentication error [{}]: {}", errorCode.getCode(), message);
 

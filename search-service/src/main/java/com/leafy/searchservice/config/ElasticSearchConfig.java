@@ -6,6 +6,7 @@ import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
 
 import java.time.Duration;
+import java.util.Arrays;
 
 @Configuration
 public class ElasticSearchConfig extends ElasticsearchConfiguration {
@@ -24,8 +25,13 @@ public class ElasticSearchConfig extends ElasticsearchConfiguration {
 
     @Override
     public ClientConfiguration clientConfiguration() {
+        String[] hosts = Arrays.stream(url.split(","))
+                .map(s -> s.replace("http://", "").replace("https://", ""))
+                .map(String::trim)
+                .toArray(String[]::new);
+
         var builder = ClientConfiguration.builder()
-                .connectedTo(url.split(","));
+                .connectedTo(hosts);
 
         if (ssl) {
             builder.usingSsl();

@@ -37,29 +37,26 @@ async def lifespan(app: FastAPI):
         # Load custom YOLO model (best.pt)
         custom_model_path = "weights/yolo/best.pt"
         if Path(custom_model_path).exists():
-            logger.info("Loading custom YOLO model...")
+            logger.info("Loading custom YOLO model (single_cls coffee leaf detector)...")
+            yolo_class_names = ["coffee_leaf"]
             yolo_custom = AIModelInference.load_yolo_model(custom_model_path)
-            AIModelInference.warmup_yolo_model(yolo_custom)
             app.state.yolo_custom_model = yolo_custom
-            logger.info("Custom YOLO model loaded successfully")
+            app.state.yolo_custom_class_names = yolo_class_names
+            AIModelInference.warmup_yolo_model(yolo_custom)
+            logger.info(f"Custom YOLO model loaded successfully")
         else:
             logger.warning(f"Custom YOLO model not found at {custom_model_path}")
             app.state.yolo_custom_model = None
+            app.state.yolo_custom_class_names = None
     except Exception as e:
         logger.error(f"Failed to load custom YOLO model: {e}")
         app.state.yolo_custom_model = None
+        app.state.yolo_custom_class_names = None
     
-    try:
-        # Load base YOLO model (yolo8n.pt) - will download if not present
-        base_model_path = "yolov8n.pt"
-        logger.info("Loading base YOLO model...")
-        yolo_base = AIModelInference.load_yolo_model(base_model_path)
-        AIModelInference.warmup_yolo_model(yolo_base)
-        app.state.yolo_base_model = yolo_base
-        logger.info("Base YOLO model loaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to load base YOLO model: {e}")
-        app.state.yolo_base_model = None
+    # Base YOLO model - set to None since we're using ONNX only
+    # If you have a base YOLO model in ONNX format, update the path below
+    app.state.yolo_base_model = None
+    logger.info("YOLO models loaded (base YOLO model skipped - ONNX only)")
     
     logger.info("Service startup complete - ready to handle requests")
     

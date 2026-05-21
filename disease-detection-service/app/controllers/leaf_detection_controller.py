@@ -16,11 +16,12 @@ def get_yolo_model(request: Request, model_type: str):
     if model_type == "custom":
         if not hasattr(request.app.state, 'yolo_custom_model') or request.app.state.yolo_custom_model is None:
             raise AppException(ErrorCode.MODEL_NOT_LOADED)
-        return request.app.state.yolo_custom_model, "YOLOv8-Custom"
+        class_names = getattr(request.app.state, 'yolo_custom_class_names', None)
+        return request.app.state.yolo_custom_model, class_names, "YOLOv8-Custom"
     elif model_type == "base":
         if not hasattr(request.app.state, 'yolo_base_model') or request.app.state.yolo_base_model is None:
             raise AppException(ErrorCode.MODEL_NOT_LOADED)
-        return request.app.state.yolo_base_model, "YOLOv8n"
+        return request.app.state.yolo_base_model, None, "YOLOv8n"
     else:
         raise AppException(ErrorCode.INVALID_MODEL_TYPE)
 
@@ -31,8 +32,8 @@ def detect_leaf(
     model_type: str = Query(default="custom", description="Model to use: 'custom' or 'base'"),
     confidence: float = Query(default=0.25, ge=0.0, le=1.0)
 ):
-    model, model_name = get_yolo_model(request, model_type)
-    leaf_detection_response = LeafDetectionService.detect_leaf(file, model, model_name, confidence)
+    model, class_names, model_name = get_yolo_model(request, model_type)
+    leaf_detection_response = LeafDetectionService.detect_leaf(file, model, class_names, model_name, confidence)
     return ApiResponse.success(leaf_detection_response)
 
 @router.get("/health", response_model=HealthResponse)
@@ -56,9 +57,9 @@ def detect_and_visualize(
     box_color: str = Query(default="green"),
     box_thickness: int = Query(default=3, ge=1, le=10)
 ):
-    model, _ = get_yolo_model(request, model_type)
-    img_bytes, detection_count = LeafDetectionService.visualize(file, model, confidence, box_color, box_thickness)
-    
+    model, class_names, _ = get_yolo_model(request, model_type)
+    img_bytes, detection_count = LeafDetectionService.visualize(file, model, class_names, confidence, box_color, box_thickness)
+
     return Response(
         content=img_bytes,
         media_type="image/jpeg",
@@ -77,9 +78,9 @@ def detect_and_crop(
     padding: int = Query(default=10, ge=0, le=100),
     return_format: str = Query(default="zip")
 ):
-    model, _ = get_yolo_model(request, model_type)
-    content, media_type, filename, detection_count = LeafDetectionService.detect_and_crop(file, model, confidence, padding, return_format)
-    
+    model, class_names, _ = get_yolo_model(request, model_type)
+    content, media_type, filename, detection_count = LeafDetectionService.detect_and_crop(file, model, class_names, confidence, padding, return_format)
+
     return Response(
         content=content,
         media_type=media_type,

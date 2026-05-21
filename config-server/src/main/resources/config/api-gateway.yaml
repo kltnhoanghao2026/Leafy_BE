@@ -345,13 +345,33 @@ spring:
                     name: iotMetricsCollectorServiceCircuitBreaker
                     fallbackUri: forward:/fallback/iot-metrics-collector-service
 
-              #OpenAPI Documentation for IOT Metrics Collector Service
+            #OpenAPI Documentation for IOT Metrics Collector Service
             - id: iot-metrics-collector-service-openapi
               uri: lb://iot-metrics-collector-service
               predicates:
                 - Path=/iot-metrics-collector-service/v3/api-docs/**
               filters:
                 - RewritePath=/iot-metrics-collector-service/v3/api-docs, /v3/api-docs
+
+            # IoT Test Data Service Routes
+            - id: iot-test-data-service
+              uri: lb://iot-test-data-service
+              predicates:
+                - Path=/api/iot-test-data/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: iotTestDataServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/iot-test-data-service
+
+            #OpenAPI Documentation for IoT Test Data Service
+            - id: iot-test-data-service-openapi
+              uri: lb://iot-test-data-service
+              predicates:
+                - Path=/iot-test-data-service/v3/api-docs/**
+              filters:
+                - RewritePath=/iot-test-data-service/v3/api-docs, /v3/api-docs
 
             # Community Feed Service Routes
             - id: community-feed-service
@@ -505,6 +525,8 @@ resilience4j:
         baseConfig: default
       iotMetricsCollectorServiceCircuitBreaker:
         baseConfig: default
+      iotTestDataServiceCircuitBreaker:
+        baseConfig: default
       communityFeedServiceCircuitBreaker:
         baseConfig: default
       seedServiceCircuitBreaker:
@@ -537,6 +559,8 @@ resilience4j:
         baseConfig: default
       iotMetricsCollectorServiceCircuitBreaker:
         baseConfig: default
+      iotTestDataServiceCircuitBreaker:
+        timeoutDuration: 120s
       communityFeedServiceCircuitBreaker:
         baseConfig: default
       seedServiceCircuitBreaker:

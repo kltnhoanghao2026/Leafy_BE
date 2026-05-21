@@ -1,4 +1,3 @@
-
 services:
   mongodb:
     image: mongo:7.0
@@ -68,13 +67,6 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-      NOTIFICATION_EMAIL_ENABLED: ${NOTIFICATION_EMAIL_ENABLED}
-      NOTIFICATION_EMAIL_FROM: ${NOTIFICATION_EMAIL_FROM}
-      NOTIFICATION_SMS_ENABLED: ${NOTIFICATION_SMS_ENABLED}
-      NOTIFICATION_PUSH_ENABLED: ${NOTIFICATION_PUSH_ENABLED}
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
-      FIREBASE_ENABLED: "true"
-      FIREBASE_CONFIG_PATH: /run/secrets/firebase-service-account.json
     volumes:
       - kafka_data:/var/lib/kafka/data
       - ./secrets/your-file.json:/run/secrets/firebase-service-account.json:ro
@@ -126,11 +118,11 @@ services:
     networks:
       - leafy-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -vq '\"status\":\"red\"'"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200 || exit 1"]
       interval: 20s
       timeout: 10s
-      retries: 10
-      start_period: 60s
+      retries: 15
+      start_period: 90s
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.17.0
@@ -190,8 +182,10 @@ services:
   # ===========================================
   discovery-server:
     build:
-      context: .
+      context: ..
       dockerfile: discovery-server/Dockerfile
+      args:
+        MODULE_NAME: discovery-server
     container_name: discovery-server
     hostname: discovery-server
     restart: unless-stopped
@@ -208,8 +202,10 @@ services:
 
   config-server:
     build:
-      context: .
+      context: ..
       dockerfile: config-server/Dockerfile
+      args:
+        MODULE_NAME: config-server
     container_name: config-server
     hostname: config-server
     restart: unless-stopped
@@ -236,13 +232,17 @@ services:
   # ===========================================
   api-gateway:
     build:
-      context: .
+      context: ..
       dockerfile: api-gateway/Dockerfile
+      args:
+        MODULE_NAME: api-gateway
     container_name: api-gateway
     hostname: api-gateway
     restart: unless-stopped
     depends_on:
       discovery-server:
+        condition: service_healthy
+      config-server:
         condition: service_healthy
     environment:
       SERVER_PORT_GATEWAY: ${SERVER_PORT_GATEWAY:-8060}
@@ -253,12 +253,8 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: redis123
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_USERNAME: admin
-      MONGODB_PASSWORD: admin123
-      ELASTICSEARCH_URIS: http://elasticsearch:9200
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:8081}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     ports:
       - "${SERVER_PORT_GATEWAY:-8060}:8060"
     networks:
@@ -272,8 +268,10 @@ services:
 
   auth-service:
     build:
-      context: .
+      context: ..
       dockerfile: auth-service/Dockerfile
+      args:
+        MODULE_NAME: auth-service
     container_name: auth-service
     hostname: auth-service
     restart: unless-stopped
@@ -286,24 +284,34 @@ services:
         condition: service_healthy
       config-server:
         condition: service_healthy
+      profile-service:
+        condition: service_healthy
     environment:
       SERVER_PORT_AUTH: ${SERVER_PORT_AUTH:-8081}
-      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
       SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
       HOSTNAME: auth-service
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_DATABASE_AUTH: leafy_auth
-      MONGODB_USERNAME: admin
-      MONGODB_PASSWORD: admin123
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: redis123
-      JWT_SECRET: ${JWT_SECRET:-your-secret-key-min-256-bits-long-for-hs256-algorithm}
-      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION:-86400000}
-      JWT_REFRESH_WEB_EXPIRATION: ${JWT_REFRESH_WEB_EXPIRATION:-604800000}
-      JWT_REFRESH_MOBILE_EXPIRATION: ${JWT_REFRESH_MOBILE_EXPIRATION:-2592000000}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_DATA_MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      SPRING_DATA_MONGODB_PORT: ${MONGODB_PORT:-27017}
+      SPRING_DATA_MONGODB_DATABASE: ${MONGODB_DATABASE_AUTH:-leafy_auth}
+      SPRING_DATA_MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      SPRING_DATA_MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE_AUTH: ${MONGODB_DATABASE_AUTH:-leafy_auth}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-redis123}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION}
+      JWT_REFRESH_WEB_EXPIRATION: ${JWT_REFRESH_WEB_EXPIRATION}
+      JWT_REFRESH_MOBILE_EXPIRATION: ${JWT_REFRESH_MOBILE_EXPIRATION}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+
     ports:
       - "${SERVER_PORT_AUTH:-8081}:8081"
     networks:
@@ -312,296 +320,15 @@ services:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8081/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
-      retries: 5
-      start_period: 60s
-
-  # ===========================================
-  # BUSINESS SERVICES
-  # ===========================================
-  plant-management-service:
-    build:
-      context: .
-      dockerfile: plant-management-service/Dockerfile
-    container_name: plant-management-service
-    hostname: plant-management-service
-    restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_started
-      kafka:
-        condition: service_started
-      discovery-server:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
-    environment:
-      SERVER_PORT_PLANT: ${SERVER_PORT_PLANT:-8085}
-      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
-      HOSTNAME: plant-management-service
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_DATABASE_PLANT: leafy_plant
-      MONGODB_USERNAME: admin
-      MONGODB_PASSWORD: admin123
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    ports:
-      - "${SERVER_PORT_PLANT:-8085}:8085"
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8085/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-
-  search-service:
-    build:
-      context: .
-      dockerfile: search-service/Dockerfile
-    container_name: search-service
-    hostname: search-service
-    restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_started
-      kafka:
-        condition: service_started
-      elasticsearch:
-        condition: service_healthy
-      discovery-server:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
-    environment:
-      SERVER_PORT_SEARCH: ${SERVER_PORT_SEARCH:-8088}
-      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
-      HOSTNAME: search-service
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_DATABASE_SEARCH: leafy_search
-      MONGODB_USERNAME: admin
-      MONGODB_PASSWORD: admin123
-      ELASTICSEARCH_URIS: http://elasticsearch:9200
-      ELASTICSEARCH_URL: http://elasticsearch:9200
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    ports:
-      - "${SERVER_PORT_SEARCH:-8088}:8088"
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8088/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-
-  notification-service:
-    build:
-      context: .
-      dockerfile: notification-service/Dockerfile
-    container_name: notification-service
-    hostname: notification-service
-    restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_started
-      redis:
-        condition: service_started
-      kafka:
-        condition: service_started
-      discovery-server:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
-    environment:
-      SERVER_PORT_NOTIFICATION: ${SERVER_PORT_NOTIFICATION:-8095}
-      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
-      HOSTNAME: notification-service
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_DATABASE_NOTIFICATION: leafy_notification
-      MONGODB_USERNAME: admin
-      MONGODB_PASSWORD: admin123
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: redis123
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      FIREBASE_CONFIG_PATH: /run/secrets/firebase-service-account.json
-      NOTIFICATION_EMAIL_ENABLED: ${NOTIFICATION_EMAIL_ENABLED}
-      NOTIFICATION_EMAIL_FROM: ${NOTIFICATION_EMAIL_FROM}
-      NOTIFICATION_SMS_ENABLED: ${NOTIFICATION_SMS_ENABLED}
-      NOTIFICATION_PUSH_ENABLED: ${NOTIFICATION_PUSH_ENABLED}
-    ports:
-      - "${SERVER_PORT_NOTIFICATION:-8095}:8095"
-    volumes:
-      - ./secrets/your-file.json:/run/secrets/firebase-service-account.json:ro
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8095/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-
-  socket-service:
-    build:
-      context: .
-      dockerfile: socket-service/Dockerfile
-    container_name: socket-service
-    hostname: socket-service
-    restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_started
-      kafka:
-        condition: service_started
-      discovery-server:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
-    environment:
-      SERVER_PORT_SOCKET: ${SERVER_PORT_SOCKET:-8093}
-      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
-      HOSTNAME: socket-service
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_DATABASE_SOCKET: leafy_socket
-      MONGODB_USERNAME: admin
-      MONGODB_PASSWORD: admin123
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    ports:
-      - "${SERVER_PORT_SOCKET:-8093}:8093"
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8093/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-
-  message-service:
-    build:
-      context: .
-      dockerfile: message-service/Dockerfile
-    container_name: message-service
-    hostname: message-service
-    restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_started
-      discovery-server:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
-    environment:
-      SERVER_PORT_MESSAGES: ${SERVER_PORT_MESSAGES:-8092}
-      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
-      HOSTNAME: message-service
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_DATABASE_MESSAGES: leafy_message
-      MONGODB_USERNAME: admin
-      MONGODB_PASSWORD: admin123
-    ports:
-      - "${SERVER_PORT_MESSAGES:-8092}:8092"
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8092/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-
-  community-feed-service:
-    build:
-      context: .
-      dockerfile: community-feed-service/Dockerfile
-    container_name: community-feed-service
-    hostname: community-feed-service
-    restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_started
-      discovery-server:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
-    environment:
-      SERVER_PORT_COMMUNITY_FEED: ${SERVER_PORT_COMMUNITY_FEED:-8090}
-      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
-      HOSTNAME: community-feed-service
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_DATABASE_COMMUNITY_FEED: leafy_community
-      MONGODB_USERNAME: admin
-      MONGODB_PASSWORD: admin123
-    ports:
-      - "${SERVER_PORT_COMMUNITY_FEED:-8090}:8090"
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8090/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-
-  profile-service:
-    build:
-      context: .
-      dockerfile: profile-service/Dockerfile
-    container_name: profile-service
-    hostname: profile-service
-    restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_started
-      discovery-server:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
-    environment:
-      SERVER_PORT_PROFILE: ${SERVER_PORT_PROFILE:-8086}
-      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
-      HOSTNAME: profile-service
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_DATABASE_PROFILE: leafy_profile
-      MONGODB_USERNAME: admin
-      MONGODB_PASSWORD: admin123
-    ports:
-      - "${SERVER_PORT_PROFILE:-8086}:8086"
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8086/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
+      retries: 10
+      start_period: 40s
 
   file-service:
     build:
-      context: .
+      context: ..
       dockerfile: file-service/Dockerfile
+      args:
+        MODULE_NAME: file-service
     container_name: file-service
     hostname: file-service
     restart: unless-stopped
@@ -614,17 +341,27 @@ services:
         condition: service_healthy
     environment:
       SERVER_PORT_FILE: ${SERVER_PORT_FILE:-8084}
-      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
       SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
       HOSTNAME: file-service
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_DATABASE_FILE: leafy_file
-      MONGODB_USERNAME: admin
-      MONGODB_PASSWORD: admin123
-      AWS_S3_BUCKET: leafy-media-storage
-      AWS_REGION: ap-southeast-1
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_DATA_MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      SPRING_DATA_MONGODB_PORT: ${MONGODB_PORT:-27017}
+      SPRING_DATA_MONGODB_DATABASE: ${MONGODB_DATABASE_FILE:-leafy_file}
+      SPRING_DATA_MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      SPRING_DATA_MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE_FILE: ${MONGODB_DATABASE_FILE:-leafy_file}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_KAFKA_ENABLED: "false"
+      SPRING_DATA_REDIS_ENABLED: "false"
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      S3_BUCKET_NAME: ${AWS_S3_BUCKET:-leafy-meida-storage}
     ports:
       - "${SERVER_PORT_FILE:-8084}:8084"
     networks:
@@ -633,116 +370,588 @@ services:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8084/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
-      retries: 5
-      start_period: 60s
-
-  # ===========================================
-  # PYTHON / ML SERVICES
-  # ===========================================
-  rag-service:
-    build:
-      context: .
-      dockerfile: rag-service/Dockerfile
-    container_name: rag-service
-    hostname: rag-service
-    restart: unless-stopped
-    depends_on:
-      qdrant:
-        condition: service_started
-      mongodb:
-        condition: service_started
-    environment:
-      QDRANT_HOST: qdrant
-      QDRANT_GRPC_PORT: 6334
-      MONGODB_URI: mongodb://admin:admin123@mongodb:27017
-      MONGODB_DATABASE: leafy_rag
-      EUREKA_SERVER: http://discovery-server:8761/eureka/
-      SERVER_PORT: 8199
-    ports:
-      - "${SERVER_PORT_RAG:-8199}:8199"
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8199/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-
-  disease-detection-service:
-    build:
-      context: .
-      dockerfile: disease-detection-service/Dockerfile
-    container_name: disease-detection-service
-    hostname: disease-detection-service
-    restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_started
-    environment:
-      EUREKA_SERVER: http://discovery-server:8761/eureka/
-      SERVER_PORT: 8000
-    ports:
-      - "${SERVER_PORT_DISEASE:-8000}:8000"
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-
-  # ===========================================
-  # CI/CD - JENKINS
-  # ===========================================
-  jenkins:
-    image: jenkins/jenkins:lts-jdk21
-    container_name: leafy-jenkins
-    restart: unless-stopped
-    environment:
-      JENKINS_OPTS: "--prefix=/jenkins"
-      JENKINS_SLAVE_AGENT_PORT: 50000
-      DOCKER_HOST: tcp://docker:2376
-      DOCKER_TLS_CERTS_DIR: /certs/client
-    privileged: true
-    user: root
-    ports:
-      - "${JENKINS_PORT:-8080}:8080"
-      - "${JENKINS_AGENT_PORT:-50000}:50000"
-    volumes:
-      - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
-      - jenkins_docker_certs:/certs/client:ro
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/login || exit 1"]
-      interval: 30s
-      timeout: 10s
       retries: 10
-      start_period: 120s
+      start_period: 40s
 
-  # Docker-in-Docker for Jenkins builds
-  docker-dind:
-    image: docker:24-dind
-    container_name: leafy-docker-dind
+  profile-service:
+    build:
+      context: ..
+      dockerfile: profile-service/Dockerfile
+      args:
+        MODULE_NAME: profile-service
+    container_name: profile-service
+    hostname: profile-service
     restart: unless-stopped
-    privileged: true
+    depends_on:
+      mongodb:
+        condition: service_started
+      postgresql:
+        condition: service_started
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
     environment:
-      DOCKER_TLS_CERTS_DIR: /certs/client
-      DOCKER_DRIVER: overlay2
-    volumes:
-      - jenkins_docker_certs:/certs/client
-      - jenkins_docker_data:/var/lib/docker
+      SERVER_PORT_PROFILE: ${SERVER_PORT_PROFILE:-8083}
+      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      HOSTNAME: profile-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/leafy_iot_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_DATA_MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      SPRING_DATA_MONGODB_PORT: ${MONGODB_PORT:-27017}
+      SPRING_DATA_MONGODB_DATABASE: ${MONGODB_DATABASE_PROFILE:-leafy_profile}
+      SPRING_DATA_MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      SPRING_DATA_MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE_PROFILE: ${MONGODB_DATABASE_PROFILE:-leafy_profile}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+    ports:
+      - "${SERVER_PORT_PROFILE:-8083}:${SERVER_PORT_PROFILE:-8083}"
     networks:
       - leafy-network
     healthcheck:
-      test: ["CMD-SHELL", "docker info || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${SERVER_PORT_PROFILE:-8083}/actuator/health || exit 1"]
       interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ===========================================
+  # BUSINESS SERVICES
+  # ===========================================
+  search-service:
+    build:
+      context: ..
+      dockerfile: search-service/Dockerfile
+      args:
+        MODULE_NAME: search-service
+    container_name: search-service
+    hostname: search-service
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT_SEARCH: ${SERVER_PORT_SEARCH:-8088}
+      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      HOSTNAME: search-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      ELASTICSEARCH_USERNAME: ${ELASTICSEARCH_USERNAME:-}
+      ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:-}
+      ELASTICSEARCH_SSL: ${ELASTICSEARCH_SSL:-false}
+      SPRING_DATA_MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      SPRING_DATA_MONGODB_PORT: ${MONGODB_PORT:-27017}
+      SPRING_DATA_MONGODB_DATABASE: ${MONGODB_DATABASE_SEARCH:-leafy_search}
+      SPRING_DATA_MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      SPRING_DATA_MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE_SEARCH: ${MONGODB_DATABASE_SEARCH:-leafy_search}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+    ports:
+      - "${SERVER_PORT_SEARCH:-8088}:8088"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8088/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  notification-service:
+    build:
+      context: ..
+      dockerfile: notification-service/Dockerfile
+      args:
+        MODULE_NAME: notification-service
+    container_name: notification-service
+    hostname: notification-service
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT_NOTIFICATION: ${SERVER_PORT_NOTIFICATION:-8095}
+      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      HOSTNAME: notification-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_DATA_MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      SPRING_DATA_MONGODB_PORT: ${MONGODB_PORT:-27017}
+      SPRING_DATA_MONGODB_DATABASE: ${MONGODB_DATABASE_NOTIFICATION:-leafy_notification}
+      SPRING_DATA_MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      SPRING_DATA_MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE_NOTIFICATION: ${MONGODB_DATABASE_NOTIFICATION:-leafy_notification}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-redis123}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      NOTIFICATION_EMAIL_ENABLED: ${NOTIFICATION_EMAIL_ENABLED}
+      NOTIFICATION_EMAIL_FROM: ${NOTIFICATION_EMAIL_FROM}
+      NOTIFICATION_SMS_ENABLED: ${NOTIFICATION_SMS_ENABLED}
+      NOTIFICATION_PUSH_ENABLED: ${NOTIFICATION_PUSH_ENABLED}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      FIREBASE_ENABLED: "true"
+      FIREBASE_CONFIG_PATH: /run/secrets/firebase-service-account.json
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL}
+      BREVO_SENDER_NAME: ${BREVO_SENDER_NAME}
+      BREVO_ENABLED: ${BREVO_ENABLED}
+    ports:
+      - "${SERVER_PORT_NOTIFICATION:-8095}:8095"
+    volumes:
+      - D:\KLTN\Leafy\Leafy_BE\notification-service\secret\firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8095/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  plant-management-service:
+    build:
+      context: ..
+      dockerfile: plant-management-service/Dockerfile
+      args:
+        MODULE_NAME: plant-management-service
+    container_name: plant-management-service
+    hostname: plant-management-service
+    restart: unless-stopped
+    depends_on:
+      postgresql:
+        condition: service_started
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT_PLANT: ${SERVER_PORT_PLANT:-8085}
+      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      HOSTNAME: plant-management-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/leafy_iot_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_DATA_MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      SPRING_DATA_MONGODB_PORT: ${MONGODB_PORT:-27017}
+      SPRING_DATA_MONGODB_DATABASE: ${MONGODB_DATABASE_PLANT:-leafy_plant}
+      SPRING_DATA_MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      SPRING_DATA_MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE_PLANT: ${MONGODB_DATABASE_PLANT:-leafy_plant}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-redis123}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+    ports:
+      - "${SERVER_PORT_PLANT:-8085}:8085"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8085/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ===========================================
+  # IOT SERVICES
+  # ===========================================
+  iot-metrics-collector-service:
+    build:
+      context: ..
+      dockerfile: iot-metrics-collector-service/Dockerfile
+      args:
+        MODULE_NAME: iot-metrics-collector-service
+    container_name: iot-metrics-collector-service
+    hostname: iot-metrics-collector-service
+    restart: unless-stopped
+    depends_on:
+      postgresql:
+        condition: service_started
+      kafka:
+        condition: service_started
+      mqtt-broker:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT_IOT_METRICS: ${SERVER_PORT_IOT_METRICS:-8087}
+      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      HOSTNAME: iot-metrics-collector-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/leafy_iot_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      IOT_MQTT_HOST: mqtt-broker
+      IOT_MQTT_PORT: ${IOT_MQTT_PORT:-1883}
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-tcp://mqtt-broker:1883}
+      IOT_ALERT_TRIGGERED_TOPIC: ${IOT_ALERT_TRIGGERED_TOPIC:-iot.alert.triggered}
+      FILE_SERVICE_UPLOAD_URL: ${FILE_SERVICE_UPLOAD_URL:-http://file-service:8084/files/upload}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-redis123}
+    ports:
+      - "${SERVER_PORT_IOT_METRICS:-8087}:8087"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8087/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  iot-test-data-service:
+    build:
+      context: ..
+      dockerfile: iot-test-data-service/Dockerfile
+      args:
+        MODULE_NAME: iot-test-data-service
+    container_name: iot-test-data-service
+    hostname: iot-test-data-service
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_started
+      mqtt-broker:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT_IOT_TEST: ${SERVER_PORT_IOT_TEST:-8088}
+      HOSTNAME: iot-test-data-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      IOT_METRICS_COLLECTOR_URL: http://iot-metrics-collector-service:8087
+      IOT_MQTT_HOST: mqtt-broker
+      IOT_MQTT_PORT: ${IOT_MQTT_PORT:-1883}
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-tcp://mqtt-broker:1883}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-redis123}
+    ports:
+      - "${SERVER_PORT_IOT_TEST:-8088}:8088"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8088/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ===========================================
+  # COMMUNITY & CHAT SERVICES
+  # ===========================================
+  community-feed-service:
+    build:
+      context: ..
+      dockerfile: community-feed-service/Dockerfile
+      args:
+        MODULE_NAME: community-feed-service
+    container_name: community-feed-service
+    hostname: community-feed-service
+    restart: unless-stopped
+    depends_on:
+      postgresql:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_started
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT_COMMUNITY: ${SERVER_PORT_COMMUNITY_FEED:-8090}
+      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      HOSTNAME: community-feed-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/leafy_iot_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_DATA_MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      SPRING_DATA_MONGODB_PORT: ${MONGODB_PORT:-27017}
+      SPRING_DATA_MONGODB_DATABASE: ${MONGODB_DATABASE_COMMUNITY_FEED:-leafy_community}
+      SPRING_DATA_MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      SPRING_DATA_MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE_COMMUNITY_FEED: ${MONGODB_DATABASE_COMMUNITY_FEED:-leafy_community}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-redis123}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+    ports:
+      - "${SERVER_PORT_COMMUNITY_FEED:-8090}:8090"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8090/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  socket-service:
+    build:
+      context: ..
+      dockerfile: socket-service/Dockerfile
+      args:
+        MODULE_NAME: socket-service
+    container_name: socket-service
+    hostname: socket-service
+    restart: unless-stopped
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      SERVER_PORT_SOCKET: ${SERVER_PORT_SOCKET:-8093}
+      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      HOSTNAME: socket-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_DATA_MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      SPRING_DATA_MONGODB_PORT: ${MONGODB_PORT:-27017}
+      SPRING_DATA_MONGODB_DATABASE: ${MONGODB_DATABASE_SOCKET:-leafy_socket}
+      SPRING_DATA_MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      SPRING_DATA_MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE_SOCKET: ${MONGODB_DATABASE_SOCKET:-leafy_socket}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-redis123}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION}
+      JWT_REFRESH_WEB_EXPIRATION: ${JWT_REFRESH_WEB_EXPIRATION}
+      JWT_REFRESH_MOBILE_EXPIRATION: ${JWT_REFRESH_MOBILE_EXPIRATION}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+    ports:
+      - "${SERVER_PORT_SOCKET:-8093}:8093"
+    networks:
+      - leafy-network
+
+  message-service:
+    build:
+      context: ..
+      dockerfile: message-service/Dockerfile
+      args:
+        MODULE_NAME: message-service
+    container_name: message-service
+    hostname: message-service
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_started
+      socket-service:
+        condition: service_started
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT_MESSAGE: ${SERVER_PORT_MESSAGES:-8092}
+      SPRING_CLOUD_CONFIG_URI: ${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      SPRING_CONFIG_IMPORT: configserver:${SPRING_CLOUD_CONFIG_URI:-http://config-server:8888}
+      HOSTNAME: message-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SPRING_DATA_MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      SPRING_DATA_MONGODB_PORT: ${MONGODB_PORT:-27017}
+      SPRING_DATA_MONGODB_DATABASE: ${MONGODB_DATABASE_MESSAGES:-leafy_message}
+      SPRING_DATA_MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      SPRING_DATA_MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE_MESSAGES: ${MONGODB_DATABASE_MESSAGES:-leafy_message}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-admin123}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-redis123}
+      SOCKET_SERVICE_URL: http://socket-service:8093
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+    ports:
+      - "${SERVER_PORT_MESSAGES:-8092}:8092"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8092/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ===========================================
+  # AI SERVICES
+  # ===========================================
+  # rag-service:
+  #   build:
+  #     context: ../rag-service
+  #     dockerfile: Dockerfile
+  #   container_name: rag-service
+  #   hostname: rag-service
+  #   restart: unless-stopped
+  #   depends_on:
+  #     qdrant:
+  #       condition: service_healthy
+  #     discovery-server:
+  #       condition: service_healthy
+  #     config-server:
+  #       condition: service_healthy
+  #   environment:
+  #     SERVER_PORT: ${SERVER_PORT_RAG:-8199}
+  #     SPRING_APPLICATION_NAME: ${SPRING_APPLICATION_NAME:-rag-service}
+  #     HOSTNAME: rag-service
+  #     EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+  #     API_GATEWAY_URL: ${API_GATEWAY_URL:-http://api-gateway:8080}
+  #     MONGODB_HOST: mongodb
+  #     MONGODB_PORT: 27017
+  #     MONGODB_USERNAME: admin
+  #     MONGODB_PASSWORD: admin123
+  #     MONGODB_DATABASE_RAG: ${MONGODB_DATABASE_RAG:-leafy_rag}
+  #     QDRANT_URL: http://qdrant:6333
+  #     QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+  #     FILE_SERVICE_URL: ${FILE_SERVICE_URL:-http://file-service:8084}
+  #     UNSTRUCTURED_STRATEGY: ${UNSTRUCTURED_STRATEGY:-fast}
+  #     CHUNK_SIZE: ${CHUNK_SIZE:-1000}
+  #     CHUNK_OVERLAP: ${CHUNK_OVERLAP:-200}
+  #     MARKDOWN_CHUNK_SIZE: ${MARKDOWN_CHUNK_SIZE:-2000}
+  #     MARKDOWN_CHUNK_OVERLAP: ${MARKDOWN_CHUNK_OVERLAP:-300}
+  #     OPENAI_API_KEY: ${OPENAI_API_KEY}
+  #     LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
+  #     LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+  #     LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-rag-service}
+  #     GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+  #     TAVILY_API_KEY: ${TAVILY_API_KEY}
+  #     CHAT_MODEL: ${CHAT_MODEL:-gpt-4o-mini}
+  #     FAST_MODEL: ${FAST_MODEL:-gpt-4o-mini}
+  #     DEEP_MODEL: ${DEEP_MODEL:-gpt-4o}
+  #     RERANKER_MODEL: ${RERANKER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
+  #     CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.6}
+  #     COMPLETENESS_THRESHOLD: ${COMPLETENESS_THRESHOLD:-0.6}
+  #     MAX_REFINEMENT_ATTEMPTS: ${MAX_REFINEMENT_ATTEMPTS:-5}
+  #   ports:
+  #     - "${SERVER_PORT_RAG:-8199}:8199"
+  #   networks:
+  #     - leafy-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -sf http://localhost:8199/health || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 10
+  #     start_period: 40s
+
+  # disease-detection-service:
+  #   build:
+  #     context: ../disease-detection-service
+  #     dockerfile: Dockerfile
+  #   container_name: disease-detection-service
+  #   hostname: disease-detection-service
+  #   restart: unless-stopped
+  #   depends_on:
+  #     mongodb:
+  #       condition: service_started
+  #     discovery-server:
+  #       condition: service_healthy
+  #     config-server:
+  #       condition: service_healthy
+  #   environment:
+  #     PORT: ${SERVER_PORT_DISEASE:-8090}
+  #     SPRING_APPLICATION_NAME: ${SPRING_APPLICATION_NAME:-disease-detection-service}
+  #     HOSTNAME: disease-detection-service
+  #     EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+  #     SERVICE_NAME: ${SERVICE_NAME:-Disease Detection Service}
+  #     MODEL_NAME: ${MODEL_NAME:-Coffee-MobileNetV2}
+  #     MODEL_PATH: ${MODEL_PATH:-weights/coffee_mobilenetv2_prod_final.keras}
+  #     MODEL_TOP_K: ${MODEL_TOP_K:-3}
+  #     YOLO_MODEL_PATH: ${YOLO_MODEL_PATH:-weights/yolo/best.pt}
+  #     FILE_SERVICE_URL: ${FILE_SERVICE_URL:-http://file-service:8084}
+  #     LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  #     TF_CPP_MIN_LOG_LEVEL: ${TF_CPP_MIN_LOG_LEVEL:-2}
+  #     MONGODB_HOST: mongodb
+  #     MONGODB_PORT: 27017
+  #     MONGODB_USERNAME: admin
+  #     MONGODB_PASSWORD: admin123
+  #     MONGODB_DATABASE_DISEASE: ${MONGODB_DATABASE_DISEASE:-leafy_disease}
+  #     ENV_STATE: ${ENV_STATE:-dev}
+  #   ports:
+  #     - "${SERVER_PORT_DISEASE:-8090}:8090"
+  #   networks:
+  #     - leafy-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -sf http://localhost:8090/health || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 10
+  #     start_period: 60s
 
 networks:
   leafy-network:
@@ -751,12 +960,8 @@ networks:
 volumes:
   mongodb_data:
   mongodb_config:
+  postgresql_data:
   kafka_data:
   redis_data:
-  postgresql_data:
   elasticsearch_data:
-  postgresql_farm_data:
   qdrant_data:
-  jenkins_home:
-  jenkins_docker_certs:
-  jenkins_docker_data:

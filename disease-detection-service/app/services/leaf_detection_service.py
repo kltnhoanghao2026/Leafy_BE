@@ -37,46 +37,46 @@ class LeafDetectionService:
              raise AppException(ErrorCode.BAD_REQUEST, f"Invalid image format: {str(e)}")
 
     @classmethod
-    def process_inference(cls, model, image, confidence_threshold: float):
-         try:
-             results = AIModelInference.perform_yolo_inference(model, image, confidence_threshold)
-             detections = []
-             if len(results) > 0:
-                  result = results[0]
-                  if result.boxes is not None and len(result.boxes) > 0:
-                       boxes = result.boxes.xyxy.cpu().numpy()
-                       confidences = result.boxes.conf.cpu().numpy()
-                       class_ids = result.boxes.cls.cpu().numpy().astype(int)
-                       class_names = result.names
-                       
-                       for box, conf, class_id in zip(boxes, confidences, class_ids):
-                            detection = Detection(
-                                 className=class_names[class_id],
-                                 confidenceScore=float(conf),
-                                 boundingBox=BoundingBox(
-                                      x1=float(box[0]), y1=float(box[1]),
-                                      x2=float(box[2]), y2=float(box[3])
-                                 )
+    def process_inference(cls, model, image, confidence_threshold: float, class_names: list = None):
+        try:
+            results = AIModelInference.perform_yolo_inference(model, image, confidence_threshold, class_names)
+            detections = []
+            if len(results) > 0:
+                result = results[0]
+                if result.boxes is not None and len(result.boxes) > 0:
+                    boxes = result.boxes.xyxy.cpu().numpy() if hasattr(result.boxes.xyxy, 'cpu') else result.boxes.xyxy
+                    confidences = result.boxes.conf.cpu().numpy() if hasattr(result.boxes.conf, 'cpu') else result.boxes.conf
+                    class_ids = result.boxes.cls.cpu().numpy().astype(int) if hasattr(result.boxes.cls, 'cpu') else result.boxes.cls.astype(int)
+                    class_names_map = result.names
+
+                    for box, conf, class_id in zip(boxes, confidences, class_ids):
+                        detection = Detection(
+                            className=class_names_map[class_id],
+                            confidenceScore=float(conf),
+                            boundingBox=BoundingBox(
+                                x1=float(box[0]), y1=float(box[1]),
+                                x2=float(box[2]), y2=float(box[3])
                             )
-                            detections.append(detection)
-             return detections
-         except Exception as e:
-              logger.error(f"YOLO inference failed: {e}")
-              raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"Inference error: {str(e)}")
+                        )
+                        detections.append(detection)
+            return detections
+        except Exception as e:
+            logger.error(f"YOLO inference failed: {e}")
+            raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"Inference error: {str(e)}")
 
     @classmethod
-    def detect_leaf(cls, file: UploadFile, model, model_name: str, confidence: float) -> dict:
+    def detect_leaf(cls, file: UploadFile, model, class_names: list, model_name: str, confidence: float) -> dict:
         start_time = time.time()
         try:
              image_bytes = cls.validate_file(file)
              image, original_width, original_height = cls.preprocess_image(image_bytes)
-             
+
              if not model:
                  raise AppException(ErrorCode.MODEL_NOT_LOADED)
 
-             detections = cls.process_inference(model, image, confidence)
+             detections = cls.process_inference(model, image, confidence, class_names)
              processing_time = (time.time() - start_time) * 1000
-             
+
              response = LeafDetectionResponse(
                   detections=detections,
                   modelName=model_name,
@@ -118,23 +118,23 @@ class LeafDetectionService:
               raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"Error drawing bounding boxes: {str(e)}")
 
     @classmethod
-    def visualize(cls, file: UploadFile, model, confidence: float, box_color: str, box_thickness: int) -> tuple[bytes, int]:
+    def visualize(cls, file: UploadFile, model, class_names: list, confidence: float, box_color: str, box_thickness: int) -> tuple[bytes, int]:
          try:
              image_bytes = cls.validate_file(file)
              image, _, _ = cls.preprocess_image(image_bytes)
-             
+
              if not model:
                  raise AppException(ErrorCode.MODEL_NOT_LOADED)
 
-             detections = cls.process_inference(model, image, confidence)
-             
+             detections = cls.process_inference(model, image, confidence, class_names)
+
              color_map = {
                  "green": (0, 255, 0), "red": (255, 0, 0), "blue": (0, 0, 255),
                  "yellow": (255, 255, 0), "cyan": (0, 255, 255), "magenta": (255, 0, 255),
                  "white": (255, 255, 255)
              }
              rgb_color = color_map.get(box_color.lower(), (0, 255, 0))
-             
+
              img_bytes = cls.draw_bounding_boxes(image, detections, rgb_color, box_thickness)
              return img_bytes, len(detections)
          finally:
@@ -159,20 +159,20 @@ class LeafDetectionService:
               raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"Error cropping detections: {str(e)}")
 
     @classmethod
-    def detect_and_crop(cls, file: UploadFile, model, confidence: float, padding: int, return_format: str) -> tuple[bytes, str, str, int]:
+    def detect_and_crop(cls, file: UploadFile, model, class_names: list, confidence: float, padding: int, return_format: str) -> tuple[bytes, str, str, int]:
          try:
              image_bytes = cls.validate_file(file)
              image, _, _ = cls.preprocess_image(image_bytes)
-             
+
              if not model:
                   raise AppException(ErrorCode.MODEL_NOT_LOADED)
 
-             detections = cls.process_inference(model, image, confidence)
+             detections = cls.process_inference(model, image, confidence, class_names)
              if len(detections) == 0:
                   raise AppException(ErrorCode.NO_DETECTIONS)
-                  
+
              cropped_images = cls.crop_detections(image, detections, padding)
-             
+
              if return_format.lower() == "single":
                   cropped_img, detection = cropped_images[0]
                   img_byte_arr = io.BytesIO()

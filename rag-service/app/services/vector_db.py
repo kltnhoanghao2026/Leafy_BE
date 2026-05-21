@@ -27,7 +27,7 @@ def _extract_major_minor(version: str) -> Optional[tuple[int, int]]:
 
 class VectorStoreService:
     _instance = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             instance = super(VectorStoreService, cls).__new__(cls)
@@ -41,12 +41,12 @@ class VectorStoreService:
                     f"Is Qdrant running at the configured URL? Details: {e}"
                 ) from e
         return cls._instance
-    
+
     def _initialize(self):
         self.qdrant_url = os.getenv("QDRANT_URL", "http://qdrant:6333")
         self.qdrant_api_key = os.getenv("QDRANT_API_KEY", None)
         self.collection_name = _DEFAULT_COLLECTION
-        
+
         # Initialize Qdrant Client
         self.client = QdrantClient(
             url=self.qdrant_url,
@@ -56,26 +56,42 @@ class VectorStoreService:
         )
 
         self._validate_qdrant_compatibility()
-        
-        # Initialize Embeddings
-        self.embeddings = get_embeddings_model()
-        
+
+        # Embeddings are lazy-loaded on first use to avoid ONNXRuntime
+        # initialization failures blocking the entire application startup.
+        self._embeddings = None
+        self._embedding_dimension = None
+
         # Determine embedding dimension
-        self.embedding_dimension = len(self.embeddings.embed_query("test"))
+        _ = self.embeddings
 
         # Ensure Collection Exists
         self._ensure_collection_exists()
-        
+
         # Initialize Vector Store
         self.vector_store = QdrantVectorStore(
             client=self.client,
             collection_name=self.collection_name,
             embedding=self.embeddings,
         )
-        
+
         # Initialize BM25 for hybrid search (lazy-loaded on first use)
         self._bm25_index = None
         self._cached_documents = None
+
+    @property
+    def embeddings(self):
+        """Lazy-load the embeddings model on first access."""
+        if self._embeddings is None:
+            self._embeddings = get_embeddings_model()
+        return self._embeddings
+
+    @property
+    def embedding_dimension(self):
+        """Lazy-load the embedding dimension on first access."""
+        if self._embedding_dimension is None:
+            self._embedding_dimension = len(self.embeddings.embed_query("test"))
+        return self._embedding_dimension
 
     def _validate_qdrant_compatibility(self):
         """Log client/server versions and fail early on hard incompatibilities."""

@@ -7,7 +7,7 @@ overview to build real environmental context for downstream prompts.
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from app.agents.rag_state import GraphState
 from app.services.env_gateway_client import EnvGatewayClient, get_env_gateway_client

@@ -1,6 +1,7 @@
 spring:
   application:
     name: iot-test-data-service
+ 
   profiles:
     default: local
   datasource:
@@ -14,7 +15,7 @@ server:
 
 seed:
   collector:
-    base-url: ${SEED_COLLECTOR_BASE_URL:http://localhost:8091}
+    base-url: ${SEED_COLLECTOR_BASE_URL:http://localhost:8092}
   profile:
     base-url: ${SEED_PROFILE_BASE_URL:http://localhost:8087}
     page-size: ${SEED_PROFILE_PAGE_SIZE:50}

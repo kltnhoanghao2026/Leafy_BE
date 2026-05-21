@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     MONGODB_DATABASE_RAG: str = "leafy_rag"
 
     model_config = SettingsConfigDict(
-        env_file=os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env"),
+        env_file=os.path.join(os.path.dirname(__file__), "..", "..", ".env"),
         extra="ignore",
     )
 

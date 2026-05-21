@@ -3,8 +3,8 @@ import py_eureka_client.eureka_client as eureka_client
 import os
 from dotenv import load_dotenv
 
-_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-env_path = os.path.join(_BACKEND_DIR, '.env')
+_SERVICE_DIR = os.path.dirname(os.path.abspath(__file__))
+env_path = os.path.join(_SERVICE_DIR, '.env')
 load_dotenv(env_path)
 
 from main import app, settings

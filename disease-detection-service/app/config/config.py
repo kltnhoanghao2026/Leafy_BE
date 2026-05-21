@@ -1,57 +1,83 @@
 """
-Configuration module for Image Classification Service
-Supports multiple environments: test, dev, prod
+Configuration module for Disease Detection Service.
+Loads from .env file in the service root directory.
 """
+import ast
+import os
 from functools import cache
 
-import os
+from dotenv import load_dotenv
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_BACKEND_ENV = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    ".env",
-)
+# Load .env into os.environ before pydantic_settings processes anything
+_env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+load_dotenv(_env_path)
 
 
-class BaseConfig(BaseSettings):
-    """Base configuration with environment state"""
-    model_config = SettingsConfigDict(env_file=[_BACKEND_ENV, ".env"], extra="ignore")
-    ENV_STATE: str = "dev"
-
-
-class Config(BaseConfig):
-    """Common configuration for all environments"""
-    model_config = SettingsConfigDict(env_file=[_BACKEND_ENV, ".env"], extra="ignore")
+class Config(BaseSettings):
+    """Configuration loaded from .env file."""
+    model_config = SettingsConfigDict(
+        extra="ignore",
+    )
 
     # Service settings
-    SERVICE_NAME: str = "Image Classification Service"
+    SERVICE_NAME: str = "Disease Detection Service"
     SERVICE_VERSION: str = "1.0.0"
+    ENV_STATE: str = "dev"
 
     # Server settings
     HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    PORT: int = 8090
+
+    # Eureka
+    EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: str = "http://localhost:8761/eureka/"
+    SPRING_APPLICATION_NAME: str = "disease-classification-service"
 
     # Model settings
     MODEL_NAME: str = "Coffee-MobileNetV2"
     MODEL_PATH: str = "weights/coffee_mobilenetv2_prod_final.keras"
     MODEL_INPUT_SIZE: tuple[int, int] = (224, 224)
-    MODEL_TOP_K: int = 3  # Top K predictions to return
+    MODEL_TOP_K: int = 3
 
-    # File Service settings (from environment)
+    # YOLO model settings
+    YOLO_MODEL_PATH: str = "weights/yolo/best.pt"
+    YOLO_CLASS_NAMES: list[str] = [
+        "healthy", "leaf_miner", "phoma", "red_spider_mite", "rust"
+    ]
+
+    # File Service settings
     FILE_SERVICE_URL: str = "http://file-service:8084/internal/files"
 
     # Logging
     LOG_LEVEL: str = "INFO"
+    TF_CPP_MIN_LOG_LEVEL: str = "2"
 
-    # TensorFlow settings
-    TF_CPP_MIN_LOG_LEVEL: str = "2"  # Suppress TF warnings
-
-    # MongoDB settings (from environment variables - no hardcoded defaults for prod)
+    # MongoDB settings
     MONGODB_HOST: str = "mongodb"
     MONGODB_PORT: int = 27017
     MONGODB_USERNAME: str = "admin"
-    MONGODB_PASSWORD: str = ""  # No default - must be set via environment
+    MONGODB_PASSWORD: str = ""
     MONGODB_DATABASE_DISEASE: str = "leafy_disease"
+
+    @field_validator("MODEL_INPUT_SIZE", mode="before")
+    @classmethod
+    def parse_model_input_size(cls, v):
+        if isinstance(v, str):
+            if not v.strip():
+                return (224, 224)
+            import json
+            return tuple(json.loads(v))
+        return v
+
+    @field_validator("YOLO_CLASS_NAMES", mode="before")
+    @classmethod
+    def parse_yolo_class_names(cls, v):
+        if isinstance(v, str):
+            if not v.strip():
+                return ["healthy", "leaf_miner", "phoma", "red_spider_mite", "rust"]
+            return ast.literal_eval(v)
+        return v
 
     @property
     def MONGODB_URI(self) -> str:
@@ -63,55 +89,9 @@ class Config(BaseConfig):
         return f"mongodb://{self.MONGODB_HOST}:{self.MONGODB_PORT}"
 
 
-class TestConfig(Config):
-    """Test environment configuration"""
-    LOG_LEVEL: str = "DEBUG"
-    ENV_STATE: str = "test"
-
-
-class DevConfig(Config):
-    """Development environment configuration"""
-    model_config = SettingsConfigDict(
-        env_file=[_BACKEND_ENV, ".env"], env_prefix="DEV_", extra="ignore"
-    )
-    LOG_LEVEL: str = "DEBUG"
-    PORT: int = 8000
-    # Development defaults (use docker-compose service names)
-    MONGODB_HOST: str = "localhost"
-    MONGODB_PASSWORD: str = "admin123"  # Only for local dev
-    eureka_server: str = "http://localhost:8761/eureka/"  # Local Eureka for dev
-
-
-class ProdConfig(Config):
-    """Production environment configuration"""
-    model_config = SettingsConfigDict(
-        env_file=[_BACKEND_ENV, ".env"], env_prefix="PROD_", extra="ignore"
-    )
-    LOG_LEVEL: str = "WARNING"
-    FILE_SERVICE_URL: str = "http://file-service:8084/internal/files"
-    # In production, you might want to load model from a specific path
-    # MODEL_PATH: str = "/app/models/mobilenetv2.keras"
-
-
 @cache
-def get_config(env: str = "dev") -> TestConfig | DevConfig | ProdConfig:
-    """
-    Get configuration based on environment
-
-    Args:
-        env: Environment name (test, dev, prod)
-
-    Returns:
-        Configuration instance for the specified environment
-    """
-    config_map = {
-        "test": TestConfig,
-        "dev": DevConfig,
-        "prod": ProdConfig
-    }
-    return config_map[env](ENV_STATE=env)
+def get_config() -> Config:
+    return Config()
 
 
-# Global config instance
-config = get_config(env=BaseConfig().ENV_STATE)
-
+config = get_config()

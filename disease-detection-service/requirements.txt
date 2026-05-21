@@ -3,13 +3,16 @@ fastapi==0.115.0
 uvicorn[standard]==0.32.0
 python-multipart==0.0.12
 
-# Machine Learning
-tensorflow==2.18.0
+# Machine Learning - Ultralytics YOLOv8
+ultralytics>=8.0.0
+
+# Machine Learning - CPU-only TensorFlow
+tensorflow-cpu==2.18.0
 numpy==1.26.4
-ultralytics==8.3.0
 
 # Image processing
 Pillow==11.0.0
+opencv-python-headless==4.10.0.84
 
 # Utilities
 pydantic==2.10.3

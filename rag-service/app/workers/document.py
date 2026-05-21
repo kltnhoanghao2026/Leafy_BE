@@ -3,7 +3,7 @@ Document ingestion worker — format-aware chunking.
 
 Pipeline (non-markdown)
 -----------------------
-1. ``unstructured.partition.auto`` extracts text from PDF / DOCX / TXT.
+1. ``pypdf`` or ``python-docx`` extracts text from PDF / DOCX / TXT.
 2. All extracted text is joined and split with a single
    ``RecursiveCharacterTextSplitter`` using a configurable chunk size and
    overlap (env vars ``CHUNK_SIZE`` / ``CHUNK_OVERLAP``).
@@ -24,6 +24,7 @@ Pipeline (markdown .md)
 import logging
 import os
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -52,33 +53,118 @@ _splitter = RecursiveCharacterTextSplitter(
 # ── Text cleaning ─────────────────────────────────────────────────────────────
 
 def _clean(text: str) -> str:
-    """Normalise whitespace and strip non-printable characters."""
+    """Normalise whitespace and strip non-printable characters.
+
+    Vietnamese characters (including combining diacritics) are preserved by
+    first normalising to NFC form, then filtering only truly non-printable
+    control characters (categories Cc, Cf, Cs, Co, Cn).
+    """
+    text = unicodedata.normalize("NFC", text)
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n+", "\n", text)
-    text = "".join(ch for ch in text if ch.isprintable() or ch in "\n\t")
+    text = "".join(
+        ch for ch in text
+        if unicodedata.category(ch)[0] != "C" or ch in "\n\t"
+    )
     return text.strip()
 
 
-# ── Layout-aware text extraction ──────────────────────────────────────────────
+# ── Format-specific text extraction ───────────────────────────────────────────
 
 def _extract_text_blocks(file_path: Path) -> List[str]:
-    """Extract text blocks from a document using Unstructured.
+    """Extract text blocks from a document using lightweight parsers.
 
     Returns a list of non-empty cleaned text strings — one per element.
     """
-    from unstructured.partition.auto import partition
-
-    strategy = settings.UNSTRUCTURED_STRATEGY
-    logger.info("Partitioning %s with strategy='%s'", file_path.name, strategy)
-    elements = partition(filename=str(file_path), strategy=strategy)
-    logger.info("Extracted %d elements from %s", len(elements), file_path.name)
-
+    suffix = file_path.suffix.lower()
     blocks: List[str] = []
-    for el in elements:
-        text = _clean(getattr(el, "text", "") or "")
-        if text:
-            blocks.append(text)
+    
+    try:
+        if suffix == ".pdf":
+            blocks = _extract_pdf(str(file_path))
+        elif suffix in [".docx", ".doc"]:
+            blocks = _extract_docx(str(file_path))
+        elif suffix == ".txt":
+            blocks = _extract_txt(str(file_path))
+        else:
+            logger.warning("Unsupported file type: %s", suffix)
+            return []
+            
+        logger.info("Extracted %d text blocks from %s", len(blocks), file_path.name)
+    except Exception as e:
+        logger.error("Failed to extract text from %s: %s", file_path.name, e)
+        raise
+    
+    return [b for b in blocks if b.strip()]
+
+
+def _extract_pdf(file_path: str) -> List[str]:
+    """Extract text from PDF using pypdf."""
+    from pypdf import PdfReader
+    
+    reader = PdfReader(file_path)
+    blocks = []
+    
+    for page_num, page in enumerate(reader.pages):
+        try:
+            text = page.extract_text()
+            if text:
+                text = _clean(text)
+                if text:
+                    blocks.append(text)
+        except Exception as e:
+            logger.warning(f"Failed to extract page {page_num}: {e}")
+            continue
+    
     return blocks
+
+
+def _extract_docx(file_path: str) -> List[str]:
+    """Extract text from DOCX using python-docx."""
+    from docx import Document
+    
+    doc = Document(file_path)
+    blocks = []
+    current_para = []
+    
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if text:
+            current_para.append(text)
+        elif current_para:
+            # End of a paragraph group
+            combined = " ".join(current_para)
+            if combined.strip():
+                blocks.append(_clean(combined))
+            current_para = []
+    
+    # Don't forget last paragraph
+    if current_para:
+        combined = " ".join(current_para)
+        if combined.strip():
+            blocks.append(_clean(combined))
+    
+    # Also extract from tables
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+            if row_text:
+                blocks.append(_clean(row_text))
+    
+    return blocks
+
+
+def _extract_txt(file_path: str) -> List[str]:
+    """Extract text from plain text file."""
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+    
+    if not content:
+        return []
+    
+    # Split by double newlines (paragraphs)
+    paragraphs = content.split("\n\n")
+    return [_clean(p.strip()) for p in paragraphs if p.strip()]
 
 
 # ── Chunking ──────────────────────────────────────────────────────────────────
@@ -134,7 +220,7 @@ async def process_document(
 
     Steps (non-markdown)
     --------------------
-    1. Text extraction  (``unstructured``)
+    1. Text extraction  (pypdf / python-docx)
     2. Fixed-size chunking
     3. Persist chunks to MongoDB (``document_chunks``)
     4. Embed & upsert into Qdrant
@@ -164,7 +250,7 @@ async def process_document(
             chunks = build_chunks_from_markdown(file_path, metadata, file_hash)
             source_name = file_path.name
         else:
-            # ── PDF / DOCX / TXT: unstructured + fixed-size chunking ─────────
+            # ── PDF / DOCX / TXT: lightweight parser + fixed-size chunking ───
             task_manager.update_task(task_id, TaskStatus.PROCESSING, message="task.processing.layout_parse")
             blocks = _extract_text_blocks(file_path)
 

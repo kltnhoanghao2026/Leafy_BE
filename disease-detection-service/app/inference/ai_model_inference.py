@@ -16,32 +16,34 @@ logger = logging.getLogger(__name__)
 
 class_names = None
 
+
 def load_class_names(model) -> list[str]:
     """Load class names for the coffee classification model"""
     global class_names
     if class_names is not None:
         return class_names
-        
+
     try:
         num_classes = model.output_shape[-1]
         coffee_classes = ["healthy", "miner", "phoma", "red_spider_mite", "rust"]
-        
+
         if num_classes == len(coffee_classes):
              class_names = coffee_classes
         elif num_classes < len(coffee_classes):
              class_names = coffee_classes[:num_classes]
         else:
              class_names = [f"coffee_class_{i}" for i in range(num_classes)]
-             
+
         logger.info(f"Loaded {len(class_names)} class names for coffee model")
         return class_names
     except Exception as e:
         logger.error(f"Failed to load class names: {e}")
         return [f"class_{i}" for i in range(10)]
 
+
 class AIModelInference:
     """Abstracts inference operations to keep services decoupled from models"""
-    
+
     @staticmethod
     def load_ml_model():
         try:
@@ -56,7 +58,7 @@ class AIModelInference:
         except Exception as e:
              logger.error(f"Failed to load model: {e}")
              raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"Failed to load model: {e}")
-             
+
     @staticmethod
     def warmup_ml_model(model):
         try:
@@ -73,14 +75,14 @@ class AIModelInference:
         try:
             predictions = model.predict(image_array, verbose=0)
             top_indices = np.argsort(predictions[0])[-config.MODEL_TOP_K:][::-1]
-            
+
             results = []
             for idx in top_indices:
                 if idx < len(class_names):
                     class_name = class_names[idx]
                 else:
                     class_name = f"unknown_class_{idx}"
-                    
+
                 confidence = float(predictions[0][idx])
                 results.append({
                     "className": class_name,
@@ -91,39 +93,58 @@ class AIModelInference:
             logger.error(f"Inference failed: {e}")
             raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"Inference failed: {e}")
 
-    @staticmethod
-    def load_yolo_model(model_path: str) -> YOLO:
-        try:
-             logger.info(f"Loading YOLO model from {model_path}...")
-             # Only strictly verify existence if the path implies a local directory structure
-             if ("/" in model_path or "\\" in model_path) and not Path(model_path).exists():
-                  raise FileNotFoundError(f"Model file not found: {model_path}")
-             model = YOLO(model_path)
-             logger.info(f"YOLO model loaded successfully from {model_path}")
-             return model
-        except FileNotFoundError:
-             logger.error(f"Model file not found at {model_path}")
-             raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"YOLO model file not found: {model_path}")
-        except Exception as e:
-             logger.error(f"Failed to load YOLO model: {e}")
-             raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"Failed to load YOLO model: {e}")
 
-    @staticmethod
-    def warmup_yolo_model(model: YOLO):
-         try:
-             logger.info("Warming up YOLO model with dummy inference...")
-             dummy_image = np.random.randint(0, 255, (640, 640, 3), dtype=np.uint8)
-             _ = model.predict(dummy_image, verbose=False)
-             logger.info("YOLO model warmup completed")
-         except Exception as e:
-             logger.error(f"YOLO model warmup failed: {e}")
-             raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"YOLO model warmup failed: {e}")
+_yolo_model = None
 
-    @staticmethod
-    def perform_yolo_inference(model: YOLO, image, confidence_threshold: float = 0.25):
-         try:
-             results = model.predict(source=image, conf=confidence_threshold, verbose=False)
-             return results
-         except Exception as e:
-             logger.error(f"YOLO inference failed: {e}")
-             raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"YOLO Inference error: {str(e)}")
+
+def load_yolo_model(model_path: str, class_names: list[str] = None) -> YOLO:
+    """Load YOLO model using ultralytics library."""
+    global _yolo_model
+    try:
+        logger.info(f"Loading YOLO model from {model_path}...")
+        if ("/" in model_path or "\\" in model_path) and not Path(model_path).exists():
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+
+        _yolo_model = YOLO(model_path)
+        if class_names:
+            _yolo_model.names = class_names
+        logger.info(f"YOLO model loaded successfully from {model_path}")
+        return _yolo_model
+    except FileNotFoundError:
+        logger.error(f"Model file not found at {model_path}")
+        raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"YOLO model file not found: {model_path}")
+    except Exception as e:
+        logger.error(f"Failed to load YOLO model: {e}")
+        raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"Failed to load YOLO model: {e}")
+
+
+def warmup_yolo_model(model: YOLO):
+    """Warmup YOLO model with dummy inference."""
+    try:
+        logger.info("Warming up YOLO model with dummy inference...")
+        import cv2
+        dummy_image = np.random.randint(0, 255, (640, 640, 3), dtype=np.uint8)
+        _ = model.predict(dummy_image, verbose=False)
+        logger.info("YOLO model warmup completed")
+    except Exception as e:
+        logger.error(f"Model warmup failed: {e}")
+        raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"Model warmup failed: {e}")
+
+
+def perform_yolo_inference(model: YOLO, image, confidence_threshold: float = 0.25, class_names: list = None):
+    """Run YOLO inference using ultralytics."""
+    try:
+        results = model.predict(source=image, conf=confidence_threshold, verbose=False)
+        # Override class names if provided
+        if class_names:
+            for r in results:
+                r.names = {i: name for i, name in enumerate(class_names)}
+        return results
+    except Exception as e:
+        logger.error(f"YOLO inference failed: {e}")
+        raise AppException(ErrorCode.INTERNAL_SERVER_ERROR, f"YOLO Inference error: {str(e)}")
+
+
+AIModelInference.load_yolo_model = staticmethod(load_yolo_model)
+AIModelInference.warmup_yolo_model = staticmethod(warmup_yolo_model)
+AIModelInference.perform_yolo_inference = staticmethod(perform_yolo_inference)

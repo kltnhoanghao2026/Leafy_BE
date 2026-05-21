@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT_NOTIFICATION:}
+  port: ${SERVER_PORT_NOTIFICATION:8095}
 
 spring:
   data:
@@ -47,7 +47,7 @@ notification:
     enabled: ${NOTIFICATION_EMAIL_ENABLED:false}
     from: ${NOTIFICATION_EMAIL_FROM:}
   sms:
-    enabled: ${NOTIFICATION_SMS_ENABLED:from}
+    enabled: ${NOTIFICATION_SMS_ENABLED:false}
   push:
     enabled: ${NOTIFICATION_PUSH_ENABLED:true}
   kafka:
