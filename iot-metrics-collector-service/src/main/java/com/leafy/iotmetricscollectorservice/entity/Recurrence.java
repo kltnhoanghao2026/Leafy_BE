@@ -17,5 +17,10 @@ public enum Recurrence {
     /**
      * Run every seven days at the configured timeOfDay.
      */
-    WEEKLY
+    WEEKLY,
+
+    /**
+     * Run every calendar month at the configured timeOfDay.
+     */
+    MONTHLY
 }

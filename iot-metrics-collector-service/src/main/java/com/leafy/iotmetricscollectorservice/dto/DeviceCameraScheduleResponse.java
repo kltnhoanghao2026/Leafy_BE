@@ -25,6 +25,9 @@ public class DeviceCameraScheduleResponse {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm:ss")
     private LocalTime timeOfDay;
     private Recurrence recurrence;
+    private String resolution;
+    private String quality;
+    private String uploadEndpoint;
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Instant lastRunAt;
     @JsonFormat(shape = JsonFormat.Shape.STRING)

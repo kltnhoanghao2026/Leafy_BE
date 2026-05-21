@@ -5,7 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class ProvisionDeviceRequest {
+public class ConnectDeviceRequest {
     private String deviceUid;
     private String deviceCode;
     private String deviceName;

@@ -1,6 +1,7 @@
 package com.leafy.iotmetricscollectorservice.service;
 
 import com.leafy.iotmetricscollectorservice.dto.device.ClaimDeviceRequest;
+import com.leafy.iotmetricscollectorservice.dto.device.ConnectDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.GenerateClaimCodeResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.ProvisionDeviceRequest;
@@ -12,6 +13,8 @@ import java.util.UUID;
 public interface DeviceService {
 
     DeviceResponse provisionDevice(ProvisionDeviceRequest request);
+
+    DeviceResponse connectDevice(String currentUserId, ConnectDeviceRequest request);
 
     GenerateClaimCodeResponse generateClaimCode(UUID deviceId);
 

@@ -16,13 +16,19 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TelemetryIngestServiceImpl implements TelemetryIngestService {
+
+    private static final int DEVICE_LOOKUP_ATTEMPTS = 5;
+    private static final long DEVICE_LOOKUP_RETRY_DELAY_MS = 200;
 
     private final IoTDeviceRepository ioTDeviceRepository;
     private final SensorTypeRepository sensorTypeRepository;
@@ -33,10 +39,16 @@ public class TelemetryIngestServiceImpl implements TelemetryIngestService {
     @Override
     @Transactional
     public void ingest(String deviceUid, TelemetryPayload payload) {
-        IoTDevice device = ioTDeviceRepository.findByDeviceUid(deviceUid)
-                .orElseThrow(() -> new EntityNotFoundException("Device not found: " + deviceUid));
+        Optional<IoTDevice> deviceOptional = findDeviceWithShortRetry(deviceUid);
+        if (deviceOptional.isEmpty()) {
+            log.warn("Ignoring telemetry for unknown device after retry. deviceUid={}", deviceUid);
+            return;
+        }
+        IoTDevice device = deviceOptional.get();
 
-        validateDevice(device);
+        if (!isTelemetryAcceptable(device)) {
+            return;
+        }
 
         Instant readingTime = payload.getTs() != null ? payload.getTs() : Instant.now();
         Map<String, Double> metrics = payload.getMetrics();
@@ -81,17 +93,38 @@ public class TelemetryIngestServiceImpl implements TelemetryIngestService {
         alertEvaluationService.evaluateReadings(savedReadings);
     }
 
-    private void validateDevice(IoTDevice device) {
+    private Optional<IoTDevice> findDeviceWithShortRetry(String deviceUid) {
+        for (int attempt = 1; attempt <= DEVICE_LOOKUP_ATTEMPTS; attempt++) {
+            Optional<IoTDevice> device = ioTDeviceRepository.findByDeviceUid(deviceUid);
+            if (device.isPresent() || attempt == DEVICE_LOOKUP_ATTEMPTS) {
+                return device;
+            }
+            try {
+                Thread.sleep(DEVICE_LOOKUP_RETRY_DELAY_MS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return Optional.empty();
+            }
+        }
+        return Optional.empty();
+    }
+
+    private boolean isTelemetryAcceptable(IoTDevice device) {
         if (Boolean.FALSE.equals(device.getIsActive())) {
-            throw new IllegalStateException("Device is inactive");
+            log.warn("Ignoring telemetry for inactive device. deviceUid={}", device.getDeviceUid());
+            return false;
         }
 
         if (device.getOwnerUser() == null) {
-            throw new IllegalStateException("Device is not claimed");
+            log.warn("Ignoring telemetry for unclaimed device. deviceUid={}", device.getDeviceUid());
+            return false;
         }
 
         if (device.getZone() == null) {
-            throw new IllegalStateException("Device is not bound to any zone");
+            log.warn("Ignoring telemetry for device without zone binding. deviceUid={}", device.getDeviceUid());
+            return false;
         }
+
+        return true;
     }
 }

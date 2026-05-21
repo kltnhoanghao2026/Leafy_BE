@@ -42,7 +42,7 @@ class CameraCaptureMqttPublisherImplTest {
         MqttProperties mqttProperties = new MqttProperties();
         mqttProperties.setTopics(List.of("coffee/prod/devices/+/telemetry"));
         publisher = new CameraCaptureMqttPublisherImpl(mqttOutboundChannel, objectMapper, mqttProperties);
-        ReflectionTestUtils.setField(publisher, "fileUploadEndpoint", "http://files.local/files/upload");
+        ReflectionTestUtils.setField(publisher, "fileUploadEndpoint", "http://192.168.1.10:8084/internal/files/upload");
         when(mqttOutboundChannel.send(any(Message.class))).thenReturn(true);
     }
 
@@ -63,7 +63,7 @@ class CameraCaptureMqttPublisherImplTest {
         assertThat(payload.get("resolution").asText()).isEqualTo("VGA");
         assertThat(payload.get("quality").asText()).isEqualTo("MEDIUM");
         assertThat(payload.get("upload").get("mode").asText()).isEqualTo("FILE_SERVICE_MULTIPART");
-        assertThat(payload.get("upload").get("endpoint").asText()).isEqualTo("http://files.local/files/upload");
+        assertThat(payload.get("upload").get("endpoint").asText()).isEqualTo("http://192.168.1.10:8084/internal/files/upload");
     }
 
     @Test
@@ -82,6 +82,29 @@ class CameraCaptureMqttPublisherImplTest {
 
         JsonNode payload = objectMapper.readTree((String) publishedMessage().getPayload());
         assertThat(payload.get("triggerType").asText()).isEqualTo("MANUAL");
+    }
+
+    @Test
+    void publishCaptureCommand_usesRequestUploadEndpointWhenProvided() throws Exception {
+        CameraCaptureRequest request = request(CaptureResolution.HD, CaptureQuality.HIGH);
+        request.setUploadEndpoint("https://files.example.com/custom-upload");
+
+        publisher.publishCaptureCommand(device(), mediaEvent(TriggerType.SCHEDULED.name()), request);
+
+        JsonNode payload = objectMapper.readTree((String) publishedMessage().getPayload());
+        assertThat(payload.get("resolution").asText()).isEqualTo("HD");
+        assertThat(payload.get("quality").asText()).isEqualTo("HIGH");
+        assertThat(payload.get("upload").get("endpoint").asText()).isEqualTo("https://files.example.com/custom-upload");
+    }
+
+    @Test
+    void publishCaptureCommand_trimsConfiguredUploadEndpointForDevicePayload() throws Exception {
+        ReflectionTestUtils.setField(publisher, "fileUploadEndpoint", " http://10.0.0.25:8084/internal/files/upload ");
+
+        publisher.publishCaptureCommand(device(), mediaEvent(TriggerType.MANUAL.name()), request(CaptureResolution.VGA, CaptureQuality.MEDIUM));
+
+        JsonNode payload = objectMapper.readTree((String) publishedMessage().getPayload());
+        assertThat(payload.get("upload").get("endpoint").asText()).isEqualTo("http://10.0.0.25:8084/internal/files/upload");
     }
 
     private Message<?> publishedMessage() {

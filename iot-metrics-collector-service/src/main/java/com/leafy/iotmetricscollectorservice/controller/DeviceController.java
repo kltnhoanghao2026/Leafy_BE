@@ -1,6 +1,7 @@
 package com.leafy.iotmetricscollectorservice.controller;
 
 import com.leafy.iotmetricscollectorservice.dto.device.ClaimDeviceRequest;
+import com.leafy.iotmetricscollectorservice.dto.device.ConnectDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceConfigResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.GenerateClaimCodeResponse;
@@ -45,6 +46,14 @@ public class DeviceController {
     @PostMapping("/provision")
     public ResponseEntity<DeviceResponse> provisionDevice(@RequestBody ProvisionDeviceRequest request) {
         return ResponseEntity.ok(deviceService.provisionDevice(request));
+    }
+
+    @PostMapping("/connect")
+    public ResponseEntity<DeviceResponse> connectDevice(
+        @RequestHeader(USER_ID_HEADER) String currentUserId,
+        @RequestBody ConnectDeviceRequest request
+    ) {
+        return ResponseEntity.ok(deviceService.connectDevice(currentUserId, request));
     }
 
     @PostMapping("/{deviceId}/claim-code")

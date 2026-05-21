@@ -233,6 +233,9 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
         if (normalized.getResolution() == null) {
             normalized.setResolution(CaptureResolution.VGA);
         }
+        if (normalized.getUploadEndpoint() != null && normalized.getUploadEndpoint().isBlank()) {
+            normalized.setUploadEndpoint(null);
+        }
         return normalized;
     }
 

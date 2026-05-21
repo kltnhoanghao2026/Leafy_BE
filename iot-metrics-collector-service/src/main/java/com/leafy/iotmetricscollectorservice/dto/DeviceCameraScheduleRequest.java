@@ -37,4 +37,19 @@ public class DeviceCameraScheduleRequest {
      * Required recurrence policy.
      */
     private Recurrence recurrence;
+
+    /**
+     * Optional camera resolution. Allowed values match CaptureResolution.
+     */
+    private String resolution;
+
+    /**
+     * Optional camera quality. Allowed values match CaptureQuality.
+     */
+    private String quality;
+
+    /**
+     * Optional file-service upload endpoint override.
+     */
+    private String uploadEndpoint;
 }

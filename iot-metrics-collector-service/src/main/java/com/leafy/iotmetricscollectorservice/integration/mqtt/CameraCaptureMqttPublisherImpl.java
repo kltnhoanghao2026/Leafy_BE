@@ -28,7 +28,7 @@ public class CameraCaptureMqttPublisherImpl implements CameraCaptureMqttPublishe
     private final ObjectMapper objectMapper;
     private final MqttProperties mqttProperties;
 
-    @Value("${app.file-service.upload-url:http://localhost:8080/files/upload}")
+    @Value("${app.file-service.upload-url:http://file-service:8084/internal/files/upload}")
     private String fileUploadEndpoint;
 
     @Override
@@ -60,9 +60,17 @@ public class CameraCaptureMqttPublisherImpl implements CameraCaptureMqttPublishe
 
         CameraCaptureMqttPayload.Upload upload = new CameraCaptureMqttPayload.Upload();
         upload.setMode("FILE_SERVICE_MULTIPART");
-        upload.setEndpoint(fileUploadEndpoint);
+        upload.setEndpoint(resolveUploadEndpoint(request));
         payload.setUpload(upload);
         return payload;
+    }
+
+    private String resolveUploadEndpoint(CameraCaptureRequest request) {
+        String requestedEndpoint = request == null ? null : request.getUploadEndpoint();
+        if (requestedEndpoint != null && !requestedEndpoint.isBlank()) {
+            return requestedEndpoint.trim();
+        }
+        return fileUploadEndpoint == null ? "" : fileUploadEndpoint.trim();
     }
 
     private String resolveTriggerType(DeviceMediaEvent mediaEvent) {
