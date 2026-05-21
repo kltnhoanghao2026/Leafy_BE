@@ -19,4 +19,6 @@ public interface DeviceMediaEventRepository extends JpaRepository<DeviceMediaEve
     List<DeviceMediaEvent> findTop20ByDeviceIdOrderByRequestedAtDesc(UUID deviceId);
 
     List<DeviceMediaEvent> findAllByStatusInAndRequestedAtBefore(Collection<String> statuses, Instant requestedAt);
+
+    boolean existsByDeviceIdAndTriggerTypeAndStatusIn(UUID deviceId, String triggerType, Collection<String> statuses);
 }

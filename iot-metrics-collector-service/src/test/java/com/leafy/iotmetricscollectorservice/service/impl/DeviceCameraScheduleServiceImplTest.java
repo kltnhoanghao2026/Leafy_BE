@@ -11,6 +11,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.leafy.iotmetricscollectorservice.dto.DeviceCameraScheduleRequest;
+import com.leafy.iotmetricscollectorservice.dto.media.CameraCaptureRequest;
+import com.leafy.iotmetricscollectorservice.dto.media.CaptureQuality;
+import com.leafy.iotmetricscollectorservice.dto.media.CaptureResolution;
 import com.leafy.iotmetricscollectorservice.entity.DeviceCameraSchedule;
 import com.leafy.iotmetricscollectorservice.entity.Recurrence;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
@@ -125,7 +128,7 @@ class DeviceCameraScheduleServiceImplTest {
 
         service.triggerSchedules();
 
-        verify(cameraCaptureService).requestCapture(deviceUid, TriggerType.SCHEDULED);
+        verify(cameraCaptureService).requestCapture(org.mockito.ArgumentMatchers.eq(deviceUid), any(CameraCaptureRequest.class), org.mockito.ArgumentMatchers.eq(TriggerType.SCHEDULED));
         assertThat(due.getLastRunAt()).isEqualTo(Instant.now(fixedClock));
         assertThat(due.getNextRunAt()).isAfter(Instant.now(fixedClock));
     }
@@ -142,12 +145,13 @@ class DeviceCameraScheduleServiceImplTest {
         when(scheduleRepository.findLockedById(failing.getId())).thenReturn(Optional.of(failing));
         when(scheduleRepository.findLockedById(succeeding.getId())).thenReturn(Optional.of(succeeding));
         when(scheduleRepository.save(any(DeviceCameraSchedule.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doThrow(new IllegalStateException("mqtt down")).when(cameraCaptureService).requestCapture(failingDevice, TriggerType.SCHEDULED);
+        doThrow(new IllegalStateException("mqtt down")).when(cameraCaptureService)
+            .requestCapture(org.mockito.ArgumentMatchers.eq(failingDevice), any(CameraCaptureRequest.class), org.mockito.ArgumentMatchers.eq(TriggerType.SCHEDULED));
 
         service.triggerSchedules();
 
-        verify(cameraCaptureService).requestCapture(failingDevice, TriggerType.SCHEDULED);
-        verify(cameraCaptureService).requestCapture(succeedingDevice, TriggerType.SCHEDULED);
+        verify(cameraCaptureService).requestCapture(org.mockito.ArgumentMatchers.eq(failingDevice), any(CameraCaptureRequest.class), org.mockito.ArgumentMatchers.eq(TriggerType.SCHEDULED));
+        verify(cameraCaptureService).requestCapture(org.mockito.ArgumentMatchers.eq(succeedingDevice), any(CameraCaptureRequest.class), org.mockito.ArgumentMatchers.eq(TriggerType.SCHEDULED));
         assertThat(succeeding.getLastRunAt()).isEqualTo(Instant.now(fixedClock));
     }
 
@@ -164,7 +168,7 @@ class DeviceCameraScheduleServiceImplTest {
 
         assertThat(response.isEnabled()).isFalse();
         assertThat(response.getNextRunAt()).isNull();
-        verify(cameraCaptureService).requestCapture(deviceUid, TriggerType.SCHEDULED);
+        verify(cameraCaptureService).requestCapture(org.mockito.ArgumentMatchers.eq(deviceUid), any(CameraCaptureRequest.class), org.mockito.ArgumentMatchers.eq(TriggerType.SCHEDULED));
     }
 
     @Test
@@ -179,7 +183,7 @@ class DeviceCameraScheduleServiceImplTest {
         boolean acquired = service.tryAcquireSchedule(scheduleId);
 
         assertThat(acquired).isTrue();
-        verify(cameraCaptureService).requestCapture(deviceUid, TriggerType.SCHEDULED);
+        verify(cameraCaptureService).requestCapture(org.mockito.ArgumentMatchers.eq(deviceUid), any(CameraCaptureRequest.class), org.mockito.ArgumentMatchers.eq(TriggerType.SCHEDULED));
         assertThat(due.getLastRunAt()).isEqualTo(Instant.now(fixedClock));
         assertThat(due.getNextRunAt()).isAfter(Instant.now(fixedClock));
     }
@@ -198,7 +202,7 @@ class DeviceCameraScheduleServiceImplTest {
 
         assertThat(firstCollectorAcquired).isTrue();
         assertThat(secondCollectorAcquired).isFalse();
-        verify(cameraCaptureService, times(1)).requestCapture(deviceUid, TriggerType.SCHEDULED);
+        verify(cameraCaptureService, times(1)).requestCapture(org.mockito.ArgumentMatchers.eq(deviceUid), any(CameraCaptureRequest.class), org.mockito.ArgumentMatchers.eq(TriggerType.SCHEDULED));
     }
 
     @Test
@@ -230,12 +234,65 @@ class DeviceCameraScheduleServiceImplTest {
         when(deviceRepository.existsByDeviceUid(deviceUid)).thenReturn(true);
         when(scheduleRepository.save(any(DeviceCameraSchedule.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.createSchedule(request(deviceUid, LocalTime.of(6, 0), Recurrence.DAILY));
+        DeviceCameraScheduleRequest request = request(deviceUid, LocalTime.of(6, 0), Recurrence.DAILY);
+        request.setResolution("HD");
+        request.setQuality("HIGH");
+        request.setUploadEndpoint("https://files.example.com/files/upload");
+
+        service.createSchedule(request);
 
         ArgumentCaptor<DeviceCameraSchedule> captor = ArgumentCaptor.forClass(DeviceCameraSchedule.class);
         verify(scheduleRepository).save(captor.capture());
         assertThat(captor.getValue().getDeviceUid()).isEqualTo(deviceUid);
         assertThat(captor.getValue().getTimeOfDay()).isEqualTo(LocalTime.of(6, 0));
+        assertThat(captor.getValue().getResolution()).isEqualTo("HD");
+        assertThat(captor.getValue().getQuality()).isEqualTo("HIGH");
+        assertThat(captor.getValue().getUploadEndpoint()).isEqualTo("https://files.example.com/files/upload");
+    }
+
+    @Test
+    void runScheduleNow_sendsPersistedCaptureOptions() {
+        UUID scheduleId = UUID.randomUUID();
+        String deviceUid = "device-001";
+        DeviceCameraSchedule existing = schedule(scheduleId, deviceUid);
+        existing.setResolution("QVGA");
+        existing.setQuality("LOW");
+        existing.setUploadEndpoint("https://files.example.com/custom-upload");
+        when(scheduleRepository.findByIdAndDeviceUid(scheduleId, deviceUid)).thenReturn(Optional.of(existing));
+        when(scheduleRepository.findLockedById(scheduleId)).thenReturn(Optional.of(existing));
+        when(scheduleRepository.save(any(DeviceCameraSchedule.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.runScheduleNow(deviceUid, scheduleId);
+
+        ArgumentCaptor<CameraCaptureRequest> captor = ArgumentCaptor.forClass(CameraCaptureRequest.class);
+        verify(cameraCaptureService).requestCapture(
+            org.mockito.ArgumentMatchers.eq(deviceUid),
+            captor.capture(),
+            org.mockito.ArgumentMatchers.eq(TriggerType.SCHEDULED)
+        );
+        assertThat(captor.getValue().getResolution()).isEqualTo(CaptureResolution.QVGA);
+        assertThat(captor.getValue().getQuality()).isEqualTo(CaptureQuality.LOW);
+        assertThat(captor.getValue().getUploadEndpoint()).isEqualTo("https://files.example.com/custom-upload");
+    }
+
+    @Test
+    void updateScheduleForDevice_rejectsScheduleFromAnotherDevice() {
+        UUID scheduleId = UUID.randomUUID();
+        when(scheduleRepository.findByIdAndDeviceUid(scheduleId, "device-001")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updateScheduleForDevice("device-001", scheduleId, request("device-001", LocalTime.NOON, Recurrence.DAILY)))
+            .isInstanceOf(TelemetryQueryException.class)
+            .hasMessageContaining("Device camera schedule not found");
+    }
+
+    @Test
+    void createSchedule_rejectsInvalidCaptureOptions() {
+        DeviceCameraScheduleRequest request = request("device-001", LocalTime.NOON, Recurrence.DAILY);
+        request.setResolution("4K");
+
+        assertThatThrownBy(() -> service.createSchedule(request))
+            .isInstanceOf(TelemetryQueryException.class)
+            .hasMessageContaining("resolution must be one of QVGA, VGA, HD");
     }
 
     private DeviceCameraScheduleRequest request(String deviceUid, LocalTime time, Recurrence recurrence) {

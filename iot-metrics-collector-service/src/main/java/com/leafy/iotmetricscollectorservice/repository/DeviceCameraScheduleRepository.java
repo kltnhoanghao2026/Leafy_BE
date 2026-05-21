@@ -18,6 +18,14 @@ import org.springframework.data.jpa.repository.QueryHints;
 public interface DeviceCameraScheduleRepository extends JpaRepository<DeviceCameraSchedule, UUID> {
 
     /**
+     * Finds a schedule that belongs to the requested device UID. Client scoped
+     * endpoints use this to prevent path traversal across devices.
+     */
+    Optional<DeviceCameraSchedule> findByIdAndDeviceUid(UUID id, String deviceUid);
+
+    List<DeviceCameraSchedule> findAllByDeviceUidOrderByTimeOfDayAsc(String deviceUid);
+
+    /**
      * Finds due schedules for the scheduler runner.
      *
      * @param now current UTC instant

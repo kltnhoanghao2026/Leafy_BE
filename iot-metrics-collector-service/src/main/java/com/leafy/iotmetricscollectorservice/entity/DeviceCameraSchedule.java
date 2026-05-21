@@ -85,4 +85,22 @@ public class DeviceCameraSchedule extends BaseAuditEntity {
      */
     @Column(name = "next_run_at")
     private Instant nextRunAt;
+
+    /**
+     * Camera resolution requested when this schedule runs.
+     */
+    @Column(name = "resolution", length = 30)
+    private String resolution;
+
+    /**
+     * Camera JPEG quality profile requested when this schedule runs.
+     */
+    @Column(name = "quality", length = 30)
+    private String quality;
+
+    /**
+     * Optional file-service upload endpoint override for this schedule.
+     */
+    @Column(name = "upload_endpoint", length = 1000)
+    private String uploadEndpoint;
 }

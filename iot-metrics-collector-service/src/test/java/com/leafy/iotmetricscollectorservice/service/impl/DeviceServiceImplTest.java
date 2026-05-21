@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.leafy.iotmetricscollectorservice.dto.device.ClaimDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.common.PagedResponse;
+import com.leafy.iotmetricscollectorservice.dto.device.ConnectDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.GenerateClaimCodeResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.ProvisionDeviceRequest;
@@ -22,9 +23,14 @@ import com.leafy.iotmetricscollectorservice.model.IoTDevice;
 import com.leafy.iotmetricscollectorservice.model.enums.ClaimStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.DeviceStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.ProvisioningStatus;
+import com.leafy.iotmetricscollectorservice.model.ref.FarmPlotRef;
+import com.leafy.iotmetricscollectorservice.model.ref.FarmZoneRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.DeviceClaimRepository;
+import com.leafy.iotmetricscollectorservice.repository.FarmPlotRefRepository;
+import com.leafy.iotmetricscollectorservice.repository.FarmZoneRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
+import com.leafy.iotmetricscollectorservice.repository.UserRefRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +57,15 @@ class DeviceServiceImplTest {
     @Mock
     private DeviceClaimRepository deviceClaimRepository;
 
+    @Mock
+    private UserRefRepository userRefRepository;
+
+    @Mock
+    private FarmPlotRefRepository farmPlotRefRepository;
+
+    @Mock
+    private FarmZoneRefRepository farmZoneRefRepository;
+
     @Spy
     private DashboardQueryMapper dashboardQueryMapper;
 
@@ -65,8 +80,8 @@ class DeviceServiceImplTest {
         request.setDeviceName("Greenhouse Sensor");
         request.setDeviceType("NODE");
 
-        when(ioTDeviceRepository.existsByDeviceUid("device-001")).thenReturn(false);
-        when(ioTDeviceRepository.existsByDeviceCode("IOT-001")).thenReturn(false);
+        when(ioTDeviceRepository.findByDeviceUid("device-001")).thenReturn(Optional.empty());
+        when(ioTDeviceRepository.findByDeviceCode("IOT-001")).thenReturn(Optional.empty());
         when(ioTDeviceRepository.save(any(IoTDevice.class))).thenAnswer(invocation -> {
             IoTDevice device = invocation.getArgument(0);
             device.setId(UUID.randomUUID());
@@ -83,11 +98,29 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void provisionDevice_duplicateDeviceUidRejected() {
+    void provisionDevice_existingDeviceWithSameUidAndCodeIsIdempotent() {
         ProvisionDeviceRequest request = new ProvisionDeviceRequest();
         request.setDeviceUid("device-001");
+        request.setDeviceCode("IOT-001");
+        request.setDeviceName("Updated Sensor");
 
-        when(ioTDeviceRepository.existsByDeviceUid("device-001")).thenReturn(true);
+        IoTDevice existing = createDevice();
+        when(ioTDeviceRepository.findByDeviceUid("device-001")).thenReturn(Optional.of(existing));
+        when(ioTDeviceRepository.save(existing)).thenReturn(existing);
+
+        DeviceResponse response = deviceService.provisionDevice(request);
+
+        assertEquals(existing.getId(), response.getId());
+        assertEquals("Updated Sensor", response.getDeviceName());
+    }
+
+    @Test
+    void provisionDevice_duplicateDeviceUidWithDifferentCodeRejected() {
+        ProvisionDeviceRequest request = new ProvisionDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setDeviceCode("IOT-999");
+
+        when(ioTDeviceRepository.findByDeviceUid("device-001")).thenReturn(Optional.of(createDevice()));
 
         assertThrows(TelemetryQueryException.class, () -> deviceService.provisionDevice(request));
         verify(ioTDeviceRepository, never()).save(any(IoTDevice.class));
@@ -129,6 +162,12 @@ class DeviceServiceImplTest {
         when(ioTDeviceRepository.findByDeviceUid(device.getDeviceUid())).thenReturn(Optional.of(device));
         when(deviceClaimRepository.findTopByDeviceIdAndClaimCodeOrderByCreatedAtDesc(device.getId(), "CLAIM123"))
             .thenReturn(Optional.of(deviceClaim));
+        when(userRefRepository.findById(currentUserId)).thenReturn(Optional.empty());
+        when(userRefRepository.save(any(UserRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmPlotRefRepository.findById(farmPlotId)).thenReturn(Optional.empty());
+        when(farmPlotRefRepository.save(any(FarmPlotRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmZoneRefRepository.findById(zoneId)).thenReturn(Optional.empty());
+        when(farmZoneRefRepository.save(any(FarmZoneRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(ioTDeviceRepository.save(device)).thenReturn(device);
         when(deviceClaimRepository.save(deviceClaim)).thenReturn(deviceClaim);
 
@@ -223,6 +262,44 @@ class DeviceServiceImplTest {
         assertEquals("Zulu", responses.items().get(0).getDeviceName());
         assertEquals("Alpha", responses.items().get(1).getDeviceName());
         assertEquals(ownerUserId, responses.items().get(0).getOwnerUserId());
+    }
+
+    @Test
+    void connectDevice_createsMissingReferencesAndClaimsAtomically() {
+        String currentUserId = UUID.randomUUID().toString();
+        String farmPlotId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid("device-002");
+        request.setDeviceCode("IOT-002");
+        request.setDeviceName("Zone Sensor");
+        request.setDeviceType("NODE");
+        request.setFarmPlotId(farmPlotId);
+        request.setZoneId(zoneId);
+
+        when(ioTDeviceRepository.findByDeviceUid("device-002")).thenReturn(Optional.empty());
+        when(ioTDeviceRepository.findByDeviceCode("IOT-002")).thenReturn(Optional.empty());
+        when(userRefRepository.findById(currentUserId)).thenReturn(Optional.empty());
+        when(userRefRepository.save(any(UserRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmPlotRefRepository.findById(farmPlotId)).thenReturn(Optional.empty());
+        when(farmPlotRefRepository.save(any(FarmPlotRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmZoneRefRepository.findById(zoneId)).thenReturn(Optional.empty());
+        when(farmZoneRefRepository.save(any(FarmZoneRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(ioTDeviceRepository.save(any(IoTDevice.class))).thenAnswer(invocation -> {
+            IoTDevice device = invocation.getArgument(0);
+            if (device.getId() == null) {
+                device.setId(UUID.randomUUID());
+            }
+            return device;
+        });
+
+        DeviceResponse response = deviceService.connectDevice(currentUserId, request);
+
+        assertEquals("CLAIMED", response.getProvisioningStatus());
+        assertEquals(currentUserId, response.getOwnerUserId());
+        assertEquals(farmPlotId, response.getFarmPlotId());
+        assertEquals(zoneId, response.getZoneId());
     }
 
     @Test

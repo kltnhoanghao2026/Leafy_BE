@@ -1,5 +1,6 @@
 package com.leafy.iotmetricscollectorservice.service;
 
+import com.leafy.iotmetricscollectorservice.dto.media.CameraCaptureRequest;
 import com.leafy.iotmetricscollectorservice.dto.media.CameraCaptureResponse;
 import com.leafy.iotmetricscollectorservice.model.enums.TriggerType;
 import java.util.UUID;
@@ -19,6 +20,16 @@ public interface DeviceCameraCaptureService {
     CameraCaptureResponse requestCapture(UUID deviceId, TriggerType triggerType);
 
     /**
+     * Requests a camera capture with explicit capture options.
+     *
+     * @param deviceId target IoT device id
+     * @param request resolution, quality, and optional upload endpoint
+     * @param triggerType trigger source
+     * @return capture request response from the existing media pipeline
+     */
+    CameraCaptureResponse requestCapture(UUID deviceId, CameraCaptureRequest request, TriggerType triggerType);
+
+    /**
      * Requests a camera capture for a device identified by hardware UID.
      *
      * @param deviceUid target IoT hardware UID
@@ -26,4 +37,14 @@ public interface DeviceCameraCaptureService {
      * @return capture request response from the existing media pipeline
      */
     CameraCaptureResponse requestCapture(String deviceUid, TriggerType triggerType);
+
+    /**
+     * Requests a camera capture by hardware UID with explicit capture options.
+     *
+     * @param deviceUid target IoT hardware UID
+     * @param request resolution, quality, and optional upload endpoint
+     * @param triggerType trigger source
+     * @return capture request response from the existing media pipeline
+     */
+    CameraCaptureResponse requestCapture(String deviceUid, CameraCaptureRequest request, TriggerType triggerType);
 }

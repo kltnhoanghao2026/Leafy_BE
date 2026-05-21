@@ -2,12 +2,16 @@ package com.leafy.iotmetricscollectorservice.service.impl;
 
 import com.leafy.iotmetricscollectorservice.dto.DeviceCameraScheduleRequest;
 import com.leafy.iotmetricscollectorservice.dto.DeviceCameraScheduleResponse;
+import com.leafy.iotmetricscollectorservice.dto.media.CameraCaptureRequest;
+import com.leafy.iotmetricscollectorservice.dto.media.CaptureQuality;
+import com.leafy.iotmetricscollectorservice.dto.media.CaptureResolution;
 import com.leafy.iotmetricscollectorservice.dto.media.DeviceMediaEventResponse;
 import com.leafy.iotmetricscollectorservice.entity.DeviceCameraSchedule;
 import com.leafy.iotmetricscollectorservice.entity.Recurrence;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
 import com.leafy.iotmetricscollectorservice.model.DeviceMediaEvent;
 import com.leafy.iotmetricscollectorservice.model.IoTDevice;
+import com.leafy.iotmetricscollectorservice.model.enums.DeviceMediaEventStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.TriggerType;
 import com.leafy.iotmetricscollectorservice.repository.DeviceCameraScheduleRepository;
 import com.leafy.iotmetricscollectorservice.repository.DeviceMediaEventRepository;
@@ -20,6 +24,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -60,6 +66,15 @@ public class DeviceCameraScheduleServiceImpl implements DeviceCameraScheduleServ
     @Transactional(readOnly = true)
     public List<DeviceCameraScheduleResponse> listSchedules() {
         return scheduleRepository.findAll().stream()
+            .map(this::toResponse)
+            .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeviceCameraScheduleResponse> listSchedulesForDevice(String deviceUid) {
+        validateDeviceExists(deviceUid);
+        return scheduleRepository.findAllByDeviceUidOrderByTimeOfDayAsc(deviceUid).stream()
             .map(this::toResponse)
             .toList();
     }
@@ -130,6 +145,52 @@ public class DeviceCameraScheduleServiceImpl implements DeviceCameraScheduleServ
             throw TelemetryQueryException.invalidCameraSchedule("schedule is currently locked or no longer available");
         }
         return toResponse(result.schedule());
+    }
+
+    /**
+     * Creates a schedule from the client/mobile device route. The path deviceUid
+     * is authoritative so clients cannot spoof another device in the body.
+     */
+    @Override
+    @Transactional
+    public DeviceCameraScheduleResponse createScheduleForDevice(String deviceUid, DeviceCameraScheduleRequest request) {
+        DeviceCameraScheduleRequest scopedRequest = withDeviceUid(deviceUid, request);
+        return createSchedule(scopedRequest);
+    }
+
+    /**
+     * Updates only schedules owned by the deviceUid in the URL path.
+     */
+    @Override
+    @Transactional
+    public DeviceCameraScheduleResponse updateScheduleForDevice(String deviceUid, UUID scheduleId, DeviceCameraScheduleRequest request) {
+        DeviceCameraSchedule schedule = findScheduleForDevice(deviceUid, scheduleId);
+        DeviceCameraScheduleRequest scopedRequest = withDeviceUid(deviceUid, request);
+        validateRequest(scopedRequest);
+        validateDeviceExists(deviceUid);
+        applyRequest(schedule, scopedRequest, false);
+        schedule.setNextRunAt(schedule.isEnabled()
+            ? computeNextRunAt(schedule.getTimeOfDay(), schedule.getRecurrence(), Instant.now(cameraScheduleClock))
+            : null);
+        return toResponse(scheduleRepository.save(schedule));
+    }
+
+    /**
+     * Deletes only schedules owned by the deviceUid in the URL path.
+     */
+    @Override
+    @Transactional
+    public void deleteScheduleForDevice(String deviceUid, UUID scheduleId) {
+        scheduleRepository.delete(findScheduleForDevice(deviceUid, scheduleId));
+    }
+
+    /**
+     * Immediately runs only schedules owned by the deviceUid in the URL path.
+     */
+    @Override
+    public DeviceCameraScheduleResponse runScheduleNow(String deviceUid, UUID scheduleId) {
+        findScheduleForDevice(deviceUid, scheduleId);
+        return runNow(scheduleId);
     }
 
     /**
@@ -233,8 +294,38 @@ public class DeviceCameraScheduleServiceImpl implements DeviceCameraScheduleServ
      */
     private void triggerSchedule(DeviceCameraSchedule schedule) {
         log.info("Triggering scheduled camera capture. scheduleId={}, deviceUid={}", schedule.getId(), schedule.getDeviceUid());
-        cameraCaptureService.requestCapture(schedule.getDeviceUid(), TriggerType.SCHEDULED);
+        if (hasActiveScheduledCapture(schedule.getDeviceUid())) {
+            log.info(
+                "Skipping scheduled camera capture because a scheduled capture is already queued. scheduleId={}, deviceUid={}",
+                schedule.getId(),
+                schedule.getDeviceUid()
+            );
+            return;
+        }
+        cameraCaptureService.requestCapture(schedule.getDeviceUid(), toCaptureRequest(schedule), TriggerType.SCHEDULED);
         log.info("Scheduled camera capture requested. scheduleId={}, deviceUid={}", schedule.getId(), schedule.getDeviceUid());
+    }
+
+    private boolean hasActiveScheduledCapture(String deviceUid) {
+        Optional<IoTDevice> device = deviceRepository.findByDeviceUid(deviceUid);
+        return device.isPresent()
+            && mediaEventRepository.existsByDeviceIdAndTriggerTypeAndStatusIn(
+            device.get().getId(),
+            TriggerType.SCHEDULED.name(),
+            List.of(
+                DeviceMediaEventStatus.REQUESTED.name(),
+                DeviceMediaEventStatus.COMMAND_SENT.name(),
+                DeviceMediaEventStatus.UPLOADING.name()
+            )
+        );
+    }
+
+    private CameraCaptureRequest toCaptureRequest(DeviceCameraSchedule schedule) {
+        CameraCaptureRequest request = new CameraCaptureRequest();
+        request.setResolution(parseResolution(schedule.getResolution()));
+        request.setQuality(parseQuality(schedule.getQuality()));
+        request.setUploadEndpoint(blankToNull(schedule.getUploadEndpoint()));
+        return request;
     }
 
     private boolean isDue(DeviceCameraSchedule schedule, Instant now) {
@@ -267,6 +358,9 @@ public class DeviceCameraScheduleServiceImpl implements DeviceCameraScheduleServ
         schedule.setTriggerType(request.getTriggerType() == null ? TriggerType.SCHEDULED : request.getTriggerType());
         schedule.setTimeOfDay(request.getTimeOfDay());
         schedule.setRecurrence(request.getRecurrence());
+        schedule.setResolution(parseResolution(request.getResolution()).name());
+        schedule.setQuality(parseQuality(request.getQuality()).name());
+        schedule.setUploadEndpoint(blankToNull(request.getUploadEndpoint()));
     }
 
     /**
@@ -290,6 +384,9 @@ public class DeviceCameraScheduleServiceImpl implements DeviceCameraScheduleServ
             && request.getTriggerType() != TriggerType.SCHEDULED) {
             throw TelemetryQueryException.invalidCameraSchedule("triggerType must be MANUAL or SCHEDULED");
         }
+        parseResolution(request.getResolution());
+        parseQuality(request.getQuality());
+        validateUploadEndpoint(request.getUploadEndpoint());
     }
 
     /**
@@ -313,6 +410,7 @@ public class DeviceCameraScheduleServiceImpl implements DeviceCameraScheduleServ
         if (!candidate.atZone(zoneId).toInstant().isAfter(referenceInstant)) {
             candidate = switch (recurrence) {
                 case WEEKLY -> candidate.plusWeeks(1);
+                case MONTHLY -> candidate.plusMonths(1);
                 case DAILY, NONE -> candidate.plusDays(1);
             };
         }
@@ -326,6 +424,63 @@ public class DeviceCameraScheduleServiceImpl implements DeviceCameraScheduleServ
     private DeviceCameraSchedule findSchedule(UUID scheduleId) {
         return scheduleRepository.findById(scheduleId)
             .orElseThrow(() -> TelemetryQueryException.cameraScheduleNotFound(scheduleId));
+    }
+
+    private DeviceCameraSchedule findScheduleForDevice(String deviceUid, UUID scheduleId) {
+        if (deviceUid == null || deviceUid.isBlank()) {
+            throw TelemetryQueryException.invalidCameraSchedule("deviceUid is required");
+        }
+        return scheduleRepository.findByIdAndDeviceUid(scheduleId, deviceUid)
+            .orElseThrow(() -> TelemetryQueryException.cameraScheduleNotFound(scheduleId));
+    }
+
+    private DeviceCameraScheduleRequest withDeviceUid(String deviceUid, DeviceCameraScheduleRequest request) {
+        DeviceCameraScheduleRequest scoped = request != null ? request : new DeviceCameraScheduleRequest();
+        scoped.setDeviceUid(deviceUid);
+        scoped.setTriggerType(TriggerType.SCHEDULED);
+        return scoped;
+    }
+
+    private CaptureResolution parseResolution(String resolution) {
+        if (resolution == null || resolution.isBlank()) {
+            return CaptureResolution.VGA;
+        }
+        try {
+            return CaptureResolution.valueOf(resolution.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw TelemetryQueryException.invalidCameraSchedule("resolution must be one of QVGA, VGA, HD");
+        }
+    }
+
+    private CaptureQuality parseQuality(String quality) {
+        if (quality == null || quality.isBlank()) {
+            return CaptureQuality.MEDIUM;
+        }
+        try {
+            return CaptureQuality.valueOf(quality.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw TelemetryQueryException.invalidCameraSchedule("quality must be one of LOW, MEDIUM, HIGH");
+        }
+    }
+
+    private void validateUploadEndpoint(String uploadEndpoint) {
+        String normalized = blankToNull(uploadEndpoint);
+        if (normalized == null) {
+            return;
+        }
+        try {
+            URI uri = new URI(normalized);
+            if (uri.getScheme() == null || uri.getHost() == null
+                || (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme()))) {
+                throw TelemetryQueryException.invalidCameraSchedule("uploadEndpoint must be a valid HTTP(S) URL");
+            }
+        } catch (URISyntaxException exception) {
+            throw TelemetryQueryException.invalidCameraSchedule("uploadEndpoint must be a valid HTTP(S) URL");
+        }
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**
@@ -347,6 +502,9 @@ public class DeviceCameraScheduleServiceImpl implements DeviceCameraScheduleServ
         response.setTriggerType(schedule.getTriggerType());
         response.setTimeOfDay(schedule.getTimeOfDay());
         response.setRecurrence(schedule.getRecurrence());
+        response.setResolution(schedule.getResolution());
+        response.setQuality(schedule.getQuality());
+        response.setUploadEndpoint(schedule.getUploadEndpoint());
         response.setLastRunAt(schedule.getLastRunAt());
         response.setNextRunAt(schedule.getNextRunAt());
         return response;

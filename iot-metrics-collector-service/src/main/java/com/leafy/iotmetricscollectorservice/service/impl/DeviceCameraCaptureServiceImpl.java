@@ -27,7 +27,12 @@ public class DeviceCameraCaptureServiceImpl implements DeviceCameraCaptureServic
      */
     @Override
     public CameraCaptureResponse requestCapture(UUID deviceId, TriggerType triggerType) {
-        return deviceMediaService.requestCapture(deviceId, new CameraCaptureRequest(), triggerType);
+        return requestCapture(deviceId, new CameraCaptureRequest(), triggerType);
+    }
+
+    @Override
+    public CameraCaptureResponse requestCapture(UUID deviceId, CameraCaptureRequest request, TriggerType triggerType) {
+        return deviceMediaService.requestCapture(deviceId, request, triggerType);
     }
 
     /**
@@ -36,9 +41,14 @@ public class DeviceCameraCaptureServiceImpl implements DeviceCameraCaptureServic
      */
     @Override
     public CameraCaptureResponse requestCapture(String deviceUid, TriggerType triggerType) {
+        return requestCapture(deviceUid, new CameraCaptureRequest(), triggerType);
+    }
+
+    @Override
+    public CameraCaptureResponse requestCapture(String deviceUid, CameraCaptureRequest request, TriggerType triggerType) {
         UUID deviceId = deviceRepository.findByDeviceUid(deviceUid)
             .orElseThrow(() -> TelemetryQueryException.deviceNotFoundByUid(deviceUid))
             .getId();
-        return requestCapture(deviceId, triggerType);
+        return requestCapture(deviceId, request, triggerType);
     }
 }
