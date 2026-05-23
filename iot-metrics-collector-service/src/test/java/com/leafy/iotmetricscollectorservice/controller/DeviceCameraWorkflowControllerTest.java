@@ -16,6 +16,7 @@ import com.leafy.iotmetricscollectorservice.dto.DeviceCameraScheduleResponse;
 import com.leafy.iotmetricscollectorservice.entity.Recurrence;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryExceptionHandler;
 import com.leafy.iotmetricscollectorservice.model.enums.TriggerType;
+import com.leafy.iotmetricscollectorservice.service.DeviceAccessService;
 import com.leafy.iotmetricscollectorservice.service.DeviceCameraScheduleService;
 import com.leafy.iotmetricscollectorservice.service.DeviceMediaAnalysisService;
 import java.time.Instant;
@@ -40,11 +41,14 @@ class DeviceCameraWorkflowControllerTest {
     @Mock
     private DeviceMediaAnalysisService analysisService;
 
+    @Mock
+    private DeviceAccessService deviceAccessService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new DeviceCameraWorkflowController(scheduleService, analysisService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new DeviceCameraWorkflowController(deviceAccessService, scheduleService, analysisService))
             .setControllerAdvice(new TelemetryQueryExceptionHandler())
             .build();
     }
@@ -60,6 +64,7 @@ class DeviceCameraWorkflowControllerTest {
 
         mockMvc.perform(
                 post("/iot/devices/{deviceUid}/camera/capture-schedule", deviceUid)
+                    .header(DeviceController.USER_ID_HEADER, "user-1")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
                         {
@@ -95,6 +100,7 @@ class DeviceCameraWorkflowControllerTest {
 
         mockMvc.perform(
                 put("/iot/devices/{deviceUid}/camera/capture-schedule/{scheduleId}", deviceUid, scheduleId)
+                    .header(DeviceController.USER_ID_HEADER, "user-1")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
                         {
@@ -107,10 +113,10 @@ class DeviceCameraWorkflowControllerTest {
             )
             .andExpect(status().isOk());
 
-        mockMvc.perform(post("/iot/devices/{deviceUid}/camera/run-scheduled/{scheduleId}", deviceUid, scheduleId))
+        mockMvc.perform(post("/iot/devices/{deviceUid}/camera/run-scheduled/{scheduleId}", deviceUid, scheduleId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk());
 
-        mockMvc.perform(delete("/iot/devices/{deviceUid}/camera/capture-schedule/{scheduleId}", deviceUid, scheduleId))
+        mockMvc.perform(delete("/iot/devices/{deviceUid}/camera/capture-schedule/{scheduleId}", deviceUid, scheduleId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isNoContent());
 
         verify(scheduleService).updateScheduleForDevice(eq(deviceUid), eq(scheduleId), any(DeviceCameraScheduleRequest.class));

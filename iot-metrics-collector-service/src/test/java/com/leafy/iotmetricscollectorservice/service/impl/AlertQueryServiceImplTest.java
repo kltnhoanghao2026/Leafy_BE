@@ -65,6 +65,7 @@ class AlertQueryServiceImplTest {
             .thenReturn(new PageImpl<>(List.of(alertEvent)));
 
         PagedResponse<AlertEventItemResponse> response = alertQueryService.searchAlerts(
+            "user-1",
             null,
             deviceId,
             AlertStatus.OPEN,
@@ -95,6 +96,7 @@ class AlertQueryServiceImplTest {
             .thenReturn(new PageImpl<>(List.of(alertEvent)));
 
         PagedResponse<AlertEventItemResponse> response = alertQueryService.searchAlerts(
+            "user-1",
             zoneId,
             null,
             AlertStatus.ACKNOWLEDGED,
@@ -119,6 +121,7 @@ class AlertQueryServiceImplTest {
             .thenReturn(Page.empty());
 
         PagedResponse<AlertEventItemResponse> response = alertQueryService.searchAlerts(
+            "user-1",
             null,
             null,
             null,
@@ -141,7 +144,7 @@ class AlertQueryServiceImplTest {
 
         assertThrows(
             TelemetryQueryException.class,
-            () -> alertQueryService.searchAlerts(null, null, null, null, from, to, 0, 20, "openedAt", "desc")
+            () -> alertQueryService.searchAlerts("user-1", null, null, null, null, from, to, 0, 20, "openedAt", "desc")
         );
     }
 
@@ -178,7 +181,7 @@ class AlertQueryServiceImplTest {
     void searchAlerts_paginatesAndUsesDescendingOpenedAtSort() {
         when(alertEventRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
 
-        alertQueryService.searchAlerts(null, null, null, null, null, null, 2, 10, "openedAt", "desc");
+        alertQueryService.searchAlerts("user-1", null, null, null, null, null, null, 2, 10, "openedAt", "desc");
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(alertEventRepository).findAll(any(Specification.class), pageableCaptor.capture());
@@ -194,7 +197,7 @@ class AlertQueryServiceImplTest {
     void searchAlerts_rejectsInvalidSortBy() {
         assertThrows(
             TelemetryQueryException.class,
-            () -> alertQueryService.searchAlerts(null, null, null, null, null, null, 0, 20, "deviceId", "desc")
+            () -> alertQueryService.searchAlerts("user-1", null, null, null, null, null, null, 0, 20, "deviceId", "desc")
         );
     }
 
@@ -202,7 +205,7 @@ class AlertQueryServiceImplTest {
     void searchAlerts_clampsMaxPageSize() {
         when(alertEventRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
 
-        alertQueryService.searchAlerts(null, null, null, null, null, null, 0, 999, "openedAt", "desc");
+        alertQueryService.searchAlerts("user-1", null, null, null, null, null, null, 0, 999, "openedAt", "desc");
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(alertEventRepository).findAll(any(Specification.class), pageableCaptor.capture());

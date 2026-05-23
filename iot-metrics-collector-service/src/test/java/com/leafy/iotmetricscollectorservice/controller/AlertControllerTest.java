@@ -16,6 +16,7 @@ import com.leafy.iotmetricscollectorservice.model.enums.AlertSeverity;
 import com.leafy.iotmetricscollectorservice.model.enums.AlertStatus;
 import com.leafy.iotmetricscollectorservice.service.AlertLifecycleService;
 import com.leafy.iotmetricscollectorservice.service.AlertQueryService;
+import com.leafy.iotmetricscollectorservice.service.DeviceAccessService;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,11 +36,14 @@ class AlertControllerTest {
     @Mock
     private AlertLifecycleService alertLifecycleService;
 
+    @Mock
+    private DeviceAccessService deviceAccessService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new AlertController(alertQueryService, alertLifecycleService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new AlertController(alertQueryService, alertLifecycleService, deviceAccessService))
             .setControllerAdvice(new TelemetryQueryExceptionHandler())
             .build();
     }
@@ -55,6 +59,7 @@ class AlertControllerTest {
         PagedResponse<AlertEventItemResponse> response = new PagedResponse<>(java.util.List.of(item), 0, 20, 1, 1, false, false);
 
         when(alertQueryService.searchAlerts(
+            eq("user-1"),
             eq(zoneId),
             eq(deviceId),
             eq(AlertStatus.OPEN),
@@ -69,6 +74,7 @@ class AlertControllerTest {
 
         mockMvc.perform(
             get("/iot/alert-events")
+                .header(DeviceController.USER_ID_HEADER, "user-1")
                 .param("zoneId", zoneId)
                 .param("deviceId", deviceId.toString())
                 .param("status", "OPEN")
@@ -93,7 +99,7 @@ class AlertControllerTest {
 
         when(alertQueryService.getAlertEvent(alertEventId)).thenReturn(response);
 
-        mockMvc.perform(get("/iot/alert-events/{alertEventId}", alertEventId))
+        mockMvc.perform(get("/iot/alert-events/{alertEventId}", alertEventId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(alertEventId.toString()))
             .andExpect(jsonPath("$.message").value("Threshold exceeded"));
@@ -105,7 +111,7 @@ class AlertControllerTest {
         when(alertQueryService.getAlertEvent(alertEventId))
             .thenThrow(TelemetryQueryException.alertEventNotFound(alertEventId));
 
-        mockMvc.perform(get("/iot/alert-events/{alertEventId}", alertEventId))
+        mockMvc.perform(get("/iot/alert-events/{alertEventId}", alertEventId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value(4604));
     }
@@ -119,7 +125,7 @@ class AlertControllerTest {
 
         when(alertLifecycleService.acknowledgeAlert(alertEventId)).thenReturn(response);
 
-        mockMvc.perform(post("/iot/alert-events/{alertEventId}/acknowledge", alertEventId))
+        mockMvc.perform(post("/iot/alert-events/{alertEventId}/acknowledge", alertEventId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(alertEventId.toString()))
             .andExpect(jsonPath("$.status").value("ACKNOWLEDGED"));
@@ -134,7 +140,7 @@ class AlertControllerTest {
 
         when(alertLifecycleService.resolveAlert(alertEventId)).thenReturn(response);
 
-        mockMvc.perform(post("/iot/alert-events/{alertEventId}/resolve", alertEventId))
+        mockMvc.perform(post("/iot/alert-events/{alertEventId}/resolve", alertEventId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(alertEventId.toString()))
             .andExpect(jsonPath("$.status").value("RESOLVED"));
@@ -146,7 +152,7 @@ class AlertControllerTest {
         when(alertLifecycleService.acknowledgeAlert(alertEventId))
             .thenThrow(TelemetryQueryException.cannotAcknowledgeAlert(alertEventId, "RESOLVED"));
 
-        mockMvc.perform(post("/iot/alert-events/{alertEventId}/acknowledge", alertEventId))
+        mockMvc.perform(post("/iot/alert-events/{alertEventId}/acknowledge", alertEventId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value(4606));
     }
@@ -157,7 +163,7 @@ class AlertControllerTest {
         when(alertLifecycleService.resolveAlert(alertEventId))
             .thenThrow(TelemetryQueryException.alertEventNotFound(alertEventId));
 
-        mockMvc.perform(post("/iot/alert-events/{alertEventId}/resolve", alertEventId))
+        mockMvc.perform(post("/iot/alert-events/{alertEventId}/resolve", alertEventId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value(4604));
     }

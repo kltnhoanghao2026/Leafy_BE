@@ -22,6 +22,12 @@ public interface IoTDeviceRepository extends JpaRepository<IoTDevice, UUID>, Jpa
 
     List<IoTDevice> findAllByOwnerUserId(String ownerUserId);
 
+    boolean existsByIdAndOwnerUserId(UUID deviceId, String ownerUserId);
+
+    boolean existsByZoneIdAndOwnerUserId(String zoneId, String ownerUserId);
+
+    boolean existsByFarmPlotIdAndOwnerUserId(String farmPlotId, String ownerUserId);
+
     long countByFarmPlotId(String farmPlotId);
 
     long countByFarmPlotIdAndStatus(String farmPlotId, DeviceStatus status);

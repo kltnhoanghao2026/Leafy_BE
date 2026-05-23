@@ -2,6 +2,7 @@ package com.leafy.iotmetricscollectorservice.controller;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,6 +18,7 @@ import com.leafy.iotmetricscollectorservice.model.enums.DeviceStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.ProvisioningStatus;
 import com.leafy.iotmetricscollectorservice.service.DeviceConfigService;
 import com.leafy.iotmetricscollectorservice.service.DeviceConfigPushService;
+import com.leafy.iotmetricscollectorservice.service.DeviceAccessService;
 import com.leafy.iotmetricscollectorservice.service.DeviceMediaService;
 import com.leafy.iotmetricscollectorservice.service.DeviceService;
 import java.time.Instant;
@@ -45,11 +47,14 @@ class DeviceControllerTest {
     @Mock
     private DeviceMediaService deviceMediaService;
 
+    @Mock
+    private DeviceAccessService deviceAccessService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new DeviceController(deviceService, deviceConfigService, deviceConfigPushService, deviceMediaService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new DeviceController(deviceService, deviceConfigService, deviceConfigPushService, deviceMediaService, deviceAccessService))
             .setControllerAdvice(new TelemetryQueryExceptionHandler())
             .build();
     }
@@ -90,9 +95,9 @@ class DeviceControllerTest {
         response.setClaimCode("ABCD1234");
         response.setExpiresAt(Instant.parse("2026-04-10T04:00:00Z"));
 
-        when(deviceService.generateClaimCode(deviceId)).thenReturn(response);
+        when(deviceService.generateClaimCode("user-1", deviceId)).thenReturn(response);
 
-        mockMvc.perform(post("/iot/devices/{deviceId}/claim-code", deviceId))
+        mockMvc.perform(post("/iot/devices/{deviceId}/claim-code", deviceId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deviceId").value(deviceId.toString()))
             .andExpect(jsonPath("$.claimCode").value("ABCD1234"));
@@ -239,6 +244,134 @@ class DeviceControllerTest {
     }
 
     @Test
+    void updateDevice_requiresUserHeader() throws Exception {
+        mockMvc.perform(
+                patch("/iot/devices/{deviceId}", UUID.randomUUID())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "deviceName": "Greenhouse Camera"
+                        }
+                        """)
+            )
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateDevice_returnsUpdatedDevicePayload() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        UUID deviceId = UUID.randomUUID();
+        String farmPlotId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+        DeviceResponse response = new DeviceResponse();
+        response.setId(deviceId);
+        response.setDeviceUid("device-001");
+        response.setDeviceCode("IOT-001");
+        response.setDeviceName("Greenhouse Camera");
+        response.setOwnerUserId(userId);
+        response.setFarmPlotId(farmPlotId);
+        response.setZoneId(zoneId);
+        response.setIsActive(false);
+        response.setProvisioningStatus("CLAIMED");
+
+        when(deviceService.updateDevice(
+            org.mockito.ArgumentMatchers.eq(userId),
+            org.mockito.ArgumentMatchers.eq(deviceId),
+            org.mockito.ArgumentMatchers.any()
+        )).thenReturn(response);
+
+        mockMvc.perform(
+                patch("/iot/devices/{deviceId}", deviceId)
+                    .header(DeviceController.USER_ID_HEADER, userId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "deviceName": "Greenhouse Camera",
+                          "farmPlotId": "%s",
+                          "zoneId": "%s",
+                          "active": false
+                        }
+                        """.formatted(farmPlotId, zoneId))
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(deviceId.toString()))
+            .andExpect(jsonPath("$.deviceName").value("Greenhouse Camera"))
+            .andExpect(jsonPath("$.farmPlotId").value(farmPlotId))
+            .andExpect(jsonPath("$.zoneId").value(zoneId))
+            .andExpect(jsonPath("$.isActive").value(false))
+            .andExpect(jsonPath("$.provisioningStatus").value("CLAIMED"));
+    }
+
+    @Test
+    void updateDevice_returnsForbiddenForNonOwner() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        UUID deviceId = UUID.randomUUID();
+        when(deviceService.updateDevice(
+            org.mockito.ArgumentMatchers.eq(userId),
+            org.mockito.ArgumentMatchers.eq(deviceId),
+            org.mockito.ArgumentMatchers.any()
+        )).thenThrow(TelemetryQueryException.deviceAccessDenied(deviceId));
+
+        mockMvc.perform(
+                patch("/iot/devices/{deviceId}", deviceId)
+                    .header(DeviceController.USER_ID_HEADER, userId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "deviceName": "Greenhouse Camera"
+                        }
+                        """)
+            )
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value(4636));
+    }
+
+    @Test
+    void releaseDevice_returnsReleasedDevicePayload() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        UUID deviceId = UUID.randomUUID();
+        DeviceResponse response = new DeviceResponse();
+        response.setId(deviceId);
+        response.setDeviceUid("device-001");
+        response.setDeviceCode("IOT-001");
+        response.setDeviceName("Greenhouse Camera");
+        response.setOwnerUserId(null);
+        response.setFarmPlotId(null);
+        response.setZoneId(null);
+        response.setIsActive(true);
+        response.setProvisioningStatus("PROVISIONED");
+
+        when(deviceService.releaseDevice(userId, deviceId)).thenReturn(response);
+
+        mockMvc.perform(
+                post("/iot/devices/{deviceId}/release", deviceId)
+                    .header(DeviceController.USER_ID_HEADER, userId)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(deviceId.toString()))
+            .andExpect(jsonPath("$.ownerUserId").isEmpty())
+            .andExpect(jsonPath("$.farmPlotId").isEmpty())
+            .andExpect(jsonPath("$.zoneId").isEmpty())
+            .andExpect(jsonPath("$.isActive").value(true))
+            .andExpect(jsonPath("$.provisioningStatus").value("PROVISIONED"));
+    }
+
+    @Test
+    void releaseDevice_returnsForbiddenForNonOwner() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        UUID deviceId = UUID.randomUUID();
+        when(deviceService.releaseDevice(userId, deviceId))
+            .thenThrow(TelemetryQueryException.deviceAccessDenied(deviceId));
+
+        mockMvc.perform(
+                post("/iot/devices/{deviceId}/release", deviceId)
+                    .header(DeviceController.USER_ID_HEADER, userId)
+            )
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value(4636));
+    }
+
+    @Test
     void claimDevice_returnsBusinessErrorWhenCodeInvalid() throws Exception {
         String userId = UUID.randomUUID().toString();
         when(deviceService.claimDevice(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
@@ -269,7 +402,7 @@ class DeviceControllerTest {
 
         when(deviceConfigService.getDeviceConfig(deviceId)).thenReturn(response);
 
-        mockMvc.perform(get("/iot/devices/{deviceId}/config", deviceId))
+        mockMvc.perform(get("/iot/devices/{deviceId}/config", deviceId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deviceId").value(deviceId.toString()))
             .andExpect(jsonPath("$.configVersion").value(4))
@@ -292,6 +425,7 @@ class DeviceControllerTest {
 
         mockMvc.perform(
                 put("/iot/devices/{deviceId}/config", deviceId)
+                    .header(DeviceController.USER_ID_HEADER, "user-1")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
                         {
@@ -317,7 +451,7 @@ class DeviceControllerTest {
 
         when(deviceConfigPushService.pushConfig(deviceId)).thenReturn(response);
 
-        mockMvc.perform(post("/iot/devices/{deviceId}/config/push", deviceId))
+        mockMvc.perform(post("/iot/devices/{deviceId}/config/push", deviceId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deviceId").value(deviceId.toString()))
             .andExpect(jsonPath("$.lastPushStatus").value("SENT"));

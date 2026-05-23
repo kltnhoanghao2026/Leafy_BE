@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.leafy.iotmetricscollectorservice.dto.dashboard.LatestReadingItemResponse;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryExceptionHandler;
+import com.leafy.iotmetricscollectorservice.service.DeviceAccessService;
 import com.leafy.iotmetricscollectorservice.service.TelemetryQueryService;
 import java.util.List;
 import java.util.UUID;
@@ -25,11 +26,14 @@ class TelemetryQueryControllerTest {
     @Mock
     private TelemetryQueryService telemetryQueryService;
 
+    @Mock
+    private DeviceAccessService deviceAccessService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new TelemetryQueryController(telemetryQueryService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new TelemetryQueryController(telemetryQueryService, deviceAccessService))
             .setControllerAdvice(new TelemetryQueryExceptionHandler())
             .build();
     }
@@ -44,7 +48,7 @@ class TelemetryQueryControllerTest {
 
         when(telemetryQueryService.getLatestReadingsByDevice(deviceId)).thenReturn(List.of(item));
 
-        mockMvc.perform(get("/iot/devices/{deviceId}/latest-readings", deviceId))
+        mockMvc.perform(get("/iot/devices/{deviceId}/latest-readings", deviceId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].sensorCode").value("soilTemp"))
             .andExpect(jsonPath("$[0].sensorName").value("Soil Temperature"));
@@ -54,6 +58,7 @@ class TelemetryQueryControllerTest {
     void getDeviceSensorChart_rejectsUnsupportedRangeBeforeCallingService() throws Exception {
         mockMvc.perform(
             get("/iot/devices/{deviceId}/charts", UUID.randomUUID())
+                .header(DeviceController.USER_ID_HEADER, "user-1")
                 .param("sensorCode", "soilTemp")
                 .param("range", "2W")
         )

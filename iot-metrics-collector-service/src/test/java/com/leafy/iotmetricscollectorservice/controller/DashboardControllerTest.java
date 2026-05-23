@@ -13,6 +13,7 @@ import com.leafy.iotmetricscollectorservice.dto.dashboard.DeviceConfigSnapshotRe
 import com.leafy.iotmetricscollectorservice.dto.dashboard.DeviceMediaSummaryResponse;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryExceptionHandler;
 import com.leafy.iotmetricscollectorservice.service.DashboardQueryService;
+import com.leafy.iotmetricscollectorservice.service.DeviceAccessService;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,11 +29,14 @@ class DashboardControllerTest {
     @Mock
     private DashboardQueryService dashboardQueryService;
 
+    @Mock
+    private DeviceAccessService deviceAccessService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new DashboardController(dashboardQueryService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new DashboardController(dashboardQueryService, deviceAccessService))
             .setControllerAdvice(new TelemetryQueryExceptionHandler())
             .build();
     }
@@ -52,7 +56,7 @@ class DashboardControllerTest {
 
         when(dashboardQueryService.getZoneOverview(zoneId)).thenReturn(response);
 
-        mockMvc.perform(get("/iot/farm-zones/{zoneId}/overview", zoneId))
+        mockMvc.perform(get("/iot/farm-zones/{zoneId}/overview", zoneId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.zoneId").value(zoneId.toString()))
             .andExpect(jsonPath("$.openAlerts").value(3))
@@ -69,7 +73,7 @@ class DashboardControllerTest {
 
         when(dashboardQueryService.getFarmOverview(farmPlotId)).thenReturn(response);
 
-        mockMvc.perform(get("/iot/dashboard/overview").param("farmPlotId", farmPlotId.toString()))
+        mockMvc.perform(get("/iot/dashboard/overview").header(DeviceController.USER_ID_HEADER, "user-1").param("farmPlotId", farmPlotId.toString()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.farmPlotId").value(farmPlotId.toString()))
             .andExpect(jsonPath("$.totalDevices").value(8));
@@ -93,7 +97,7 @@ class DashboardControllerTest {
 
         when(dashboardQueryService.getDeviceDetail(deviceId)).thenReturn(response);
 
-        mockMvc.perform(get("/iot/devices/{deviceId}/detail", deviceId))
+        mockMvc.perform(get("/iot/devices/{deviceId}/detail", deviceId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deviceId").value(deviceId.toString()))
             .andExpect(jsonPath("$.deviceCode").value("IOT-001"))

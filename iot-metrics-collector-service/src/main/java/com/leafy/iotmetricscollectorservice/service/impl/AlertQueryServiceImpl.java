@@ -44,6 +44,7 @@ public class AlertQueryServiceImpl implements AlertQueryService {
 
     @Override
     public PagedResponse<AlertEventItemResponse> searchAlerts(
+        String currentUserId,
         String zoneId,
         UUID deviceId,
         AlertStatus status,
@@ -55,11 +56,12 @@ public class AlertQueryServiceImpl implements AlertQueryService {
         String sortBy,
         String sortDir
     ) {
+        String normalizedUserId = requireCurrentUserId(currentUserId);
         validateWindow(from, to);
 
         Pageable pageable = buildPageable(page, size, sortBy, sortDir);
         Page<AlertEventItemResponse> mappedPage = alertEventRepository
-            .findAll(buildSpecification(zoneId, deviceId, status, severity, from, to), pageable)
+            .findAll(buildSpecification(normalizedUserId, zoneId, deviceId, status, severity, from, to), pageable)
             .map(dashboardQueryMapper::toAlertEventItemResponse);
 
         return PagedResponse.from(mappedPage);
@@ -78,7 +80,15 @@ public class AlertQueryServiceImpl implements AlertQueryService {
         }
     }
 
+    private String requireCurrentUserId(String currentUserId) {
+        if (currentUserId == null || currentUserId.isBlank()) {
+            throw TelemetryQueryException.invalidDeviceUpdate("X-User-Id must not be blank");
+        }
+        return currentUserId.trim();
+    }
+
     private Specification<AlertEvent> buildSpecification(
+        String currentUserId,
         String zoneId,
         UUID deviceId,
         AlertStatus status,
@@ -88,6 +98,11 @@ public class AlertQueryServiceImpl implements AlertQueryService {
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+
+            predicates.add(criteriaBuilder.or(
+                criteriaBuilder.equal(root.get("ownerUser").get("id"), currentUserId),
+                criteriaBuilder.equal(root.get("device").get("ownerUser").get("id"), currentUserId)
+            ));
 
             if (zoneId != null) {
                 predicates.add(criteriaBuilder.equal(root.get("zone").get("id"), zoneId));
