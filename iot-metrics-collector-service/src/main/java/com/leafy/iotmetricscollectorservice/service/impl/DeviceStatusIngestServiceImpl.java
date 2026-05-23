@@ -32,7 +32,7 @@ public class DeviceStatusIngestServiceImpl implements DeviceStatusIngestService 
         }
         IoTDevice device = deviceOptional.get();
 
-        Instant eventTime = payload.getTs() != null ? payload.getTs() : Instant.now();
+        Instant eventTime = IngestTimestampResolver.resolveLiveEventTime(payload.getTs(), Instant.now());
 
         device.setLastSeenAt(eventTime);
         device.setStatus(Boolean.TRUE.equals(payload.getOnline()) ? DeviceStatus.ONLINE : DeviceStatus.OFFLINE);

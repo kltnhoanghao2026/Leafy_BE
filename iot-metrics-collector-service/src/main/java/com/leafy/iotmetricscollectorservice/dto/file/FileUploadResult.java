@@ -1,10 +1,12 @@
 package com.leafy.iotmetricscollectorservice.dto.file;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class FileUploadResult {
     private String id;
     private String s3Key;

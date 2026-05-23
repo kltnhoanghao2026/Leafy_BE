@@ -314,8 +314,18 @@ spring:
                 - RewritePath=/rag-service/v3/api-docs, /v3/api-docs
 
             # Disease Classification Service Routes
-            - id: disease-classification-service
-              uri: lb://disease-classification-service
+            - id: disease-detection-service-internal
+              uri: lb://disease-detection-service
+              predicates:
+                - Path=/internal/diseases/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: diseaseClassificationServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/disease-detection-service
+
+            - id: disease-detection-service
+              uri: lb://disease-detection-service
               predicates:
                 - Path=/api/diseases/**
               filters:
@@ -323,15 +333,15 @@ spring:
                 - name: CircuitBreaker
                   args:
                     name: diseaseClassificationServiceCircuitBreaker
-                    fallbackUri: forward:/fallback/disease-classification-service
+                    fallbackUri: forward:/fallback/disease-detection-service
 
             # OpenAPI Documentation Routes for Disease Classification Service
-            - id: disease-classification-service-openapi
-              uri: lb://disease-classification-service
+            - id: disease-detection-service-openapi
+              uri: lb://disease-detection-service
               predicates:
-                - Path=/disease-classification-service/v3/api-docs/**
+                - Path=/disease-detection-service/v3/api-docs/**
               filters:
-                - RewritePath=/disease-classification-service/v3/api-docs, /v3/api-docs
+                - RewritePath=/disease-detection-service/v3/api-docs, /v3/api-docs
 
             #IOT Metrics Collector Service
             - id: iot-metrics-collector-service
@@ -582,11 +592,11 @@ springdoc:
       - name: plant-management-service
         url: /plant-management-service/v3/api-docs
       - name: profile-service
-        url: /profile-service/v3/api-docs
+        url: /profile-service/v3/api-docst
       - name: rag-service
         url: /rag-service/v3/api-docs
-      - name: disease-classification-service
-        url: /disease-classification-service/v3/api-docs
+      - name: disease-detection-service
+        url: /disease-detection-service/v3/api-docs
       - name: iot-metrics-collector-service
         url: /iot-metrics-collector-service/v3/api-docs
       - name: community-feed-service

@@ -15,8 +15,10 @@ import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -40,6 +42,10 @@ public class S3ServiceImpl implements S3Service {
         @NonFinal
         @Value("${aws.s3.bucket}")
         String bucketName;
+
+        @NonFinal
+        @Value("${aws.region}")
+        String region;
 
         @Override
         public Mono<S3UploadResponse> uploadFile(FilePart filePart) {
@@ -129,7 +135,7 @@ public class S3ServiceImpl implements S3Service {
                 log.info("Generating presigned URL for S3 key: {}, expiration: {} minutes", s3Key, expirationMinutes);
 
                 return Mono.fromCallable(() -> {
-                        try (S3Presigner presigner = S3Presigner.create()) {
+                        try (S3Presigner presigner = createPresigner()) {
                                 GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                                                 .bucket(bucketName)
                                                 .key(s3Key)
@@ -155,7 +161,7 @@ public class S3ServiceImpl implements S3Service {
                 log.info("Generating presigned URL for upload to S3 key: {}, expiration: {} minutes", key, expirationMinutes);
 
                 return Mono.fromCallable(() -> {
-                        try (S3Presigner presigner = S3Presigner.create()) {
+                        try (S3Presigner presigner = createPresigner()) {
                                 PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                                                 .bucket(bucketName)
                                                 .key(key)
@@ -177,5 +183,12 @@ public class S3ServiceImpl implements S3Service {
                                                 .build();
                         }
                 });
+        }
+
+        private S3Presigner createPresigner() {
+                return S3Presigner.builder()
+                                .region(Region.of(region))
+                                .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                                .build();
         }
 }

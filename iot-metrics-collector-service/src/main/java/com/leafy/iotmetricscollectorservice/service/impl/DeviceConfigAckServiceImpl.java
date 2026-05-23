@@ -51,7 +51,7 @@ public class DeviceConfigAckServiceImpl implements DeviceConfigAckService {
             return;
         }
 
-        Instant ackTime = payload.getTs() != null ? payload.getTs() : Instant.now();
+        Instant ackTime = IngestTimestampResolver.resolveLiveEventTime(payload.getTs(), Instant.now());
         deviceConfig.setLastAckAt(ackTime);
 
         if (Boolean.TRUE.equals(payload.getSuccess())) {

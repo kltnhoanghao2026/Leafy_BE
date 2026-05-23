@@ -9,7 +9,7 @@ _BACKEND_ENV = os.path.join(
 )
 
 class Settings(BaseSettings):
-    app_name: str = "disease-classification-service"
+    app_name: str = "disease-detection-service"
     server_port: int = 8088
     eureka_server: str = "http://localhost:8761/eureka/"
 

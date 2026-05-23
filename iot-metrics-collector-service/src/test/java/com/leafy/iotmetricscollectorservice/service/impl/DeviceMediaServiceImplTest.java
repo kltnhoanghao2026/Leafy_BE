@@ -152,7 +152,7 @@ class DeviceMediaServiceImplTest {
         payload.setHeight(480);
         FileRef fileRef = new FileRef();
         fileRef.setId("file-1");
-        when(entityManager.getReference(FileRef.class, "file-1")).thenReturn(fileRef);
+        when(entityManager.find(FileRef.class, "file-1")).thenReturn(fileRef);
 
         service.handleImageMeta("device-001", payload);
 
@@ -180,7 +180,7 @@ class DeviceMediaServiceImplTest {
         payload.setSizeBytes(456L);
         FileRef fileRef = new FileRef();
         fileRef.setId("file-1");
-        when(entityManager.getReference(FileRef.class, "file-1")).thenReturn(fileRef);
+        when(entityManager.find(FileRef.class, "file-1")).thenReturn(fileRef);
 
         service.handleImageMeta("device-001", payload);
 

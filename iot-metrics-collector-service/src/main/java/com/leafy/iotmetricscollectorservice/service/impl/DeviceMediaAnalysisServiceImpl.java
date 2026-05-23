@@ -16,8 +16,12 @@ import com.leafy.iotmetricscollectorservice.repository.DeviceMediaAnalysisReposi
 import com.leafy.iotmetricscollectorservice.repository.DeviceMediaEventRepository;
 import com.leafy.iotmetricscollectorservice.service.DeviceMediaAnalysisService;
 import com.leafy.iotmetricscollectorservice.service.ImageDiseaseAlertService;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,13 +33,15 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisService {
 
+    private static final Pattern AWS_CREDENTIAL_SCOPE = Pattern.compile("[^/]+/\\d{8}/[^/]+/s3/aws4_request");
+
     private final DeviceMediaEventRepository mediaEventRepository;
     private final DeviceMediaAnalysisRepository analysisRepository;
     private final FileServiceClient fileServiceClient;
     private final DiseaseDetectionClient diseaseDetectionClient;
     private final ImageDiseaseAlertService imageDiseaseAlertService;
 
-    @Value("${app.image-analysis.max-attempts:1}")
+    @Value("${app.image-analysis.max-attempts:2}")
     private int maxAttempts;
 
     @Override
@@ -54,9 +60,11 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
             return toResponse(analysis);
         }
 
-        String fileUrl = request.getFileUrl() != null && !request.getFileUrl().isBlank()
-            ? request.getFileUrl()
-            : fileServiceClient.getPresignedUrl(fileId);
+        String fileUrl = resolveInternalDownloadUrl(mediaEvent.getId(), mediaEvent.getRequestId(), fileId);
+        if (fileUrl == null) {
+            markAnalysisFailed(analysis, "INVALID_PRESIGNED_URL");
+            return toResponse(analysisRepository.save(analysis));
+        }
         analysis.setFileUrl(fileUrl);
         analysis = analysisRepository.save(analysis);
 
@@ -95,14 +103,25 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         analysis.setError(null);
         analysis = analysisRepository.save(analysis);
         try {
-            analysis.setFileUrl(fileServiceClient.getPresignedUrl(fileId));
+            String rawFileUrl = fileServiceClient.getInternalDownloadUrl(fileId);
+            String fileUrl = normalizeUsablePresignedUrl(rawFileUrl);
+            if (fileUrl == null) {
+                markAnalysisFailed(analysis, "INVALID_PRESIGNED_URL");
+                analysisRepository.save(analysis);
+                log.warn(
+                    "Image analysis job skipped because internal download URL is invalid. mediaEventId={}, fileId={}, url={}",
+                    mediaEventId,
+                    fileId,
+                    sanitizeUrlForLog(rawFileUrl)
+                );
+                return null;
+            }
+            analysis.setFileUrl(fileUrl);
             return toJob(analysisRepository.save(analysis), mediaEvent);
         } catch (RuntimeException exception) {
-            analysis.setStatus(DeviceMediaAnalysisStatus.FAILED);
-            analysis.setError(exception.getMessage());
-            analysis.setAnalyzedAt(Instant.now());
+            markAnalysisFailed(analysis, exception.getMessage());
             analysisRepository.save(analysis);
-            log.warn("Image analysis job failed while resolving presigned URL. mediaEventId={}, fileId={}", mediaEventId, fileId, exception);
+            log.warn("Image analysis job failed while resolving internal download URL. mediaEventId={}, fileId={}", mediaEventId, fileId, exception);
             return null;
         }
     }
@@ -123,13 +142,21 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         analysis.setError(null);
         analysis = analysisRepository.save(analysis);
 
+        String fileId = resolveJobFileId(mediaEvent, job);
+        String fileUrl = resolveInternalDownloadUrl(mediaEvent.getId(), job.getRequestId(), fileId);
+        if (fileUrl == null) {
+            markAnalysisFailed(analysis, "INVALID_PRESIGNED_URL");
+            analysisRepository.save(analysis);
+            return;
+        }
+
         int attempts = Math.max(1, maxAttempts);
         RuntimeException lastFailure = null;
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
-                DiseaseDetectResponse detection = diseaseDetectionClient.detect(job.getS3Url(), job.getFileId());
+                DiseaseDetectResponse detection = diseaseDetectionClient.detect(fileUrl, fileId);
                 detection.setMediaEventId(mediaEvent.getId());
-                detection.setFileId(job.getFileId());
+                detection.setFileId(fileId);
                 applyDetectionResult(analysis, mediaEvent, detection);
                 analysisRepository.save(analysis);
                 log.info(
@@ -143,21 +170,64 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
                 return;
             } catch (RuntimeException exception) {
                 lastFailure = exception;
-                log.warn(
-                    "Disease detection attempt failed. mediaEventId={}, requestId={}, attempt={}/{}",
-                    mediaEvent.getId(),
-                    job.getRequestId(),
-                    attempt,
-                    attempts,
-                    exception
-                );
+                if (isInvalidPresignedUrlFailure(exception)) {
+                    log.warn(
+                        "Disease detection skipped because presigned URL is invalid. mediaEventId={}, requestId={}, attempt={}/{}, reason={}",
+                        mediaEvent.getId(),
+                        job.getRequestId(),
+                        attempt,
+                        attempts,
+                        exception.getMessage()
+                    );
+                    break;
+                } else {
+                    log.warn(
+                        "Disease detection attempt failed. mediaEventId={}, requestId={}, attempt={}/{}",
+                        mediaEvent.getId(),
+                        job.getRequestId(),
+                        attempt,
+                        attempts,
+                        exception
+                    );
+                }
             }
         }
 
-        analysis.setStatus(DeviceMediaAnalysisStatus.FAILED);
-        analysis.setError(lastFailure != null ? lastFailure.getMessage() : "DISEASE_DETECTION_FAILED");
-        analysis.setAnalyzedAt(Instant.now());
+        markAnalysisFailed(analysis, lastFailure != null ? lastFailure.getMessage() : "DISEASE_DETECTION_FAILED");
         analysisRepository.save(analysis);
+    }
+
+    private void markAnalysisFailed(DeviceMediaAnalysis analysis, String error) {
+        analysis.setStatus(DeviceMediaAnalysisStatus.FAILED);
+        analysis.setError(error != null && !error.isBlank() ? error : "DISEASE_DETECTION_FAILED");
+        analysis.setAnalyzedAt(Instant.now());
+    }
+
+    private String resolveInternalDownloadUrl(UUID mediaEventId, String requestId, String fileId) {
+        try {
+            String rawFileUrl = fileServiceClient.getInternalDownloadUrl(fileId);
+            String fileUrl = normalizeUsablePresignedUrl(rawFileUrl);
+            if (fileUrl == null) {
+                log.warn(
+                    "Skipping image analysis because file-service returned invalid internal download URL. mediaEventId={}, requestId={}, fileId={}, url={}",
+                    mediaEventId,
+                    requestId,
+                    fileId,
+                    sanitizeUrlForLog(rawFileUrl)
+                );
+                return null;
+            }
+            return fileUrl;
+        } catch (RuntimeException exception) {
+            log.warn(
+                "Skipping image analysis because internal download URL could not be resolved. mediaEventId={}, requestId={}, fileId={}",
+                mediaEventId,
+                requestId,
+                fileId,
+                exception
+            );
+            return null;
+        }
     }
 
     private DeviceMediaAnalysis newAnalysis(DeviceMediaEvent mediaEvent, String fileId, String deviceUid) {
@@ -235,6 +305,17 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         return fileId;
     }
 
+    private String resolveJobFileId(DeviceMediaEvent mediaEvent, ImageAnalysisJob job) {
+        String fileId = job.getFileId();
+        if ((fileId == null || fileId.isBlank()) && mediaEvent.getFile() != null) {
+            fileId = mediaEvent.getFile().getId();
+        }
+        if (fileId == null || fileId.isBlank()) {
+            throw new IllegalArgumentException("fileId is required");
+        }
+        return fileId;
+    }
+
     private String resolveDeviceUid(DeviceMediaEvent mediaEvent, DiseaseDetectRequest request) {
         if (request.getDeviceUid() != null && !request.getDeviceUid().isBlank()) {
             return request.getDeviceUid();
@@ -266,5 +347,99 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         response.setAnalyzedAt(analysis.getAnalyzedAt());
         response.setError(analysis.getError());
         return response;
+    }
+
+    private String normalizeUsablePresignedUrl(String rawUrl) {
+        if (rawUrl == null) {
+            return null;
+        }
+        String url = rawUrl.trim();
+        if (url.isBlank()) {
+            return null;
+        }
+        try {
+            URI uri = new URI(url);
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (scheme == null || host == null) {
+                return null;
+            }
+            String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
+            if (!"http".equals(normalizedScheme) && !"https".equals(normalizedScheme)) {
+                return null;
+            }
+            String normalizedHost = host.toLowerCase(Locale.ROOT);
+            if ("localhost".equals(normalizedHost)
+                || normalizedHost.startsWith("127.")
+                || "0.0.0.0".equals(normalizedHost)
+                || "::1".equals(normalizedHost)
+                || "[::1]".equals(normalizedHost)) {
+                return null;
+            }
+            if (isAmazonS3Host(normalizedHost) && !hasValidS3PresignedQuery(uri)) {
+                return null;
+            }
+            return url;
+        } catch (URISyntaxException exception) {
+            return null;
+        }
+    }
+
+    private boolean isAmazonS3Host(String normalizedHost) {
+        return normalizedHost.contains(".s3.") && normalizedHost.endsWith(".amazonaws.com");
+    }
+
+    private boolean hasValidS3PresignedQuery(URI uri) {
+        String query = uri.getRawQuery();
+        if (query == null || query.isBlank()) {
+            return false;
+        }
+
+        String credential = findQueryValue(query, "X-Amz-Credential");
+        String signature = findQueryValue(query, "X-Amz-Signature");
+        String date = findQueryValue(query, "X-Amz-Date");
+        if (credential == null || signature == null || date == null) {
+            return false;
+        }
+        String decodedCredential = credential.replace("%2F", "/").replace("%2f", "/");
+        return AWS_CREDENTIAL_SCOPE.matcher(decodedCredential).matches()
+            && !signature.isBlank()
+            && date.matches("\\d{8}T\\d{6}Z");
+    }
+
+    private String findQueryValue(String rawQuery, String name) {
+        String prefix = name + "=";
+        for (String part : rawQuery.split("&")) {
+            if (part.startsWith(prefix)) {
+                return part.substring(prefix.length());
+            }
+        }
+        return null;
+    }
+
+    private boolean isInvalidPresignedUrlFailure(RuntimeException exception) {
+        String message = exception.getMessage();
+        return message != null && message.contains("INVALID_PRESIGNED_URL");
+    }
+
+    private String sanitizeUrlForLog(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) {
+            return "<empty>";
+        }
+        try {
+            URI uri = new URI(rawUrl.trim());
+            URI sanitized = new URI(
+                uri.getScheme(),
+                null,
+                uri.getHost(),
+                uri.getPort(),
+                uri.getPath(),
+                null,
+                null
+            );
+            return sanitized.toString();
+        } catch (URISyntaxException exception) {
+            return "<malformed>";
+        }
     }
 }

@@ -21,6 +21,8 @@ public class PublicEndpointsConfig {
             "/api/auth/**",
 
             // Internal microservice endpoints
+            "/internal/**",
+            "/api/internal/**",
             "**/internal/**",
 
             // Actuator endpoints

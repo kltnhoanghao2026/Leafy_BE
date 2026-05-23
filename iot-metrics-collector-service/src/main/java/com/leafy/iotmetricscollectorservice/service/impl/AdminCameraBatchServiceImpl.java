@@ -82,10 +82,10 @@ public class AdminCameraBatchServiceImpl implements AdminCameraBatchService {
         item.setOriginalFileName(file.getOriginalFilename());
         try {
             FileUploadResult uploaded = fileServiceClient.upload(file);
-            String presignedUrl = fileServiceClient.getPresignedUrl(uploaded.getId());
+            String fileUrl = fileServiceClient.getInternalDownloadUrl(uploaded.getId());
             DeviceMediaEvent mediaEvent = createMediaEvent(device, uploaded);
             item.setFileId(uploaded.getId());
-            item.setFileUrl(presignedUrl);
+            item.setFileUrl(fileUrl);
             item.setMediaEvent(toMediaResponse(mediaEvent));
             item.setStatus(DeviceMediaEventStatus.UPLOADED.name());
 
@@ -94,7 +94,7 @@ public class AdminCameraBatchServiceImpl implements AdminCameraBatchService {
                 detectRequest.setDeviceUid(device.getDeviceUid());
                 detectRequest.setMediaEventId(mediaEvent.getId());
                 detectRequest.setFileId(uploaded.getId());
-                detectRequest.setFileUrl(presignedUrl);
+                detectRequest.setFileUrl(fileUrl);
                 DeviceMediaAnalysisResponse analysis = analysisService.detect(detectRequest);
                 item.setAnalysis(analysis);
                 item.setStatus(analysis.getStatus());

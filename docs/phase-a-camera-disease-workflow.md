@@ -8,11 +8,13 @@ disease detection, and alert creation.
 Configure the collector with these properties:
 
 ```properties
-app.file-service.internal-upload-url=http://localhost:8080/internal/files/upload
-app.file-service.presigned-url-template=http://localhost:8080/files/presigned-url/%s
+app.file-service.upload-url=http://localhost:8084/internal/files/upload
 app.disease-detection.predict-url=http://localhost:8080/diseases/predict
 app.disease-detection.confidence-threshold=0.70
 ```
+
+Collector service-to-service calls use OpenFeign with Eureka discovery:
+`@FeignClient(name = "file-service", path = "/internal/files")`.
 
 The collector stores analysis state in `device_media_analysis`. A media event can
 have at most one analysis row, keyed by `media_event_id`.
@@ -32,7 +34,8 @@ Flow:
 1. Collector receives `files[]` and `deviceUid`.
 2. Collector uploads each file to File Service with multipart field `file`.
 3. Collector creates `DeviceMediaEvent` with `triggerType=ADMIN_UPLOAD` and `status=UPLOADED`.
-4. Collector requests a presigned URL for each `fileId`.
+4. Collector resolves `fileId` to `s3Key` through File Service and builds an
+   internal file-service download URL.
 5. If `autoDetect=true`, collector calls Disease Detection with the image file.
 6. If disease is detected, collector creates an `AlertEvent`.
 
@@ -121,6 +124,11 @@ void publishImageMeta(CaptureJob job, String status, String fileId, size_t sizeB
 ## Runtime notes
 
 - The collector does not duplicate analysis for the same `mediaEventId`.
+- The collector must download disease-detection images through file-service
+  internal endpoints: `/internal/files/{fileId}` to resolve metadata and
+  `/internal/files/download/s3-key?s3Key=...` to stream image bytes. It must not
+  pass public S3 object URLs or S3 presigned URLs from firmware or queued job
+  payloads directly to Disease Detection.
 - File Service and Disease Detection endpoints must be reachable from the
   collector process.
 - If those endpoints require user JWTs, add an internal service token or expose

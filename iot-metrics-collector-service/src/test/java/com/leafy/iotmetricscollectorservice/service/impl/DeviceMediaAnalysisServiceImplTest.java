@@ -72,7 +72,7 @@ class DeviceMediaAnalysisServiceImplTest {
         DeviceMediaEvent event = uploadedEvent(mediaEventId);
         when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
         when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.empty());
-        when(fileServiceClient.getPresignedUrl("file-1")).thenReturn("https://s3.test/file-1");
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn("https://s3.test/file-1");
 
         ImageAnalysisJob job = service.createPendingJob(mediaEventId);
 
@@ -81,6 +81,34 @@ class DeviceMediaAnalysisServiceImplTest {
         assertThat(job.getTriggerType()).isEqualTo(TriggerType.SCHEDULED.name());
         assertThat(job.getFileId()).isEqualTo("file-1");
         assertThat(job.getS3Url()).isEqualTo("https://s3.test/file-1");
+    }
+
+    @Test
+    void createPendingJob_trimsValidPresignedUrl() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent event = uploadedEvent(mediaEventId);
+        when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
+        when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.empty());
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn(" https://s3.test/file-1?X-Amz-Credential=secret ");
+
+        ImageAnalysisJob job = service.createPendingJob(mediaEventId);
+
+        assertThat(job).isNotNull();
+        assertThat(job.getS3Url()).isEqualTo("https://s3.test/file-1?X-Amz-Credential=secret");
+    }
+
+    @Test
+    void createPendingJob_skipsAndMarksFailedWhenPresignedUrlIsEmpty() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent event = uploadedEvent(mediaEventId);
+        when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
+        when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.empty());
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn(" ");
+
+        ImageAnalysisJob job = service.createPendingJob(mediaEventId);
+
+        assertThat(job).isNull();
+        verify(diseaseDetectionClient, never()).detect(any(), any());
     }
 
     @Test
@@ -94,7 +122,7 @@ class DeviceMediaAnalysisServiceImplTest {
         when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
 
         assertThat(service.createPendingJob(mediaEventId)).isNull();
-        verify(fileServiceClient, never()).getPresignedUrl(any());
+        verify(fileServiceClient, never()).getInternalDownloadUrl(any());
     }
 
     @Test
@@ -109,6 +137,7 @@ class DeviceMediaAnalysisServiceImplTest {
         analysis.setStatus(DeviceMediaAnalysisStatus.PENDING);
         when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
         when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn("https://s3.test/file-1");
 
         DiseaseDetectResponse detection = new DiseaseDetectResponse();
         detection.setDiseaseDetected(true);
@@ -137,6 +166,247 @@ class DeviceMediaAnalysisServiceImplTest {
     }
 
     @Test
+    void processJob_ignoresRawJobS3UrlAndUsesFreshPresignedUrl() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent event = uploadedEvent(mediaEventId);
+        DeviceMediaAnalysis analysis = new DeviceMediaAnalysis();
+        analysis.setMediaEvent(event);
+        analysis.setFileId("file-1");
+        analysis.setDeviceUid("device-001");
+        analysis.setStatus(DeviceMediaAnalysisStatus.PENDING);
+        when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
+        when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn("https://s3.test/fresh-file-1");
+
+        DiseaseDetectResponse detection = new DiseaseDetectResponse();
+        detection.setDiseaseDetected(false);
+        detection.setDiseaseName("healthy");
+        detection.setConfidence(0.95);
+        when(diseaseDetectionClient.detect("https://s3.test/fresh-file-1", "file-1")).thenReturn(detection);
+
+        service.processJob(ImageAnalysisJob.builder()
+            .mediaEventId(mediaEventId)
+            .deviceUid("device-001")
+            .requestId("request-1")
+            .triggerType(TriggerType.SCHEDULED.name())
+            .timestamp(event.getUploadedAt())
+            .fileId("file-1")
+            .s3Url("https://leafy-meida-storage.s3.ap-southeast-1.amazonaws.com/raw-file-1.jpg")
+            .build());
+
+        assertThat(analysis.getStatus()).isEqualTo(DeviceMediaAnalysisStatus.PROCESSED);
+        verify(diseaseDetectionClient).detect("https://s3.test/fresh-file-1", "file-1");
+        verify(diseaseDetectionClient, never()).detect("https://leafy-meida-storage.s3.ap-southeast-1.amazonaws.com/raw-file-1.jpg", "file-1");
+    }
+
+    @Test
+    void processJob_skipsAndMarksFailedWhenFreshPresignedUrlPointsToLocalhost() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent event = uploadedEvent(mediaEventId);
+        DeviceMediaAnalysis analysis = new DeviceMediaAnalysis();
+        analysis.setMediaEvent(event);
+        analysis.setFileId("file-1");
+        analysis.setDeviceUid("device-001");
+        analysis.setStatus(DeviceMediaAnalysisStatus.PENDING);
+        when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
+        when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn("http://localhost:8084/internal/files/presigned-url/file-1");
+
+        service.processJob(ImageAnalysisJob.builder()
+            .mediaEventId(mediaEventId)
+            .deviceUid("device-001")
+            .requestId("request-1")
+            .triggerType(TriggerType.SCHEDULED.name())
+            .timestamp(event.getUploadedAt())
+            .fileId("file-1")
+            .s3Url("https://s3.test/stale-file-1")
+            .build());
+
+        assertThat(analysis.getStatus()).isEqualTo(DeviceMediaAnalysisStatus.FAILED);
+        assertThat(analysis.getError()).isEqualTo("INVALID_PRESIGNED_URL");
+        verify(diseaseDetectionClient, never()).detect(any(), any());
+    }
+
+    @Test
+    void processJob_skipsAndMarksFailedWhenFreshPresignedUrlIsEmpty() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent event = uploadedEvent(mediaEventId);
+        DeviceMediaAnalysis analysis = new DeviceMediaAnalysis();
+        analysis.setMediaEvent(event);
+        analysis.setFileId("file-1");
+        analysis.setDeviceUid("device-001");
+        analysis.setStatus(DeviceMediaAnalysisStatus.PENDING);
+        when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
+        when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn(" ");
+
+        service.processJob(ImageAnalysisJob.builder()
+            .mediaEventId(mediaEventId)
+            .deviceUid("device-001")
+            .requestId("request-1")
+            .triggerType(TriggerType.SCHEDULED.name())
+            .timestamp(event.getUploadedAt())
+            .fileId("file-1")
+            .s3Url("https://s3.test/stale-file-1")
+            .build());
+
+        assertThat(analysis.getStatus()).isEqualTo(DeviceMediaAnalysisStatus.FAILED);
+        assertThat(analysis.getError()).isEqualTo("INVALID_PRESIGNED_URL");
+        verify(diseaseDetectionClient, never()).detect(any(), any());
+    }
+
+    @Test
+    void processJob_skipsAndMarksFailedWhenFreshPresignedUrlPointsToLoopbackIp() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent event = uploadedEvent(mediaEventId);
+        DeviceMediaAnalysis analysis = new DeviceMediaAnalysis();
+        analysis.setMediaEvent(event);
+        analysis.setFileId("file-1");
+        analysis.setDeviceUid("device-001");
+        analysis.setStatus(DeviceMediaAnalysisStatus.PENDING);
+        when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
+        when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn("http://127.0.0.1:8084/internal/files/presigned-url/file-1");
+
+        service.processJob(ImageAnalysisJob.builder()
+            .mediaEventId(mediaEventId)
+            .deviceUid("device-001")
+            .requestId("request-1")
+            .triggerType(TriggerType.SCHEDULED.name())
+            .timestamp(event.getUploadedAt())
+            .fileId("file-1")
+            .s3Url("https://s3.test/stale-file-1")
+            .build());
+
+        assertThat(analysis.getStatus()).isEqualTo(DeviceMediaAnalysisStatus.FAILED);
+        assertThat(analysis.getError()).isEqualTo("INVALID_PRESIGNED_URL");
+        verify(diseaseDetectionClient, never()).detect(any(), any());
+    }
+
+    @Test
+    void processJob_skipsAndMarksFailedWhenFreshS3UrlHasNoPresignedQuery() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent event = uploadedEvent(mediaEventId);
+        DeviceMediaAnalysis analysis = new DeviceMediaAnalysis();
+        analysis.setMediaEvent(event);
+        analysis.setFileId("file-1");
+        analysis.setDeviceUid("device-001");
+        analysis.setStatus(DeviceMediaAnalysisStatus.PENDING);
+        when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
+        when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn("https://leafy-meida-storage.s3.ap-southeast-1.amazonaws.com/a08b07d8-leafy-capture.jpg");
+
+        service.processJob(ImageAnalysisJob.builder()
+            .mediaEventId(mediaEventId)
+            .deviceUid("device-001")
+            .requestId("request-1")
+            .triggerType(TriggerType.SCHEDULED.name())
+            .timestamp(event.getUploadedAt())
+            .fileId("file-1")
+            .s3Url("https://s3.test/stale-file-1")
+            .build());
+
+        assertThat(analysis.getStatus()).isEqualTo(DeviceMediaAnalysisStatus.FAILED);
+        assertThat(analysis.getError()).isEqualTo("INVALID_PRESIGNED_URL");
+        verify(diseaseDetectionClient, never()).detect(any(), any());
+    }
+
+    @Test
+    void processJob_skipsAndMarksFailedWhenFreshS3CredentialScopeIsMalformed() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent event = uploadedEvent(mediaEventId);
+        DeviceMediaAnalysis analysis = new DeviceMediaAnalysis();
+        analysis.setMediaEvent(event);
+        analysis.setFileId("file-1");
+        analysis.setDeviceUid("device-001");
+        analysis.setStatus(DeviceMediaAnalysisStatus.PENDING);
+        when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
+        when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
+        when(fileServiceClient.getInternalDownloadUrl("file-1"))
+            .thenReturn("https://leafy-meida-storage.s3.ap-southeast-1.amazonaws.com/a08b07d8-leafy-capture.jpg?X-Amz-Credential=YOUR-AKID&X-Amz-Date=20260521T063021Z&X-Amz-Signature=abc");
+
+        service.processJob(ImageAnalysisJob.builder()
+            .mediaEventId(mediaEventId)
+            .deviceUid("device-001")
+            .requestId("request-1")
+            .triggerType(TriggerType.SCHEDULED.name())
+            .timestamp(event.getUploadedAt())
+            .fileId("file-1")
+            .s3Url("https://s3.test/stale-file-1")
+            .build());
+
+        assertThat(analysis.getStatus()).isEqualTo(DeviceMediaAnalysisStatus.FAILED);
+        assertThat(analysis.getError()).isEqualTo("INVALID_PRESIGNED_URL");
+        verify(diseaseDetectionClient, never()).detect(any(), any());
+    }
+
+    @Test
+    void processJob_acceptsValidFreshS3PresignedCredentialScope() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent event = uploadedEvent(mediaEventId);
+        DeviceMediaAnalysis analysis = new DeviceMediaAnalysis();
+        analysis.setMediaEvent(event);
+        analysis.setFileId("file-1");
+        analysis.setDeviceUid("device-001");
+        analysis.setStatus(DeviceMediaAnalysisStatus.PENDING);
+        when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
+        when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
+
+        String s3Url = "https://leafy-meida-storage.s3.ap-southeast-1.amazonaws.com/a08b07d8-leafy-capture.jpg"
+            + "?X-Amz-Credential=AKIAEXAMPLE%2F20260521%2Fap-southeast-1%2Fs3%2Faws4_request"
+            + "&X-Amz-Date=20260521T063021Z"
+            + "&X-Amz-Signature=abc";
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn(s3Url);
+        DiseaseDetectResponse detection = new DiseaseDetectResponse();
+        detection.setDiseaseDetected(false);
+        detection.setDiseaseName("healthy");
+        detection.setConfidence(0.95);
+        when(diseaseDetectionClient.detect(s3Url, "file-1")).thenReturn(detection);
+
+        service.processJob(ImageAnalysisJob.builder()
+            .mediaEventId(mediaEventId)
+            .deviceUid("device-001")
+            .requestId("request-1")
+            .triggerType(TriggerType.SCHEDULED.name())
+            .timestamp(event.getUploadedAt())
+            .fileId("file-1")
+            .s3Url("https://s3.test/stale-file-1")
+            .build());
+
+        assertThat(analysis.getStatus()).isEqualTo(DeviceMediaAnalysisStatus.PROCESSED);
+        verify(diseaseDetectionClient).detect(s3Url, "file-1");
+    }
+
+    @Test
+    void detect_ignoresProvidedFileUrlAndUsesFreshPresignedUrl() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent event = uploadedEvent(mediaEventId);
+        DeviceMediaAnalysis analysis = new DeviceMediaAnalysis();
+        analysis.setMediaEvent(event);
+        analysis.setFileId("file-1");
+        analysis.setDeviceUid("device-001");
+        analysis.setStatus(DeviceMediaAnalysisStatus.PENDING);
+        when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
+        when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn("https://s3.test/fresh-file-1");
+
+        DiseaseDetectResponse detection = new DiseaseDetectResponse();
+        detection.setDiseaseDetected(false);
+        detection.setDiseaseName("healthy");
+        detection.setConfidence(0.95);
+        when(diseaseDetectionClient.detect("https://s3.test/fresh-file-1", "file-1")).thenReturn(detection);
+
+        DiseaseDetectRequest request = new DiseaseDetectRequest();
+        request.setMediaEventId(mediaEventId);
+        request.setFileUrl("https://leafy-meida-storage.s3.ap-southeast-1.amazonaws.com/raw-file-1.jpg");
+
+        var response = service.detect(request);
+
+        assertThat(response.getStatus()).isEqualTo(DeviceMediaAnalysisStatus.PROCESSED.name());
+        verify(diseaseDetectionClient).detect("https://s3.test/fresh-file-1", "file-1");
+    }
+
+    @Test
     void detect_forceReprocessesExistingAnalysisWithoutDuplicatingExistingAlert() {
         UUID mediaEventId = UUID.randomUUID();
         DeviceMediaEvent event = uploadedEvent(mediaEventId);
@@ -149,7 +419,7 @@ class DeviceMediaAnalysisServiceImplTest {
         analysis.setAlertEvent(new AlertEvent());
         when(mediaEventRepository.findById(mediaEventId)).thenReturn(Optional.of(event));
         when(analysisRepository.findByMediaEventId(mediaEventId)).thenReturn(Optional.of(analysis));
-        when(fileServiceClient.getPresignedUrl("file-1")).thenReturn("https://s3.test/file-1");
+        when(fileServiceClient.getInternalDownloadUrl("file-1")).thenReturn("https://s3.test/file-1");
 
         DiseaseDetectResponse detection = new DiseaseDetectResponse();
         detection.setDiseaseDetected(true);

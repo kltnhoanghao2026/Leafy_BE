@@ -21,9 +21,12 @@ public class DeviceCameraScheduleRunner {
     private final DeviceCameraScheduleService scheduleService;
 
     /**
-     * Scans once per minute for schedules whose nextRunAt is due.
+     * Scans frequently for schedules whose nextRunAt is due. The fixed rate is
+     * configurable because users expect a time-of-day schedule to fire close to
+     * the selected minute, while each schedule row is still protected by the
+     * DB-level lock in the service layer.
      */
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(fixedRateString = "${app.camera-schedule.scan-fixed-rate-ms:10000}")
     public void runDueSchedules() {
         try {
             scheduleService.triggerSchedules();

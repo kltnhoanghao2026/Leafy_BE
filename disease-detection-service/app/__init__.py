@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.controllers import router as api_router
+from app.controllers.internal_prediction_controller import router as internal_prediction_router
 from app.config.config import config
 from app.exceptions.app_exception import AppException
 from app.exceptions.global_exception_handler import (
@@ -36,6 +37,7 @@ app.exception_handler(Exception)(general_exception_handler)
 
 # Include API routers
 app.include_router(api_router)
+app.include_router(internal_prediction_router)
 
 
 @app.get("/")
