@@ -12,6 +12,11 @@ spring:
 
 server:
   port: ${SERVER_PORT:8099}
+  cors:
+    allowed-origins: "*"
+    allowed-methods: "*"
+    allowed-headers: "*"
+    allow-credentials: false
 
 seed:
   collector:

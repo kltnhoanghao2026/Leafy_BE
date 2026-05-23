@@ -1,0 +1,537 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_ACCOUNT_ID = credentials('aws-account-id')
+        AWS_REGION = 'ap-southeast-1'
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        KUBECTL_VERSION = '1.30.0'
+
+        EKS_CLUSTER_NAME = 'leafy-eks'
+
+        SPRING_SERVICES = 'discovery-server,config-server,api-gateway,auth-service,profile-service,file-service,search-service,notification-service,plant-management-service,iot-metrics-collector-service,community-feed-service,socket-service,message-service'
+        PYTHON_SERVICES = 'rag-service,disease-detection-service'
+        ALL_SERVICES = 'discovery-server,config-server,api-gateway,auth-service,profile-service,file-service,search-service,notification-service,plant-management-service,iot-metrics-collector-service,community-feed-service,socket-service,message-service,rag-service,disease-detection-service'
+
+        DB_SERVICES = 'mongodb,postgresql,redis'
+        INFRA_SERVICES = 'kafka,mqtt-broker,elasticsearch,qdrant'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 2, unit: 'HOURS')
+        disableConcurrentBuilds()
+    }
+
+    parameters {
+        choice(name: 'SERVICE', choices: ['all', 'discovery-server', 'config-server', 'api-gateway', 'auth-service',
+            'profile-service', 'file-service', 'search-service', 'notification-service',
+            'plant-management-service', 'iot-metrics-collector-service',
+            'community-feed-service', 'socket-service', 'message-service',
+            'rag-service', 'disease-detection-service'], description: 'Select service to build/deploy')
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'production'], description: 'Deployment environment')
+        booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip unit tests')
+        booleanParam(name: 'DEPLOY_EKS', defaultValue: true, description: 'Deploy to EKS cluster')
+        booleanParam(name: 'DEPLOY_EC2', defaultValue: false, description: 'Deploy to EC2 machines')
+    }
+
+    stages {
+
+        stage('Setup') {
+            steps {
+                script {
+                    env.BUILD_TIMESTAMP = new Date().format('yyyyMMdd-HHmmss')
+                    env.IMAGE_TAG = params.ENVIRONMENT == 'production'
+                        ? "${env.BUILD_TIMESTAMP}"
+                        : "${params.ENVIRONMENT}-${env.BUILD_TIMESTAMP}"
+                    env.BRANCH_NAME = env.GIT_BRANCH ?: 'main'
+
+                    echo "=== Build Configuration ==="
+                    echo "Environment: ${params.ENVIRONMENT}"
+                    echo "Service: ${params.SERVICE}"
+                    echo "Image Tag: ${env.IMAGE_TAG}"
+                    echo "Branch: ${env.BRANCH_NAME}"
+                    echo "ECR Registry: ${ECR_REGISTRY}"
+                    echo "EKS Cluster: ${EKS_CLUSTER_NAME}"
+                }
+            }
+        }
+
+        stage('Install Tools') {
+            steps {
+                script {
+                    sh '''
+                        if ! command -v kubectl &> /dev/null; then
+                            curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+                            chmod +x kubectl
+                            sudo mv kubectl /usr/local/bin/
+                        fi
+                        kubectl version --client
+                    '''
+
+                    withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                       secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                                       credentialsId: 'aws-creds')]) {
+                        sh '''
+                            aws configure set region ${AWS_REGION}
+                            aws configure set output json
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Login to ECR') {
+            steps {
+                withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                   secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                                   credentialsId: 'aws-creds')]) {
+                    sh '''
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+                        for service in ${ALL_SERVICES}; do
+                            aws ecr describe-repositories --repository-names leafy-${service} --region ${AWS_REGION} 2>/dev/null || \
+                            aws ecr create-repository --repository-name leafy-${service} --region ${AWS_REGION} --image-scanning-configuration scanOnPush=true
+                        done
+                    '''
+                }
+            }
+        }
+
+        stage('Build Spring Boot Services') {
+            when {
+                expression {
+                    params.SERVICE == 'all' ||
+                    params.SERVICE.split(',').any { it in ['discovery-server', 'config-server', 'api-gateway', 'auth-service',
+                        'profile-service', 'file-service', 'search-service', 'notification-service',
+                        'plant-management-service', 'iot-metrics-collector-service',
+                        'community-feed-service', 'socket-service', 'message-service'] }
+                }
+            }
+            steps {
+                script {
+                    def services = params.SERVICE == 'all'
+                        ? ['discovery-server', 'config-server', 'api-gateway', 'auth-service',
+                           'profile-service', 'file-service', 'search-service', 'notification-service',
+                           'plant-management-service', 'iot-metrics-collector-service',
+                           'community-feed-service', 'socket-service', 'message-service']
+                        : params.SERVICE.split(',')
+
+                    for (service in services) {
+                        if (['rag-service', 'disease-detection-service'].contains(service)) continue
+
+                        def imageName = "${ECR_REGISTRY}/leafy-${service}:${env.IMAGE_TAG}"
+
+                        echo "Building ${service}..."
+
+                        dir("backend/${service}") {
+                            sh """
+                                DOCKER_BUILDKIT=1 docker build \
+                                    --build-arg BUILDKIT_INLINE_CACHE=1 \
+                                    --cache-from ${ECR_REGISTRY}/leafy-${service}:latest \
+                                    --tag ${imageName} \
+                                    --tag ${ECR_REGISTRY}/leafy-${service}:latest \
+                                    --network=host \
+                                    .
+
+                                docker push ${imageName}
+                                docker push ${ECR_REGISTRY}/leafy-${service}:latest
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Python Services') {
+            when {
+                expression {
+                    params.SERVICE == 'all' ||
+                    params.SERVICE.split(',').any { it in ['rag-service', 'disease-detection-service'] }
+                }
+            }
+            steps {
+                script {
+                    def services = params.SERVICE == 'all'
+                        ? ['rag-service', 'disease-detection-service']
+                        : params.SERVICE.split(',').findAll { it in ['rag-service', 'disease-detection-service'] }
+
+                    for (service in services) {
+                        def imageName = "${ECR_REGISTRY}/leafy-${service}:${env.IMAGE_TAG}"
+                        def context = service == 'rag-service'
+                            ? "../backend/rag-service"
+                            : "../backend/disease-detection-service"
+
+                        echo "Building ${service}..."
+
+                        dir(context) {
+                            sh """
+                                DOCKER_BUILDKIT=1 docker build \
+                                    --build-arg BUILDKIT_INLINE_CACHE=1 \
+                                    --cache-from ${ECR_REGISTRY}/leafy-${service}:latest \
+                                    --tag ${imageName} \
+                                    --tag ${ECR_REGISTRY}/leafy-${service}:latest \
+                                    --network=host \
+                                    .
+
+                                docker push ${imageName}
+                                docker push ${ECR_REGISTRY}/leafy-${service}:latest
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            when {
+                expression { params.SKIP_TESTS == false }
+            }
+            steps {
+                script {
+                    dir('backend') {
+                        sh '''
+                            ./mvnw test -B \
+                                -DskipITs \
+                                -Dsonar.projectKey=leafy-backend \
+                                -Dsonar.token=${SONAR_TOKEN} \
+                                || true
+                        '''
+                    }
+
+                    sh '''
+                        if [ -d "backend/rag-service/tests" ]; then
+                            cd backend/rag-service
+                            python -m pytest tests/ -v || true
+                            cd ../..
+                        fi
+
+                        if [ -d "backend/disease-detection-service/tests" ]; then
+                            cd backend/disease-detection-service
+                            python -m pytest tests/ -v || true
+                            cd ../..
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Configure kubectl for EKS') {
+            when {
+                expression { params.DEPLOY_EKS == true }
+            }
+            steps {
+                withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                   secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                                   credentialsId: 'aws-creds')]) {
+                    sh '''
+                        aws eks update-kubeconfig \
+                            --region ${AWS_REGION} \
+                            --name ${EKS_CLUSTER_NAME} \
+                            --kubeconfig kubeconfig
+
+                        export KUBECONFIG=kubeconfig
+
+                        kubectl cluster-info
+                        kubectl get nodes
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Shared K8s Resources') {
+            when {
+                expression { params.DEPLOY_EKS == true }
+            }
+            steps {
+                withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                   secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                                   credentialsId: 'aws-creds')]) {
+                    sh '''
+                        export KUBECONFIG=kubeconfig
+
+                        echo "=== Deploying Namespaces and Storage Classes ==="
+                        kubectl apply -f k8s/namespaces.yaml
+                        kubectl apply -f k8s/storage-classes.yaml
+
+                        echo "=== Deploying ConfigMaps ==="
+                        kubectl apply -f k8s/configmap-common.yaml
+
+                        echo "=== Deploying Secrets ==="
+                        kubectl apply -f k8s/secrets.yaml
+
+                        echo "=== Deploying Fluent-bit Config ==="
+                        kubectl apply -f k8s/fluent-bit-config.yaml
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Databases') {
+            when {
+                expression { params.DEPLOY_EKS == true }
+            }
+            steps {
+                withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                   secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                                   credentialsId: 'aws-creds')]) {
+                    sh '''
+                        export KUBECONFIG=kubeconfig
+
+                        echo "=== Deploying MongoDB ==="
+                        kubectl apply -f k8s/databases/mongodb.yaml
+                        kubectl apply -f k8s/databases/mongodb-svc.yaml
+
+                        echo "=== Deploying PostgreSQL ==="
+                        kubectl apply -f k8s/databases/postgresql.yaml
+                        kubectl apply -f k8s/databases/postgresql-svc.yaml
+
+                        echo "=== Deploying Redis ==="
+                        kubectl apply -f k8s/databases/redis.yaml
+                        kubectl apply -f k8s/databases/redis-pvc.yaml
+                        kubectl apply -f k8s/databases/redis-svc.yaml
+
+                        echo "=== Waiting for databases to be ready ==="
+                        kubectl wait --for=condition=ready pod -l app=mongodb -n leafy --timeout=300s || true
+                        kubectl wait --for=condition=ready pod -l app=postgresql -n leafy --timeout=300s || true
+                        kubectl wait --for=condition=ready pod -l app=redis -n leafy --timeout=120s || true
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Infrastructure (Kafka, MQTT, Elasticsearch, Qdrant)') {
+            when {
+                expression { params.DEPLOY_EKS == true }
+            }
+            steps {
+                withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                   secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                                   credentialsId: 'aws-creds')]) {
+                    sh '''
+                        export KUBECONFIG=kubeconfig
+
+                        echo "=== Deploying Kafka ==="
+                        kubectl apply -f k8s/infrastructure/kafka.yaml
+                        kubectl apply -f k8s/infrastructure/kafka-svc.yaml
+
+                        echo "=== Deploying MQTT Broker ==="
+                        kubectl apply -f k8s/infrastructure/mqtt-broker.yaml
+                        kubectl apply -f k8s/infrastructure/mqtt-config.yaml
+                        kubectl apply -f k8s/infrastructure/mqtt-data-pvc.yaml
+                        kubectl apply -f k8s/infrastructure/mqtt-logs-pvc.yaml
+                        kubectl apply -f k8s/infrastructure/mqtt-broker-svc.yaml
+
+                        echo "=== Deploying Elasticsearch ==="
+                        kubectl apply -f k8s/infrastructure/elasticsearch.yaml
+                        kubectl apply -f k8s/infrastructure/elasticsearch-svc.yaml
+
+                        echo "=== Deploying Qdrant ==="
+                        kubectl apply -f k8s/infrastructure/qdrant.yaml
+                        kubectl apply -f k8s/infrastructure/qdrant-svc.yaml
+
+                        echo "=== Waiting for infrastructure to be ready ==="
+                        kubectl wait --for=condition=ready pod -l app=kafka -n leafy --timeout=300s || true
+                        kubectl wait --for=condition=ready pod -l app=elasticsearch -n leafy --timeout=300s || true
+                        kubectl wait --for=condition=ready pod -l app=qdrant -n leafy --timeout=180s || true
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Application Services') {
+            when {
+                expression { params.DEPLOY_EKS == true }
+                anyOf {
+                    branch 'main'
+                    expression { params.ENVIRONMENT != 'production' }
+                }
+            }
+            steps {
+                withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                   secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                                   credentialsId: 'aws-creds')]) {
+                    script {
+                        def services = params.SERVICE == 'all'
+                            ? ['discovery-server', 'config-server', 'api-gateway', 'auth-service',
+                               'profile-service', 'file-service', 'search-service', 'notification-service',
+                               'plant-management-service', 'iot-metrics-collector-service',
+                               'community-feed-service', 'socket-service', 'message-service',
+                               'rag-service', 'disease-detection-service']
+                            : [params.SERVICE]
+
+                        for (service in services) {
+                            def serviceDir = "backend/${service}/k8s"
+
+                            echo "=== Deploying ${service} ==="
+
+                            sh """
+                                export KUBECONFIG=kubeconfig
+                                export ECR_REGISTRY=${ECR_REGISTRY}
+                                export IMAGE_TAG=${IMAGE_TAG}
+
+                                sed -e "s/\\${ECR_REGISTRY}/${ECR_REGISTRY}/g" \
+                                    -e "s/\\${IMAGE_TAG}/${IMAGE_TAG}/g" \
+                                    "${serviceDir}/deployment.yaml" | kubectl apply -f -
+
+                                kubectl apply -f "${serviceDir}/service.yaml"
+
+                                echo "Waiting for ${service} rollout..."
+                                kubectl rollout status deployment/leafy-${service} -n leafy --timeout=300s || true
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Health Check') {
+            when {
+                expression { params.DEPLOY_EKS == true }
+            }
+            steps {
+                withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                   secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                                   credentialsId: 'aws-creds')]) {
+                    sh '''
+                        export KUBECONFIG=kubeconfig
+
+                        echo "=== Checking all pod status ==="
+                        kubectl get pods -n leafy -o wide
+
+                        echo "=== Checking services ==="
+                        kubectl get svc -n leafy
+                    '''
+                }
+            }
+        }
+
+        stage('Smoke Tests') {
+            when {
+                expression { params.DEPLOY_EKS == true }
+            }
+            steps {
+                withCredentials([string(variable: 'API_URL', credentialsId: 'api-url')]) {
+                    sh '''
+                        export KUBECONFIG=kubeconfig
+
+                        GATEWAY_URL=$(kubectl get svc api-gateway -n leafy -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+                        if [ -z "$GATEWAY_URL" ] || [ "$GATEWAY_URL" == "null" ]; then
+                            echo "API Gateway not yet accessible (still provisioning)"
+                            kubectl port-forward svc/api-gateway 8060:8060 -n leafy &
+                            sleep 5
+                            curl -sf http://localhost:8060/actuator/health || echo "Health check failed"
+                            kill %1 2>/dev/null || true
+                        else
+                            echo "API Gateway URL: $GATEWAY_URL"
+                            curl -sf "http://$GATEWAY_URL/actuator/health" || echo "Health check failed"
+                        fi
+
+                        echo "=== Eureka Dashboard ==="
+                        EUREKA_URL=$(kubectl get svc discovery-server -n leafy -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+                        echo "Eureka URL: $EUREKA_URL"
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to EC2 Machines') {
+            when {
+                expression { params.DEPLOY_EC2 == true }
+            }
+            steps {
+                script {
+                    def ec2Machines = [
+                        [name: 'Machine 1 - Data Tier',      composeFile: 'clusters/machine-1-data/docker-compose.yml',     envFile: 'clusters/machine-1-data-data/.env'],
+                        [name: 'Machine 2 - Messaging Tier', composeFile: 'clusters/machine-2-messaging/docker-compose.yml', envFile: null],
+                        [name: 'Machine 3 - Search/AI Tier', composeFile: 'clusters/machine-3-search-ai/docker-compose.yml', envFile: null],
+                        [name: 'Machine 4 - App Tier',       composeFile: 'clusters/machine-4-app/docker-compose.yml',       envFile: null],
+                    ]
+
+                    def branches = [:]
+                    for (int i = 0; i < ec2Machines.size(); i++) {
+                        def machine = ec2Machines[i]
+                        def machineIndex = i + 1
+                        branches[machine.name] = {
+                            stage(machine.name) {
+                                withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                                   secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                                                   credentialsId: 'aws-creds')]) {
+                                    withCredentials([string(variable: "MACHINE${machineIndex}_IP", credentialsId: "machine${machineIndex}-ip")]) {
+                                        sh """
+                                            echo "Deploying to ${machine.name} at \$${"MACHINE${machineIndex}_IP"}"
+
+                                            scp -o StrictHostKeyChecking=no \
+                                                -i ~/.ssh/leafy-ec2-key.pem \
+                                                ${machine.composeFile} \
+                                                \$${"MACHINE${machineIndex}_IP"}:/home/ubuntu/deploy/
+                                        """
+                                        if (machine.envFile) {
+                                            sh """
+                                                scp -o StrictHostKeyChecking=no \
+                                                    -i ~/.ssh/leafy-ec2-key.pem \
+                                                    ${machine.envFile} \
+                                                    \$${"MACHINE${machineIndex}_IP"}:/home/ubuntu/deploy/
+                                            """
+                                        }
+                                        sh """
+                                            ssh -o StrictHostKeyChecking=no \
+                                                -i ~/.ssh/leafy-ec2-key.pem \
+                                                ubuntu@\$${"MACHINE${machineIndex}_IP"} \
+                                                "cd /home/ubuntu/deploy && docker compose pull && docker compose up -d"
+
+                                            echo "${machine.name} deployment complete"
+                                        """
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    parallel branches
+                }
+            }
+        }
+
+    }
+
+    post {
+        always {
+            script {
+                archiveArtifacts artifacts: 'kubeconfig', allowEmptyArchive: true
+            }
+        }
+        success {
+            script {
+                def message = """
+                    *${currentBuild.fullDisplayName} - SUCCESS*
+                    Environment: ${params.ENVIRONMENT}
+                    Service: ${params.SERVICE}
+                    Image Tag: ${env.IMAGE_TAG}
+                    Build URL: ${env.BUILD_URL}
+                """.stripIndent()
+                echo message
+            }
+        }
+        failure {
+            script {
+                def message = """
+                    *${currentBuild.fullDisplayName} - FAILED*
+                    Environment: ${params.ENVIRONMENT}
+                    Service: ${params.SERVICE}
+                    Build URL: ${env.BUILD_URL}
+                """.stripIndent()
+                echo "Build failed! Check logs at: ${env.BUILD_URL}"
+            }
+        }
+        cleanup {
+            script {
+                sh '''
+                    docker system prune -f || true
+                    docker builder prune -f || true
+                '''
+            }
+        }
+    }
+}

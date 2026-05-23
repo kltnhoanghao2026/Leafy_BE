@@ -149,7 +149,7 @@ services:
     networks:
       - leafy-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -852,106 +852,106 @@ services:
   # ===========================================
   # AI SERVICES
   # ===========================================
-  # rag-service:
-  #   build:
-  #     context: ../rag-service
-  #     dockerfile: Dockerfile
-  #   container_name: rag-service
-  #   hostname: rag-service
-  #   restart: unless-stopped
-  #   depends_on:
-  #     qdrant:
-  #       condition: service_healthy
-  #     discovery-server:
-  #       condition: service_healthy
-  #     config-server:
-  #       condition: service_healthy
-  #   environment:
-  #     SERVER_PORT: ${SERVER_PORT_RAG:-8199}
-  #     SPRING_APPLICATION_NAME: ${SPRING_APPLICATION_NAME:-rag-service}
-  #     HOSTNAME: rag-service
-  #     EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
-  #     API_GATEWAY_URL: ${API_GATEWAY_URL:-http://api-gateway:8080}
-  #     MONGODB_HOST: mongodb
-  #     MONGODB_PORT: 27017
-  #     MONGODB_USERNAME: admin
-  #     MONGODB_PASSWORD: admin123
-  #     MONGODB_DATABASE_RAG: ${MONGODB_DATABASE_RAG:-leafy_rag}
-  #     QDRANT_URL: http://qdrant:6333
-  #     QDRANT_API_KEY: ${QDRANT_API_KEY:-}
-  #     FILE_SERVICE_URL: ${FILE_SERVICE_URL:-http://file-service:8084}
-  #     UNSTRUCTURED_STRATEGY: ${UNSTRUCTURED_STRATEGY:-fast}
-  #     CHUNK_SIZE: ${CHUNK_SIZE:-1000}
-  #     CHUNK_OVERLAP: ${CHUNK_OVERLAP:-200}
-  #     MARKDOWN_CHUNK_SIZE: ${MARKDOWN_CHUNK_SIZE:-2000}
-  #     MARKDOWN_CHUNK_OVERLAP: ${MARKDOWN_CHUNK_OVERLAP:-300}
-  #     OPENAI_API_KEY: ${OPENAI_API_KEY}
-  #     LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
-  #     LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-  #     LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-rag-service}
-  #     GOOGLE_API_KEY: ${GOOGLE_API_KEY}
-  #     TAVILY_API_KEY: ${TAVILY_API_KEY}
-  #     CHAT_MODEL: ${CHAT_MODEL:-gpt-4o-mini}
-  #     FAST_MODEL: ${FAST_MODEL:-gpt-4o-mini}
-  #     DEEP_MODEL: ${DEEP_MODEL:-gpt-4o}
-  #     RERANKER_MODEL: ${RERANKER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
-  #     CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.6}
-  #     COMPLETENESS_THRESHOLD: ${COMPLETENESS_THRESHOLD:-0.6}
-  #     MAX_REFINEMENT_ATTEMPTS: ${MAX_REFINEMENT_ATTEMPTS:-5}
-  #   ports:
-  #     - "${SERVER_PORT_RAG:-8199}:8199"
-  #   networks:
-  #     - leafy-network
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -sf http://localhost:8199/health || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 10
-  #     start_period: 40s
+  rag-service:
+    build:
+      context: ../rag-service
+      dockerfile: Dockerfile
+    container_name: rag-service
+    hostname: rag-service
+    restart: unless-stopped
+    depends_on:
+      qdrant:
+        condition: service_started
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: ${SERVER_PORT_RAG:-8199}
+      SPRING_APPLICATION_NAME: ${SPRING_APPLICATION_NAME:-rag-service}
+      HOSTNAME: rag-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      API_GATEWAY_URL: ${API_GATEWAY_URL:-http://api-gateway:8080}
+      MONGODB_HOST: mongodb
+      MONGODB_PORT: 27017
+      MONGODB_USERNAME: admin
+      MONGODB_PASSWORD: admin123
+      MONGODB_DATABASE_RAG: ${MONGODB_DATABASE_RAG:-leafy_rag}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      FILE_SERVICE_URL: ${FILE_SERVICE_URL:-http://file-service:8084}
+      UNSTRUCTURED_STRATEGY: ${UNSTRUCTURED_STRATEGY:-fast}
+      CHUNK_SIZE: ${CHUNK_SIZE:-1000}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-200}
+      MARKDOWN_CHUNK_SIZE: ${MARKDOWN_CHUNK_SIZE:-2000}
+      MARKDOWN_CHUNK_OVERLAP: ${MARKDOWN_CHUNK_OVERLAP:-300}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-rag-service}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      CHAT_MODEL: ${CHAT_MODEL:-gpt-4o-mini}
+      FAST_MODEL: ${FAST_MODEL:-gpt-4o-mini}
+      DEEP_MODEL: ${DEEP_MODEL:-gpt-4o}
+      RERANKER_MODEL: ${RERANKER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.6}
+      COMPLETENESS_THRESHOLD: ${COMPLETENESS_THRESHOLD:-0.6}
+      MAX_REFINEMENT_ATTEMPTS: ${MAX_REFINEMENT_ATTEMPTS:-5}
+    ports:
+      - "${SERVER_PORT_RAG:-8199}:8199"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8199/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
 
-  # disease-detection-service:
-  #   build:
-  #     context: ../disease-detection-service
-  #     dockerfile: Dockerfile
-  #   container_name: disease-detection-service
-  #   hostname: disease-detection-service
-  #   restart: unless-stopped
-  #   depends_on:
-  #     mongodb:
-  #       condition: service_started
-  #     discovery-server:
-  #       condition: service_healthy
-  #     config-server:
-  #       condition: service_healthy
-  #   environment:
-  #     PORT: ${SERVER_PORT_DISEASE:-8090}
-  #     SPRING_APPLICATION_NAME: ${SPRING_APPLICATION_NAME:-disease-detection-service}
-  #     HOSTNAME: disease-detection-service
-  #     EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
-  #     SERVICE_NAME: ${SERVICE_NAME:-Disease Detection Service}
-  #     MODEL_NAME: ${MODEL_NAME:-Coffee-MobileNetV2}
-  #     MODEL_PATH: ${MODEL_PATH:-weights/coffee_mobilenetv2_prod_final.keras}
-  #     MODEL_TOP_K: ${MODEL_TOP_K:-3}
-  #     YOLO_MODEL_PATH: ${YOLO_MODEL_PATH:-weights/yolo/best.pt}
-  #     FILE_SERVICE_URL: ${FILE_SERVICE_URL:-http://file-service:8084}
-  #     LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  #     TF_CPP_MIN_LOG_LEVEL: ${TF_CPP_MIN_LOG_LEVEL:-2}
-  #     MONGODB_HOST: mongodb
-  #     MONGODB_PORT: 27017
-  #     MONGODB_USERNAME: admin
-  #     MONGODB_PASSWORD: admin123
-  #     MONGODB_DATABASE_DISEASE: ${MONGODB_DATABASE_DISEASE:-leafy_disease}
-  #     ENV_STATE: ${ENV_STATE:-dev}
-  #   ports:
-  #     - "${SERVER_PORT_DISEASE:-8090}:8090"
-  #   networks:
-  #     - leafy-network
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -sf http://localhost:8090/health || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 10
-  #     start_period: 60s
+  disease-detection-service:
+    build:
+      context: ../disease-detection-service
+      dockerfile: Dockerfile
+    container_name: disease-detection-service
+    hostname: disease-detection-service
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_started
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      PORT: ${SERVER_PORT_DISEASE:-8090}
+      SPRING_APPLICATION_NAME: ${SPRING_APPLICATION_NAME:-disease-detection-service}
+      HOSTNAME: disease-detection-service
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
+      SERVICE_NAME: ${SERVICE_NAME:-Disease Detection Service}
+      MODEL_NAME: ${MODEL_NAME:-Coffee-MobileNetV2}
+      MODEL_PATH: ${MODEL_PATH:-weights/coffee_mobilenetv2_prod_final.keras}
+      MODEL_TOP_K: ${MODEL_TOP_K:-3}
+      YOLO_MODEL_PATH: ${YOLO_MODEL_PATH:-weights/yolo/best.pt}
+      FILE_SERVICE_URL: ${FILE_SERVICE_URL:-http://file-service:8084}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TF_CPP_MIN_LOG_LEVEL: ${TF_CPP_MIN_LOG_LEVEL:-2}
+      MONGODB_HOST: mongodb
+      MONGODB_PORT: 27017
+      MONGODB_USERNAME: admin
+      MONGODB_PASSWORD: admin123
+      MONGODB_DATABASE_DISEASE: ${MONGODB_DATABASE_DISEASE:-leafy_disease}
+      ENV_STATE: ${ENV_STATE:-dev}
+    ports:
+      - "${SERVER_PORT_DISEASE:-8090}:8090"
+    networks:
+      - leafy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8090/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
 
 networks:
   leafy-network:

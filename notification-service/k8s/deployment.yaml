@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leafy-notification-service
+  namespace: leafy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      nodeSelector:
+        node-type: app
+      initContainers:
+        - name: wait-for-infra
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              until wget -qO- http://leafy-discovery-server:8761/actuator/health/readiness 2>/dev/null | grep -q '"status":"UP"'; do
+                echo "Waiting for discovery-server..."
+                sleep 5
+              done
+              until wget -qO- http://leafy-config-server:8888/actuator/health/readiness 2>/dev/null | grep -q '"status":"UP"'; do
+                echo "Waiting for config-server..."
+                sleep 5
+              done
+              echo "Infrastructure services are UP"
+      containers:
+        - name: notification-service
+          image: ${ECR_REGISTRY}/leafy-notification-service:${IMAGE_TAG}
+          ports:
+            - containerPort: 8095
+          envFrom:
+            - configMapRef:
+                name: leafy-common-config
+            - secretRef:
+                name: leafy-common-secrets
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 300m
+            limits:
+              memory: 1536Mi
+              cpu: 1000m
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8095
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8095
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: firebase-credentials
+              mountPath: /run/secrets
+              readOnly: true
+      volumes:
+        - name: firebase-credentials
+          secret:
+            secretName: leafy-common-secrets
+            items:
+              - key: FIREBASE_CREDENTIALS_PATH
+                path: firebase-service-account.json

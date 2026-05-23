@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leafy-rag-service
+  namespace: leafy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rag-service
+  template:
+    metadata:
+      labels:
+        app: rag-service
+    spec:
+      nodeSelector:
+        node-type: search-ai
+      initContainers:
+        - name: wait-for-infra
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              until wget -qO- http://leafy-discovery-server:8761/actuator/health/readiness 2>/dev/null | grep -q '"status":"UP"'; do
+                echo "Waiting for discovery-server..."
+                sleep 5
+              done
+              until wget -qO- http://leafy-config-server:8888/actuator/health/readiness 2>/dev/null | grep -q '"status":"UP"'; do
+                echo "Waiting for config-server..."
+                sleep 5
+              done
+              echo "Infrastructure services are UP"
+      containers:
+        - name: rag-service
+          image: ${ECR_REGISTRY}/leafy-rag-service:${IMAGE_TAG}
+          ports:
+            - containerPort: 8199
+          envFrom:
+            - configMapRef:
+                name: leafy-common-config
+            - secretRef:
+                name: leafy-common-secrets
+          resources:
+            requests:
+              memory: 1024Mi
+              cpu: 500m
+            limits:
+              memory: 4096Mi
+              cpu: 2000m
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8199
+            initialDelaySeconds: 40
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8199
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 3

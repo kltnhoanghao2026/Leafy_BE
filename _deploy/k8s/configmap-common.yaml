@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: ConfigMap
+metadata:
+  name: leafy-common-config
+  namespace: leafy
+data:
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://leafy-discovery-server:8761/eureka/
+  SPRING_CLOUD_CONFIG_URI: http://leafy-config-server:8888
+  SPRING_CONFIG_IMPORT: optional:configserver:http://leafy-config-server:8888
+  MONGODB_HOST: leafy-mongodb
+  MONGODB_PORT: "27017"
+  POSTGRES_HOST: leafy-postgresql
+  SPRING_DATA_REDIS_HOST: leafy-redis
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: leafy-kafka:9092
+  KAFKA_BOOTSTRAP_SERVERS: leafy-kafka:9092
+  IOT_MQTT_HOST: leafy-mqtt-broker
+  MQTT_BROKER_URL: mqtt://leafy-mqtt-broker:1883
+  ELASTICSEARCH_URL: http://leafy-elasticsearch:9200
+  QDRANT_URL: http://leafy-qdrant:6333
+  FILE_SERVICE_UPLOAD_URL: http://leafy-file-service:8084/files/upload
+  SOCKET_SERVICE_URL: http://leafy-socket-service:8093
+  AUTH_SERVICE_URL: http://leafy-auth-service:8081
+  API_GATEWAY_URL: http://leafy-api-gateway:8060
+  LANGCHAIN_TRACING_V2: "false"
+  FIREBASE_ENABLED: "true"
+  BREVO_ENABLED: "false"
+  ENV_STATE: dev
