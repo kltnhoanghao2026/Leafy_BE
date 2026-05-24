@@ -6,6 +6,7 @@ import com.leafy.iotmetricscollectorservice.dto.device.ConnectDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.GenerateClaimCodeResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.ProvisionDeviceRequest;
+import com.leafy.iotmetricscollectorservice.dto.device.UpdateDeviceRequest;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
 import com.leafy.iotmetricscollectorservice.mapper.DashboardQueryMapper;
 import com.leafy.iotmetricscollectorservice.model.DeviceClaim;
@@ -17,12 +18,14 @@ import com.leafy.iotmetricscollectorservice.model.ref.FarmPlotRef;
 import com.leafy.iotmetricscollectorservice.model.ref.FarmZoneRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.DeviceClaimRepository;
+import com.leafy.iotmetricscollectorservice.repository.DeviceCameraScheduleRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmPlotRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmZoneRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
 import com.leafy.iotmetricscollectorservice.repository.UserRefRepository;
 import com.leafy.iotmetricscollectorservice.service.DeviceService;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -47,9 +50,11 @@ public class DeviceServiceImpl implements DeviceService {
     private static final String DEFAULT_SORT_BY = "createdAt";
     private static final String DEFAULT_SORT_DIR = "desc";
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("createdAt", "lastSeenAt", "deviceName", "status");
+    private static final int DEVICE_NAME_MAX_LENGTH = 255;
 
     private final IoTDeviceRepository ioTDeviceRepository;
     private final DeviceClaimRepository deviceClaimRepository;
+    private final DeviceCameraScheduleRepository deviceCameraScheduleRepository;
     private final UserRefRepository userRefRepository;
     private final FarmPlotRefRepository farmPlotRefRepository;
     private final FarmZoneRefRepository farmZoneRefRepository;
@@ -122,9 +127,10 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     @Transactional
-    public GenerateClaimCodeResponse generateClaimCode(UUID deviceId) {
+    public GenerateClaimCodeResponse generateClaimCode(String currentUserId, UUID deviceId) {
         IoTDevice device = ioTDeviceRepository.findById(deviceId)
             .orElseThrow(() -> TelemetryQueryException.deviceNotFound(deviceId));
+        validateClaimCodeGenerationAccess(device, currentUserId);
 
         DeviceClaim deviceClaim = deviceClaimRepository.findTopByDeviceIdAndStatusOrderByCreatedAtDesc(
             deviceId,
@@ -146,6 +152,28 @@ public class DeviceServiceImpl implements DeviceService {
         response.setClaimCode(savedClaim.getClaimCode());
         response.setExpiresAt(savedClaim.getExpiresAt());
         return response;
+    }
+
+    private void validateClaimCodeGenerationAccess(IoTDevice device, String currentUserId) {
+        String normalizedUserId = normalizeOptional(currentUserId);
+        if (normalizedUserId == null) {
+            throw TelemetryQueryException.invalidDeviceUpdate("X-User-Id must not be blank");
+        }
+        if (device.getOwnerUser() != null) {
+            if (!normalizedUserId.equals(device.getOwnerUser().getId())) {
+                throw TelemetryQueryException.deviceAccessDenied(device.getId());
+            }
+            return;
+        }
+        if (Boolean.FALSE.equals(device.getIsActive())) {
+            throw TelemetryQueryException.inactiveDevice(device.getId());
+        }
+        if (!ProvisioningStatus.PROVISIONED.equals(device.getProvisioningStatus())) {
+            throw TelemetryQueryException.invalidClaimState(
+                device.getId(),
+                device.getProvisioningStatus() != null ? device.getProvisioningStatus().name() : "null"
+            );
+        }
     }
 
     @Override
@@ -190,6 +218,46 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     @Override
+    @Transactional
+    public DeviceResponse updateDevice(String currentUserId, UUID deviceId, UpdateDeviceRequest request) {
+        IoTDevice device = requireOwnedDevice(deviceId, currentUserId);
+        UpdateDeviceRequest updateRequest = request != null ? request : new UpdateDeviceRequest();
+
+        if (updateRequest.getDeviceName() != null) {
+            device.setDeviceName(normalizeDeviceName(updateRequest.getDeviceName()));
+        }
+        if (updateRequest.getFarmPlotId() != null) {
+            device.setFarmPlot(ensureFarmPlotRef(updateRequest.getFarmPlotId()));
+        }
+        if (updateRequest.getZoneId() != null) {
+            device.setZone(ensureFarmZoneRef(updateRequest.getZoneId()));
+        }
+        if (updateRequest.getActive() != null) {
+            device.setIsActive(updateRequest.getActive());
+        }
+
+        return dashboardQueryMapper.toDeviceResponse(ioTDeviceRepository.save(device));
+    }
+
+    @Override
+    @Transactional
+    public DeviceResponse releaseDevice(String currentUserId, UUID deviceId) {
+        IoTDevice device = requireOwnedDevice(deviceId, currentUserId);
+        String deviceUid = device.getDeviceUid();
+
+        device.setOwnerUser(null);
+        device.setFarmPlot(null);
+        device.setZone(null);
+        device.setProvisioningStatus(ProvisioningStatus.PROVISIONED);
+        device.setIsActive(true);
+
+        revokePendingClaimCodes(deviceId);
+        disableCameraSchedules(deviceUid);
+
+        return dashboardQueryMapper.toDeviceResponse(ioTDeviceRepository.save(device));
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public PagedResponse<DeviceResponse> getDevicesByOwner(
         String ownerUserId,
@@ -230,6 +298,54 @@ public class DeviceServiceImpl implements DeviceService {
         if (device.getOwnerUser() != null) {
             throw TelemetryQueryException.deviceAlreadyClaimed(device.getId());
         }
+    }
+
+    private IoTDevice requireOwnedDevice(UUID deviceId, String currentUserId) {
+        IoTDevice device = ioTDeviceRepository.findById(deviceId)
+            .orElseThrow(() -> TelemetryQueryException.deviceNotFound(deviceId));
+
+        String normalizedUserId = normalizeOptional(currentUserId);
+        if (normalizedUserId == null || device.getOwnerUser() == null || !normalizedUserId.equals(device.getOwnerUser().getId())) {
+            throw TelemetryQueryException.deviceAccessDenied(deviceId);
+        }
+
+        return device;
+    }
+
+    private String normalizeDeviceName(String deviceName) {
+        String normalized = normalizeOptional(deviceName);
+        if (normalized == null) {
+            throw TelemetryQueryException.invalidDeviceUpdate("deviceName must not be blank");
+        }
+        if (normalized.length() > DEVICE_NAME_MAX_LENGTH) {
+            throw TelemetryQueryException.invalidDeviceUpdate("deviceName must be at most " + DEVICE_NAME_MAX_LENGTH + " characters");
+        }
+        return normalized;
+    }
+
+    private void revokePendingClaimCodes(UUID deviceId) {
+        List<DeviceClaim> pendingClaims = deviceClaimRepository.findAllByDeviceIdAndStatus(deviceId, ClaimStatus.PENDING.name());
+        if (pendingClaims.isEmpty()) {
+            return;
+        }
+        pendingClaims.forEach(claim -> claim.setStatus(ClaimStatus.REVOKED.name()));
+        deviceClaimRepository.saveAll(pendingClaims);
+    }
+
+    private void disableCameraSchedules(String deviceUid) {
+        String normalizedDeviceUid = normalizeOptional(deviceUid);
+        if (normalizedDeviceUid == null) {
+            return;
+        }
+        var schedules = deviceCameraScheduleRepository.findAllByDeviceUidOrderByTimeOfDayAsc(normalizedDeviceUid);
+        if (schedules.isEmpty()) {
+            return;
+        }
+        schedules.forEach(schedule -> {
+            schedule.setEnabled(false);
+            schedule.setNextRunAt(null);
+        });
+        deviceCameraScheduleRepository.saveAll(schedules);
     }
 
     private DeviceResponse handleIdempotentClaim(IoTDevice device, String currentUserId, ClaimDeviceRequest request) {

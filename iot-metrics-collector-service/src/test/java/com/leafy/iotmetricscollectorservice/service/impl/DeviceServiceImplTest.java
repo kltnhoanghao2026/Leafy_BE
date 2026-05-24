@@ -2,6 +2,7 @@ package com.leafy.iotmetricscollectorservice.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,7 +17,9 @@ import com.leafy.iotmetricscollectorservice.dto.device.ConnectDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.GenerateClaimCodeResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.ProvisionDeviceRequest;
+import com.leafy.iotmetricscollectorservice.dto.device.UpdateDeviceRequest;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
+import com.leafy.iotmetricscollectorservice.entity.DeviceCameraSchedule;
 import com.leafy.iotmetricscollectorservice.mapper.DashboardQueryMapper;
 import com.leafy.iotmetricscollectorservice.model.DeviceClaim;
 import com.leafy.iotmetricscollectorservice.model.IoTDevice;
@@ -27,6 +30,7 @@ import com.leafy.iotmetricscollectorservice.model.ref.FarmPlotRef;
 import com.leafy.iotmetricscollectorservice.model.ref.FarmZoneRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.DeviceClaimRepository;
+import com.leafy.iotmetricscollectorservice.repository.DeviceCameraScheduleRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmPlotRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmZoneRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
@@ -56,6 +60,9 @@ class DeviceServiceImplTest {
 
     @Mock
     private DeviceClaimRepository deviceClaimRepository;
+
+    @Mock
+    private DeviceCameraScheduleRepository deviceCameraScheduleRepository;
 
     @Mock
     private UserRefRepository userRefRepository;
@@ -135,7 +142,7 @@ class DeviceServiceImplTest {
         when(deviceClaimRepository.save(any(DeviceClaim.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Instant before = Instant.now();
-        GenerateClaimCodeResponse response = deviceService.generateClaimCode(device.getId());
+        GenerateClaimCodeResponse response = deviceService.generateClaimCode("user-1", device.getId());
         Instant after = Instant.now().plusSeconds(15 * 60);
 
         assertEquals(device.getId(), response.getDeviceId());
@@ -265,6 +272,182 @@ class DeviceServiceImplTest {
     }
 
     @Test
+    void updateDevice_updatesOwnDeviceMetadata() {
+        String ownerUserId = UUID.randomUUID().toString();
+        String farmPlotId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+        IoTDevice device = createClaimedDevice(ownerUserId);
+        UpdateDeviceRequest request = new UpdateDeviceRequest();
+        request.setDeviceName("  Greenhouse Camera  ");
+        request.setFarmPlotId(farmPlotId);
+        request.setZoneId(zoneId);
+        request.setActive(false);
+
+        when(ioTDeviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
+        when(farmPlotRefRepository.findById(farmPlotId)).thenReturn(Optional.empty());
+        when(farmPlotRefRepository.save(any(FarmPlotRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmZoneRefRepository.findById(zoneId)).thenReturn(Optional.empty());
+        when(farmZoneRefRepository.save(any(FarmZoneRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(ioTDeviceRepository.save(device)).thenReturn(device);
+
+        DeviceResponse response = deviceService.updateDevice(ownerUserId, device.getId(), request);
+
+        assertEquals("Greenhouse Camera", response.getDeviceName());
+        assertEquals(farmPlotId, response.getFarmPlotId());
+        assertEquals(zoneId, response.getZoneId());
+        assertEquals(Boolean.FALSE, response.getIsActive());
+        assertEquals(ownerUserId, response.getOwnerUserId());
+        assertEquals("CLAIMED", response.getProvisioningStatus());
+    }
+
+    @Test
+    void updateDevice_rejectsDeviceOwnedByAnotherUser() {
+        String ownerUserId = UUID.randomUUID().toString();
+        IoTDevice device = createClaimedDevice(ownerUserId);
+        UpdateDeviceRequest request = new UpdateDeviceRequest();
+        request.setDeviceName("Updated");
+
+        when(ioTDeviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
+
+        assertThrows(TelemetryQueryException.class, () -> deviceService.updateDevice("user-b", device.getId(), request));
+        verify(ioTDeviceRepository, never()).save(any(IoTDevice.class));
+    }
+
+    @Test
+    void updateDevice_rejectsBlankDeviceName() {
+        String ownerUserId = UUID.randomUUID().toString();
+        IoTDevice device = createClaimedDevice(ownerUserId);
+        UpdateDeviceRequest request = new UpdateDeviceRequest();
+        request.setDeviceName("   ");
+
+        when(ioTDeviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
+
+        assertThrows(TelemetryQueryException.class, () -> deviceService.updateDevice(ownerUserId, device.getId(), request));
+        verify(ioTDeviceRepository, never()).save(any(IoTDevice.class));
+    }
+
+    @Test
+    void releaseDevice_unclaimsOwnDeviceAndRevokesPendingClaimsAndDisablesSchedules() {
+        String ownerUserId = UUID.randomUUID().toString();
+        IoTDevice device = createClaimedDevice(ownerUserId);
+        String oldDeviceUid = device.getDeviceUid();
+        String oldDeviceCode = device.getDeviceCode();
+        DeviceClaim pendingClaim = createClaim(device, "PENDING1", Instant.now().plusSeconds(300), ClaimStatus.PENDING);
+        DeviceCameraSchedule schedule = new DeviceCameraSchedule();
+        schedule.setId(UUID.randomUUID());
+        schedule.setDeviceUid(oldDeviceUid);
+        schedule.setEnabled(true);
+        schedule.setNextRunAt(Instant.now().plusSeconds(300));
+
+        when(ioTDeviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
+        when(deviceClaimRepository.findAllByDeviceIdAndStatus(device.getId(), ClaimStatus.PENDING.name()))
+            .thenReturn(List.of(pendingClaim));
+        when(deviceClaimRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deviceCameraScheduleRepository.findAllByDeviceUidOrderByTimeOfDayAsc(oldDeviceUid))
+            .thenReturn(List.of(schedule));
+        when(deviceCameraScheduleRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(ioTDeviceRepository.save(device)).thenReturn(device);
+
+        DeviceResponse response = deviceService.releaseDevice(ownerUserId, device.getId());
+
+        assertNull(device.getOwnerUser());
+        assertNull(device.getFarmPlot());
+        assertNull(device.getZone());
+        assertEquals(ProvisioningStatus.PROVISIONED, device.getProvisioningStatus());
+        assertEquals(Boolean.TRUE, device.getIsActive());
+        assertEquals(oldDeviceUid, response.getDeviceUid());
+        assertEquals(oldDeviceCode, response.getDeviceCode());
+        assertNull(response.getOwnerUserId());
+        assertNull(response.getFarmPlotId());
+        assertNull(response.getZoneId());
+        assertEquals("PROVISIONED", response.getProvisioningStatus());
+        assertEquals(ClaimStatus.REVOKED.name(), pendingClaim.getStatus());
+        assertFalse(schedule.isEnabled());
+        assertNull(schedule.getNextRunAt());
+    }
+
+    @Test
+    void releaseDevice_rejectsDeviceOwnedByAnotherUser() {
+        String ownerUserId = UUID.randomUUID().toString();
+        IoTDevice device = createClaimedDevice(ownerUserId);
+
+        when(ioTDeviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
+
+        assertThrows(TelemetryQueryException.class, () -> deviceService.releaseDevice("user-b", device.getId()));
+        assertEquals(ownerUserId, device.getOwnerUser().getId());
+        verify(ioTDeviceRepository, never()).save(any(IoTDevice.class));
+        verify(deviceClaimRepository, never()).findAllByDeviceIdAndStatus(any(UUID.class), anyString());
+    }
+
+    @Test
+    void connectDevice_claimsReleasedDeviceForAnotherUser() {
+        String userB = UUID.randomUUID().toString();
+        String farmPlotId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+        IoTDevice device = createDevice();
+        device.setOwnerUser(null);
+        device.setProvisioningStatus(ProvisioningStatus.PROVISIONED);
+
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid(device.getDeviceUid());
+        request.setDeviceCode(device.getDeviceCode());
+        request.setDeviceName("Released Device");
+        request.setDeviceType(device.getDeviceType());
+        request.setFarmPlotId(farmPlotId);
+        request.setZoneId(zoneId);
+
+        when(ioTDeviceRepository.findByDeviceUid(device.getDeviceUid())).thenReturn(Optional.of(device));
+        when(ioTDeviceRepository.save(device)).thenReturn(device);
+        when(userRefRepository.findById(userB)).thenReturn(Optional.empty());
+        when(userRefRepository.save(any(UserRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmPlotRefRepository.findById(farmPlotId)).thenReturn(Optional.empty());
+        when(farmPlotRefRepository.save(any(FarmPlotRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmZoneRefRepository.findById(zoneId)).thenReturn(Optional.empty());
+        when(farmZoneRefRepository.save(any(FarmZoneRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeviceResponse response = deviceService.connectDevice(userB, request);
+
+        assertEquals(userB, response.getOwnerUserId());
+        assertEquals(farmPlotId, response.getFarmPlotId());
+        assertEquals(zoneId, response.getZoneId());
+        assertEquals("CLAIMED", response.getProvisioningStatus());
+    }
+
+    @Test
+    void claimDevice_claimsReleasedDeviceWithNewClaimCode() {
+        String userB = UUID.randomUUID().toString();
+        String farmPlotId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+        IoTDevice device = createDevice();
+        DeviceClaim oldClaim = createClaim(device, "OLD12345", Instant.now().plusSeconds(300), ClaimStatus.REVOKED);
+        DeviceClaim newClaim = createClaim(device, "NEW12345", Instant.now().plusSeconds(300), ClaimStatus.PENDING);
+        ClaimDeviceRequest request = new ClaimDeviceRequest();
+        request.setDeviceUid(device.getDeviceUid());
+        request.setClaimCode("NEW12345");
+        request.setFarmPlotId(farmPlotId);
+        request.setZoneId(zoneId);
+
+        when(ioTDeviceRepository.findByDeviceUid(device.getDeviceUid())).thenReturn(Optional.of(device));
+        when(deviceClaimRepository.findTopByDeviceIdAndClaimCodeOrderByCreatedAtDesc(device.getId(), "NEW12345"))
+            .thenReturn(Optional.of(newClaim));
+        when(userRefRepository.findById(userB)).thenReturn(Optional.empty());
+        when(userRefRepository.save(any(UserRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmPlotRefRepository.findById(farmPlotId)).thenReturn(Optional.empty());
+        when(farmPlotRefRepository.save(any(FarmPlotRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmZoneRefRepository.findById(zoneId)).thenReturn(Optional.empty());
+        when(farmZoneRefRepository.save(any(FarmZoneRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(ioTDeviceRepository.save(device)).thenReturn(device);
+        when(deviceClaimRepository.save(newClaim)).thenReturn(newClaim);
+
+        DeviceResponse response = deviceService.claimDevice(userB, request);
+
+        assertEquals(ClaimStatus.REVOKED.name(), oldClaim.getStatus());
+        assertEquals(ClaimStatus.CLAIMED.name(), newClaim.getStatus());
+        assertEquals(userB, response.getOwnerUserId());
+        assertEquals("CLAIMED", response.getProvisioningStatus());
+    }
+
+    @Test
     void connectDevice_createsMissingReferencesAndClaimsAtomically() {
         String currentUserId = UUID.randomUUID().toString();
         String farmPlotId = UUID.randomUUID().toString();
@@ -384,6 +567,15 @@ class DeviceServiceImplTest {
         return device;
     }
 
+    private IoTDevice createClaimedDevice(String ownerUserId) {
+        IoTDevice device = createDevice();
+        device.setOwnerUser(toUserRef(ownerUserId));
+        device.setFarmPlot(toFarmPlotRef(UUID.randomUUID().toString()));
+        device.setZone(toFarmZoneRef(UUID.randomUUID().toString()));
+        device.setProvisioningStatus(ProvisioningStatus.CLAIMED);
+        return device;
+    }
+
     private DeviceClaim createClaim(IoTDevice device, String claimCode, Instant expiresAt, ClaimStatus status) {
         DeviceClaim deviceClaim = new DeviceClaim();
         deviceClaim.setId(UUID.randomUUID());
@@ -398,5 +590,17 @@ class DeviceServiceImplTest {
         UserRef userRef = new UserRef();
         userRef.setId(userId);
         return userRef;
+    }
+
+    private FarmPlotRef toFarmPlotRef(String farmPlotId) {
+        FarmPlotRef farmPlotRef = new FarmPlotRef();
+        farmPlotRef.setId(farmPlotId);
+        return farmPlotRef;
+    }
+
+    private FarmZoneRef toFarmZoneRef(String zoneId) {
+        FarmZoneRef farmZoneRef = new FarmZoneRef();
+        farmZoneRef.setId(zoneId);
+        return farmZoneRef;
     }
 }

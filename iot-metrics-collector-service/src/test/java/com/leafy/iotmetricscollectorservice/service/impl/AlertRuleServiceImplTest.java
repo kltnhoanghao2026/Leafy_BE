@@ -24,6 +24,7 @@ import com.leafy.iotmetricscollectorservice.repository.AlertEventRepository;
 import com.leafy.iotmetricscollectorservice.repository.AlertRuleRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
 import com.leafy.iotmetricscollectorservice.repository.SensorTypeRepository;
+import com.leafy.iotmetricscollectorservice.service.DeviceAccessService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -55,6 +56,9 @@ class AlertRuleServiceImplTest {
 
     @Mock
     private IoTDeviceRepository ioTDeviceRepository;
+
+    @Mock
+    private DeviceAccessService deviceAccessService;
 
     @Spy
     private AlertRuleMapper alertRuleMapper;
@@ -97,7 +101,6 @@ class AlertRuleServiceImplTest {
         CreateAlertRuleRequest request = createRequest(sensorTypeId, deviceId, null, null, null, 40d);
 
         when(sensorTypeRepository.findById(sensorTypeId)).thenReturn(Optional.of(createSensorType(sensorTypeId)));
-        when(ioTDeviceRepository.existsById(deviceId)).thenReturn(true);
         when(alertRuleRepository.save(any(AlertRule.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         AlertRuleResponse response = alertRuleService.createRule(currentUserId, request);
