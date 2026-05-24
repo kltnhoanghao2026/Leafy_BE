@@ -15,6 +15,18 @@ spec:
     spec:
       nodeSelector:
         node-type: app
+      initContainers:
+        - name: wait-for-config-server
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              until wget -qO- http://leafy-config-server:8888/actuator/health/readiness 2>/dev/null | grep -q '"status":"UP"'; do
+                echo "Waiting for config-server..."
+                sleep 5
+              done
+              echo "Config server is UP"
       containers:
         - name: auth-service
           image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/auth-service:latest

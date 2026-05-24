@@ -7,6 +7,7 @@ data:
   # ============================================================
   # SERVICE REGISTRY (Eureka)
   # ============================================================
+  HOSTNAME: "leafy-config-server"
   EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://leafy-discovery-server:8761/eureka/"
   EUREKA_CLIENT_FETCH_REGISTRY: "true"
   EUREKA_CLIENT_REGISTER_WITH_EUREKA: "true"
