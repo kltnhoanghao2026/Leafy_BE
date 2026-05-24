@@ -17,10 +17,9 @@ spec:
         node-type: search-ai
       containers:
         - name: rag-service
-          image: ${ECR_REGISTRY}/leafy-rag-service:${IMAGE_TAG}
+          image: leafy-rag-service:latest
+          imagePullPolicy: IfNotPresent
           env:
-            - name: IMAGE_TAG
-              value: latest
             - name: MONGODB_DATABASE
               valueFrom:
                 secretKeyRef:

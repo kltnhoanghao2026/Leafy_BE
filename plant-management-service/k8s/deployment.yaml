@@ -17,10 +17,9 @@ spec:
         node-type: app
       containers:
         - name: plant-management-service
-          image: ${ECR_REGISTRY}/leafy-plant-management-service:${IMAGE_TAG}
+          image: leafy-plant-management-service:latest
+          imagePullPolicy: IfNotPresent
           env:
-            - name: IMAGE_TAG
-              value: latest
             - name: MONGODB_DATABASE_PLANT
               valueFrom:
                 secretKeyRef:

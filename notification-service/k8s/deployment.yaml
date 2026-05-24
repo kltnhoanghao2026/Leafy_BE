@@ -17,10 +17,9 @@ spec:
         node-type: app
       containers:
         - name: notification-service
-          image: ${ECR_REGISTRY}/leafy-notification-service:${IMAGE_TAG}
+          image: leafy-notification-service:latest
+          imagePullPolicy: IfNotPresent
           env:
-            - name: IMAGE_TAG
-              value: latest
             - name: MONGODB_DATABASE_NOTIFICATION
               valueFrom:
                 secretKeyRef:

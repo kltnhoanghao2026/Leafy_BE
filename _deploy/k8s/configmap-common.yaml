@@ -16,7 +16,6 @@ data:
   # CONFIG SERVER
   # ============================================================
   SPRING_CLOUD_CONFIG_URI: "http://leafy-config-server:8888"
-  SPRING_CONFIG_IMPORT: "optional:configserver:http://leafy-config-server:8888"
   CONFIG_SERVER_HOSTNAME: "leafy-config-server"
   CONFIG_SERVER_SERVICE_NAME: "Config Server"
 

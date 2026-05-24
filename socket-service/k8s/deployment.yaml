@@ -17,10 +17,9 @@ spec:
         node-type: app
       containers:
         - name: socket-service
-          image: ${ECR_REGISTRY}/leafy-socket-service:${IMAGE_TAG}
+          image: leafy-socket-service:latest
+          imagePullPolicy: IfNotPresent
           env:
-            - name: IMAGE_TAG
-              value: latest
             - name: MONGODB_DATABASE_SOCKET
               valueFrom:
                 secretKeyRef:

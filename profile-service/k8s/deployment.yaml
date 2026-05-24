@@ -17,10 +17,14 @@ spec:
         node-type: app
       containers:
         - name: profile-service
-          image: ${ECR_REGISTRY}/leafy-profile-service:${IMAGE_TAG}
+          image: leafy-profile-service:latest
+          imagePullPolicy: IfNotPresent
           env:
-            - name: IMAGE_TAG
-              value: latest
+            - name: SPRING_CLOUD_CONFIG_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: leafy-common-config
+                  key: SPRING_CLOUD_CONFIG_URI
             - name: MONGODB_DATABASE_PROFILE
               valueFrom:
                 secretKeyRef:

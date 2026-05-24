@@ -17,10 +17,9 @@ spec:
         node-type: app
       containers:
         - name: auth-service
-          image: ${ECR_REGISTRY}/leafy-auth-service:${IMAGE_TAG}
+          image: leafy-auth-service:latest
+          imagePullPolicy: IfNotPresent
           env:
-            - name: IMAGE_TAG
-              value: latest
             - name: MONGODB_DATABASE_AUTH
               valueFrom:
                 secretKeyRef:

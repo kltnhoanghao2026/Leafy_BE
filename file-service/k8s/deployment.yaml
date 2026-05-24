@@ -17,10 +17,9 @@ spec:
         node-type: app
       containers:
         - name: file-service
-          image: ${ECR_REGISTRY}/leafy-file-service:${IMAGE_TAG}
+          image: leafy-file-service:latest
+          imagePullPolicy: IfNotPresent
           env:
-            - name: IMAGE_TAG
-              value: latest
             - name: MONGODB_DATABASE_FILE
               valueFrom:
                 secretKeyRef:

@@ -31,3 +31,11 @@ management:
 logging:
   level:
     org.springframework.cloud.config: INFO
+
+# Add caching to reduce load
+spring:
+  cloud:
+    config:
+      server:
+        health:
+          enabled: true

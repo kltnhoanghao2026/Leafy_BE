@@ -17,10 +17,9 @@ spec:
         node-type: app
       containers:
         - name: community-feed-service
-          image: ${ECR_REGISTRY}/leafy-community-feed-service:${IMAGE_TAG}
+          image: leafy-community-feed-service:latest
+          imagePullPolicy: IfNotPresent
           env:
-            - name: IMAGE_TAG
-              value: latest
             - name: MONGODB_DATABASE_COMMUNITY_FEED
               valueFrom:
                 secretKeyRef:

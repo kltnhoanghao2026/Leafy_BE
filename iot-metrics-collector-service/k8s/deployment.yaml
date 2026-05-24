@@ -17,11 +17,9 @@ spec:
         node-type: messaging
       containers:
         - name: iot-metrics-collector-service
-          image: ${ECR_REGISTRY}/leafy-iot-metrics-collector-service:${IMAGE_TAG}
+          image: leafy-iot-metrics-collector-service:latest
+          imagePullPolicy: IfNotPresent
           env:
-            - name: IMAGE_TAG
-              value: latest
-            - name: SERVER_IOT_PORT
               value: "8092"
             - name: DB_HOST
               value: "leafy-postgresql"
