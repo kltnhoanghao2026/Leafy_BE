@@ -11,3 +11,19 @@ spec:
   selector:
     app: mongodb
   clusterIP: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leafy-mongodb-external
+  namespace: leafy
+  labels:
+    app: mongodb
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 27017
+      targetPort: 27017
+      name: mongodb
+  selector:
+    app: mongodb

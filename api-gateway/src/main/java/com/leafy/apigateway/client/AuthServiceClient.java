@@ -25,7 +25,7 @@ public class AuthServiceClient {
     private String authServiceUrl;
 
     private static final String TOKEN_VALIDATE_PATH = "/internal/tokens/validate";
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
     private final WebClient.Builder webClientBuilder;
 

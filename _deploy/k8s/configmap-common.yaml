@@ -73,6 +73,7 @@ data:
   # INTER-SERVICE URLs
   # ============================================================
   API_GATEWAY_URL: "http://leafy-api-gateway:8060"
+  AUTH_SERVICE_URL: "http://leafy-auth-service:8089"
   FILE_SERVICE_UPLOAD_URL: "http://leafy-file-service:8084/files/upload"
   FILE_SERVICE_URL: "http://leafy-file-service:8084"
 

@@ -26,4 +26,4 @@ cors:
 app:
   services:
     auth-service:
-      url: ${AUTH_SERVICE_URL:http://localhost:8089}
+      url: ${AUTH_SERVICE_URL:http://leafy-auth-service:8089}

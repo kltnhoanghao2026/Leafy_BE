@@ -54,11 +54,11 @@ spec:
                 CONTROLLER://0.0.0.0:9093,
                 PLAINTEXT_HOST://0.0.0.0:9092
 
-            # Advertised listeners - use pod FQDN
+            # Advertised listeners - use pod FQDN for Kubernetes DNS
             - name: KAFKA_ADVERTISED_LISTENERS
               value: >-
                 PLAINTEXT://$(POD_NAME).leafy-kafka.$(POD_NAMESPACE).svc.cluster.local:29092,
-                PLAINTEXT_HOST://localhost:9092
+                PLAINTEXT_HOST://leafy-kafka.$(POD_NAMESPACE).svc.cluster.local:9092
 
             # Controller quorum voters - use pod FQDN
             - name: KAFKA_CONTROLLER_QUORUM_VOTERS
