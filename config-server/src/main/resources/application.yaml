@@ -4,14 +4,7 @@ spring:
   profiles:
     active: native
   cloud:
-    config:
-      # Disable config server client - prevents self-fetching behavior
-      enabled: false
-      server:
-        native:
-          search-locations: classpath:/config
-        encrypt:
-          enabled: false
+   
 
   # Disable Eureka client for config server (it registers itself)
   # Config server should NOT register with Eureka to avoid circular dependency

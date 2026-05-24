@@ -15,35 +15,6 @@ spec:
     spec:
       nodeSelector:
         node-type: app
-      initContainers:
-        - name: wait-for-infra
-          image: busybox
-          command:
-            - sh
-            - -c
-            - |
-              # Wait for discovery server (Eureka)
-              echo "Waiting for discovery-server..."
-              until wget -qO- http://leafy-discovery-server:8761/actuator/health 2>/dev/null | grep -q '"status":"UP"'; do
-                sleep 5
-              done
-              echo "Discovery server is UP"
-
-              # Wait for config server
-              echo "Waiting for config-server..."
-              until wget -qO- http://leafy-config-server:8888/actuator/health 2>/dev/null | grep -q '"status":"UP"'; do
-                sleep 5
-              done
-              echo "Config server is UP"
-
-              # Wait for MongoDB
-              echo "Waiting for MongoDB..."
-              until wget -qO- http://leafy-mongodb:27017 2>/dev/null; do
-                sleep 5
-              done
-              echo "MongoDB is UP"
-
-              echo "All infrastructure services are ready!"
       containers:
         - name: profile-service
           image: ${ECR_REGISTRY}/leafy-profile-service:${IMAGE_TAG}

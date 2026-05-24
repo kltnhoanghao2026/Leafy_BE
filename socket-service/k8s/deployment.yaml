@@ -15,22 +15,6 @@ spec:
     spec:
       nodeSelector:
         node-type: app
-      initContainers:
-        - name: wait-for-infra
-          image: busybox
-          command:
-            - sh
-            - -c
-            - |
-              until wget -qO- http://leafy-discovery-server:8761/actuator/health/readiness 2>/dev/null | grep -q '"status":"UP"'; do
-                echo "Waiting for discovery-server..."
-                sleep 5
-              done
-              until wget -qO- http://leafy-config-server:8888/actuator/health/readiness 2>/dev/null | grep -q '"status":"UP"'; do
-                echo "Waiting for config-server..."
-                sleep 5
-              done
-              echo "Infrastructure services are UP"
       containers:
         - name: socket-service
           image: ${ECR_REGISTRY}/leafy-socket-service:${IMAGE_TAG}
