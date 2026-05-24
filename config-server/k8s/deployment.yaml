@@ -53,10 +53,3 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /actuator/health/liveness
-              port: 8888
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            failureThreshold: 3

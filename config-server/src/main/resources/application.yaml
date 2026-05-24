@@ -3,8 +3,11 @@ spring:
     name: config-server
   profiles:
     active: native
+  config:
+    import: ""  # Prevent self-referencing - config-server should NOT import config from itself
   cloud:
     config:
+      enabled: false
       server:
         health:
           enabled: true
