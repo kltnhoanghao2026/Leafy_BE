@@ -17,6 +17,13 @@
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-config-server</artifactId>
+            <exclusions>
+                <!-- Exclude config client to prevent self-fetching -->
+                <exclusion>
+                    <groupId>org.springframework.cloud</groupId>
+                    <artifactId>spring-cloud-config-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

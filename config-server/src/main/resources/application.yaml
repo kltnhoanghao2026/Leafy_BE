@@ -5,7 +5,7 @@ spring:
     active: native
   cloud:
     config:
-      # Disable config server client - this server should NOT try to fetch config from itself
+      # Disable config server client - prevents self-fetching behavior
       enabled: false
       server:
         native:
