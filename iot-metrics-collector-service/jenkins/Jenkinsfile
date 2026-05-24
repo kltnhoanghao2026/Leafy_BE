@@ -7,8 +7,8 @@ pipeline {
     environment {
         SERVICE_NAME = 'iot-metrics-collector-service'
         IMAGE_REPO   = "leafy/iot-metrics-collector-service"
-        AWS_ACCOUNT_ID = "952647925716"
-        AWS_REGION     = "ap-southeast-2"
+        AWS_ACCOUNT_ID = "383704034208"
+        AWS_REGION     = "ap-southeast-1"
         IMAGE_TAG      = "${env.BUILD_NUMBER}"
         ECR_URL        = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         TOOLS_DIR      = "/var/jenkins_home/tools"
@@ -91,8 +91,8 @@ pipeline {
         stage('Deploy to EKS') {
             when { expression { return IS_CHANGED } }
             steps {
-                withKubeConfig([credentialsId: 'eks-creds-id', clusterName: 'bondhub-cluster-final']) {
-                    sh "${TOOLS_DIR}/kubectl set image deployment/leafy-iot-metrics-collector-service iot-metrics-collector-service=${ECR_URL}/${IMAGE_REPO}:${IMAGE_TAG} -n bondhub"
+                withKubeConfig([credentialsId: 'eks-creds-id', clusterName: 'leafy-api']) {
+                    sh "${TOOLS_DIR}/kubectl set image deployment/leafy-iot-metrics-collector-service iot-metrics-collector-service=${ECR_URL}/${IMAGE_REPO}:${IMAGE_TAG} -n leafy"
                 }
             }
         }

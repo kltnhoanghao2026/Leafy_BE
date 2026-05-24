@@ -34,13 +34,16 @@ spec:
       containers:
         - name: api-gateway
           image: ${ECR_REGISTRY}/leafy-api-gateway:${IMAGE_TAG}
-          ports:
-            - containerPort: 8060
+          env:
+            - name: IMAGE_TAG
+              value: latest
           envFrom:
             - configMapRef:
                 name: leafy-common-config
             - secretRef:
                 name: leafy-common-secrets
+          ports:
+            - containerPort: 8060
           resources:
             requests:
               memory: 512Mi

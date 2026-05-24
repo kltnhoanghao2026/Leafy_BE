@@ -27,18 +27,18 @@ spec:
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
-                  name: leafy-db-secrets
-                  key: postgresql-database
+                  name: leafy-common-secrets
+                  key: POSTGRES_DB
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: leafy-db-secrets
-                  key: postgresql-username
+                  name: leafy-common-secrets
+                  key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: leafy-db-secrets
-                  key: postgresql-password
+                  name: leafy-common-secrets
+                  key: POSTGRES_PASSWORD
           resources:
             requests:
               memory: 512Mi

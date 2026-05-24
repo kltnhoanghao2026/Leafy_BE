@@ -18,6 +18,14 @@ spec:
       containers:
         - name: discovery-server
           image: ${ECR_REGISTRY}/leafy-discovery-server:${IMAGE_TAG}
+          env:
+            - name: IMAGE_TAG
+              value: latest
+          envFrom:
+            - configMapRef:
+                name: leafy-common-config
+            - secretRef:
+                name: leafy-common-secrets
           ports:
             - containerPort: 8761
           resources:

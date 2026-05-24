@@ -297,3 +297,4 @@ dmypy.json
 */secret/*
 */secret
 notification-service/firebase-service-account.json
+/_deploy/k8s/secrets.yaml

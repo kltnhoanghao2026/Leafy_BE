@@ -34,13 +34,21 @@ spec:
       containers:
         - name: notification-service
           image: ${ECR_REGISTRY}/leafy-notification-service:${IMAGE_TAG}
-          ports:
-            - containerPort: 8095
+          env:
+            - name: IMAGE_TAG
+              value: latest
+            - name: MONGODB_DATABASE_NOTIFICATION
+              valueFrom:
+                secretKeyRef:
+                  name: leafy-db-secrets
+                  key: MONGODB_DATABASE_NOTIFICATION
           envFrom:
             - configMapRef:
                 name: leafy-common-config
             - secretRef:
                 name: leafy-common-secrets
+          ports:
+            - containerPort: 8085
           resources:
             requests:
               memory: 512Mi

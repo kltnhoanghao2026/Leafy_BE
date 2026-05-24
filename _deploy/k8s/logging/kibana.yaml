@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leafy-kibana
+  namespace: leafy
+  labels:
+    app: kibana
+    app.kubernetes.io/name: kibana
+    app.kubernetes.io/component: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+        app.kubernetes.io/name: kibana
+        app.kubernetes.io/component: logging
+    spec:
+      nodeSelector:
+        node-type: search-ai
+      containers:
+        - name: kibana
+          image: docker.elastic.co/kibana/kibana:8.17.0
+          ports:
+            - containerPort: 5601
+              name: http
+          env:
+            - name: ELASTICSEARCH_HOSTS
+              value: "http://leafy-elasticsearch:9200"
+            - name: SERVER_NAME
+              value: "leafy-kibana"
+            - name: SERVER_BASEPATH
+              value: ""
+            - name: LOGGING_DESTINATION
+              value: "self"
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=512"
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 1024Mi
+              cpu: 1000m
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
+            runAsGroup: 1000
+            fsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leafy-kibana
+  namespace: leafy
+  labels:
+    app: kibana
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5601
+      targetPort: 5601
+      name: http
+  selector:
+    app: kibana
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: leafy-kibana
+  namespace: leafy
+  labels:
+    app: kibana
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - kibana.leafy.com
+      secretName: leafy-kibana-tls
+  rules:
+    - host: kibana.leafy.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: leafy-kibana
+                port:
+                  number: 5601

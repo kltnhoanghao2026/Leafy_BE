@@ -34,13 +34,23 @@ spec:
       containers:
         - name: disease-detection-service
           image: ${ECR_REGISTRY}/leafy-disease-detection-service:${IMAGE_TAG}
-          ports:
-            - containerPort: 8096
+          env:
+            - name: IMAGE_TAG
+              value: latest
+            - name: MONGODB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: leafy-db-secrets
+                  key: MONGODB_DATABASE_DISEASE
           envFrom:
             - configMapRef:
                 name: leafy-common-config
+            - configMapRef:
+                name: disease-detection-config
             - secretRef:
                 name: leafy-common-secrets
+          ports:
+            - containerPort: 8090
           resources:
             requests:
               memory: 2048Mi
@@ -51,14 +61,14 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8096
+              port: 8090
             initialDelaySeconds: 60
             periodSeconds: 10
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /health
-              port: 8096
+              port: 8090
             initialDelaySeconds: 180
             periodSeconds: 30
             failureThreshold: 3

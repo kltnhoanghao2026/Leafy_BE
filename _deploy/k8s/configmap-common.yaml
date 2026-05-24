@@ -1,28 +1,207 @@
-apiVersion: apps/v1
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: leafy-common-config
   namespace: leafy
 data:
-  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://leafy-discovery-server:8761/eureka/
-  SPRING_CLOUD_CONFIG_URI: http://leafy-config-server:8888
-  SPRING_CONFIG_IMPORT: optional:configserver:http://leafy-config-server:8888
-  MONGODB_HOST: leafy-mongodb
+  # ============================================================
+  # SERVICE REGISTRY (Eureka)
+  # ============================================================
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://leafy-discovery-server:8761/eureka/"
+  EUREKA_CLIENT_FETCH_REGISTRY: "true"
+  EUREKA_CLIENT_REGISTER_WITH_EUREKA: "true"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+
+  # ============================================================
+  # CONFIG SERVER
+  # ============================================================
+  SPRING_CLOUD_CONFIG_URI: "http://leafy-config-server:8888"
+  SPRING_CONFIG_IMPORT: "optional:configserver:http://leafy-config-server:8888"
+  CONFIG_SERVER_HOSTNAME: "leafy-config-server"
+  CONFIG_SERVER_SERVICE_NAME: "Config Server"
+
+  # ============================================================
+  # MONGODB
+  # ============================================================
+  MONGODB_HOST: "leafy-mongodb"
   MONGODB_PORT: "27017"
-  POSTGRES_HOST: leafy-postgresql
-  SPRING_DATA_REDIS_HOST: leafy-redis
+  MONGODB_USERNAME: "admin"
+  MONGODB_AUTH_SOURCE: "admin"
+
+  # ============================================================
+  # POSTGRESQL (IoT metrics collector)
+  # ============================================================
+  POSTGRES_HOST: "leafy-postgresql"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "postgres"
+  POSTGRES_DB: "leafy_iot_db"
+
+  # ============================================================
+  # REDIS
+  # ============================================================
+  SPRING_DATA_REDIS_HOST: "leafy-redis"
   SPRING_DATA_REDIS_PORT: "6379"
-  SPRING_KAFKA_BOOTSTRAP_SERVERS: leafy-kafka:9092
-  KAFKA_BOOTSTRAP_SERVERS: leafy-kafka:9092
-  IOT_MQTT_HOST: leafy-mqtt-broker
-  MQTT_BROKER_URL: mqtt://leafy-mqtt-broker:1883
-  ELASTICSEARCH_URL: http://leafy-elasticsearch:9200
-  QDRANT_URL: http://leafy-qdrant:6333
-  FILE_SERVICE_UPLOAD_URL: http://leafy-file-service:8084/files/upload
-  SOCKET_SERVICE_URL: http://leafy-socket-service:8093
-  AUTH_SERVICE_URL: http://leafy-auth-service:8081
-  API_GATEWAY_URL: http://leafy-api-gateway:8060
-  LANGCHAIN_TRACING_V2: "false"
+
+  # ============================================================
+  # KAFKA
+  # ============================================================
+  KAFKA_BOOTSTRAP_SERVERS: "leafy-kafka:9092"
+
+  # ============================================================
+  # MQTT / IoT
+  # ============================================================
+  IOT_MQTT_HOST: "leafy-mqtt-broker"
+  MQTT_BROKER_URL: "mqtt://leafy-mqtt-broker:1883"
+
+  # ============================================================
+  # ELASTICSEARCH
+  # ============================================================
+  ELASTICSEARCH_URIS: "http://leafy-elasticsearch:9200"
+  ELASTICSEARCH_URL: "http://leafy-elasticsearch:9200"
+  ELASTICSEARCH_PORT: "9200"
+  KIBANA_PORT: "5601"
+  ELASTICSEARCH_USERNAME: "elastic"
+  ELASTICSEARCH_SSL: "false"
+
+  # ============================================================
+  # QDRANT (Vector DB)
+  # ============================================================
+  QDRANT_URL: "http://leafy-qdrant:6333"
+
+  # ============================================================
+  # INTER-SERVICE URLs
+  # ============================================================
+  API_GATEWAY_URL: "http://leafy-api-gateway:8060"
+  FILE_SERVICE_UPLOAD_URL: "http://leafy-file-service:8084/files/upload"
+  FILE_SERVICE_URL: "http://leafy-file-service:8084"
+
+  # ============================================================
+  # SERVICE PORTS
+  # ============================================================
+  SERVER_PORT_DISCOVERY: "8761"
+  SERVER_PORT_CONFIG: "8888"
+  SERVER_PORT_GATEWAY: "8060"
+  SERVER_PORT_AUTH: "8089"
+  SERVER_PORT_FILE: "8084"
+  SERVER_PORT_NOTIFICATION: "8085"
+  SERVER_PORT_PLANT: "8086"
+  SERVER_PORT_PROFILE: "8087"
+  SERVER_PORT_SEARCH: "8088"
+  SERVER_PORT_IOT: "8092"
+  SERVER_PORT_COMMUNITY_FEED: "8091"
+  SERVER_PORT_DISEASE_CLASSIFICATION: "8090"
+  SERVER_PORT_RAG: "8199"
+  SERVER_PORT_SOCKET: "8093"
+  SERVER_PORT_MESSAGE: "8092"
+
+  # ============================================================
+  # SERVICE NAMES (for Eureka registration)
+  # ============================================================
+  SERVICE_NAME_DISCOVERY: "Discovery Server"
+  SERVICE_NAME_CONFIG: "Config Server"
+  SERVICE_NAME_GATEWAY: "API Gateway"
+  SERVICE_NAME_AUTH: "Auth Service"
+  SERVICE_NAME_FILE: "File Service"
+  SERVICE_NAME_NOTIFICATION: "Notification Service"
+  SERVICE_NAME_PLANT: "Plant Management Service"
+  SERVICE_NAME_PROFILE: "Profile Service"
+  SERVICE_NAME_SEARCH: "Search Service"
+  SERVICE_NAME_IOT: "IoT Metrics Collector"
+  SERVICE_NAME_COMMUNITY_FEED: "Community Feed Service"
+  SERVICE_NAME_DISEASE_CLASSIFICATION: "Disease Detection Service"
+  SERVICE_NAME_RAG: "RAG Service"
+  SERVICE_NAME_SOCKET: "Socket Service"
+  SERVICE_NAME_MESSAGE: "Message Service"
+
+  # ============================================================
+  # SECURITY & JWT
+  # ============================================================
+  JWT_ACCESS_EXPIRATION: "3600000"
+  JWT_REFRESH_WEB_EXPIRATION: "1209600000"
+  JWT_REFRESH_MOBILE_EXPIRATION: "31536000000"
+  ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:4200,http://localhost:8080"
+
+  # ============================================================
+  # AWS S3
+  # ============================================================
+  AWS_REGION: "ap-southeast-1"
+  AWS_S3_BUCKET: "leafy-meida-storage"
+
+  # ============================================================
+  # FILE STORAGE
+  # ============================================================
+  FILE_UPLOAD_MAX_SIZE: "10485760"
+  FILE_UPLOAD_ALLOWED_EXTENSIONS: "jpg,jpeg,png,gif,pdf,doc,docx"
+  FILE_STORAGE_TYPE: "local"
+  FILE_STORAGE_LOCAL_PATH: "./uploads"
+
+  # ============================================================
+  # BREVO EMAIL
+  # ============================================================
+  BREVO_SENDER_EMAIL: "foxminer246@gmail.com"
+  BREVO_SENDER_NAME: "Leafy Team"
+  BREVO_ENABLED: "true"
+
+  # ============================================================
+  # FIREBASE / NOTIFICATIONS
+  # ============================================================
   FIREBASE_ENABLED: "true"
-  BREVO_ENABLED: "false"
-  ENV_STATE: dev
+  FIREBASE_CONFIG_PATH: "/run/secrets/firebase-service-account.json"
+  NOTIFICATION_EMAIL_ENABLED: "true"
+  NOTIFICATION_EMAIL_FROM: "noreply@leafy.com"
+  NOTIFICATION_SMS_ENABLED: "false"
+  NOTIFICATION_PUSH_ENABLED: "false"
+  NOTIFICATION_BATCH_ENABLED: "true"
+
+  # ============================================================
+  # IoT
+  # ============================================================
+  MQTT_CLIENT_ID: "iot-metrics-collector-service"
+  IOT_ALERT_TRIGGERED_TOPIC: "iot.alert.triggered"
+
+  # ============================================================
+  # AI / LLM / RAG
+  # ============================================================
+  LANGCHAIN_TRACING_V2: "true"
+  LANGCHAIN_ENDPOINT: "https://api.smith.langchain.com"
+  LANGCHAIN_PROJECT: "My First App"
+  CHAT_MODEL: "gpt-4o-mini"
+  FAST_MODEL: "gpt-4o-mini"
+  DEEP_MODEL: "gpt-4o"
+  RERANKER_MODEL: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  CONFIDENCE_THRESHOLD: "0.6"
+  COMPLETENESS_THRESHOLD: "0.6"
+  MAX_REFINEMENT_ATTEMPTS: "5"
+
+  # ============================================================
+  # ELASTICSEARCH SEARCH SERVICE
+  # ============================================================
+  ELASTICSEARCH_SYNC_BATCH_SIZE: "500"
+  ELASTICSEARCH_SYNC_MAX_RETRY: "3"
+  ELASTICSEARCH_SYNC_PARALLELISM: "0"
+  ELASTICSEARCH_INDEX_REALTIME_THREADS: "2"
+  ELASTICSEARCH_INDEX_ASYNC_TIMEOUT_SECONDS: "30"
+  ELASTICSEARCH_INDEX_RETAIN_INDEX_COUNT: "3"
+  ELASTICSEARCH_MONITORING_ENABLED: "true"
+  ELASTICSEARCH_LOG_SLOW_OPERATIONS: "true"
+  ELASTICSEARCH_SLOW_OPERATION_THRESHOLD_MS: "1000"
+  KAFKA_ENABLED: "true"
+
+  # ============================================================
+  # ML / DISEASE DETECTION
+  # ============================================================
+  MODEL_NAME: "Coffee-MobileNetV2"
+  MODEL_PATH: "weights/coffee_mobilenetv2_prod_final.keras"
+  MODEL_TOP_K: "3"
+  YOLO_MODEL_PATH: "weights/yolo/best.pt"
+  LOG_LEVEL: "INFO"
+  TF_CPP_MIN_LOG_LEVEL: "2"
+
+  # ============================================================
+  # ENVIRONMENT & LOGGING
+  # ============================================================
+  ENV_STATE: "prod"
+  LOG_FILE: "logs/${spring.application.name}.log"
+  LOG_FILE_MAX_SIZE: "10MB"
+  LOG_FILE_MAX_HISTORY: "30"
+  LOG_FILE_TOTAL_SIZE_CAP: "1GB"

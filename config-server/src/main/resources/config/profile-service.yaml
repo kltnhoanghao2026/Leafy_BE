@@ -11,7 +11,7 @@ spring:
       password: ${MONGODB_PASSWORD}
       authentication-database: admin
 
-bondhub:
+leafy:
   security:
     gateway-auth:
       enabled: true

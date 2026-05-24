@@ -30,13 +30,20 @@ spec:
       containers:
         - name: config-server
           image: ${ECR_REGISTRY}/leafy-config-server:${IMAGE_TAG}
+          env:
+            - name: IMAGE_TAG
+              value: latest
+            - name: SERVER_PORT_CONFIG
+              value: "8888"
+            - name: HOSTNAME
+              value: "leafy-config-server"
+            - name: SERVICE_NAME
+              value: "Config Server"
+          envFrom:
+            - configMapRef:
+                name: leafy-common-config
           ports:
             - containerPort: 8888
-          env:
-            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-              value: http://leafy-discovery-server:8761/eureka/
-            - name: HOSTNAME
-              value: leafy-config-server
           resources:
             requests:
               memory: 256Mi

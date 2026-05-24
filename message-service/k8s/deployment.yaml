@@ -34,13 +34,21 @@ spec:
       containers:
         - name: message-service
           image: ${ECR_REGISTRY}/leafy-message-service:${IMAGE_TAG}
-          ports:
-            - containerPort: 8092
+          env:
+            - name: IMAGE_TAG
+              value: latest
+            - name: MONGODB_DATABASE_MESSAGES
+              valueFrom:
+                secretKeyRef:
+                  name: leafy-db-secrets
+                  key: MONGODB_DATABASE_MESSAGES
           envFrom:
             - configMapRef:
                 name: leafy-common-config
             - secretRef:
                 name: leafy-common-secrets
+          ports:
+            - containerPort: 8092
           resources:
             requests:
               memory: 512Mi

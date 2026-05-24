@@ -34,13 +34,23 @@ spec:
       containers:
         - name: rag-service
           image: ${ECR_REGISTRY}/leafy-rag-service:${IMAGE_TAG}
-          ports:
-            - containerPort: 8199
+          env:
+            - name: IMAGE_TAG
+              value: latest
+            - name: MONGODB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: leafy-db-secrets
+                  key: MONGODB_DATABASE_RAG
           envFrom:
             - configMapRef:
                 name: leafy-common-config
+            - configMapRef:
+                name: rag-config
             - secretRef:
                 name: leafy-common-secrets
+          ports:
+            - containerPort: 8199
           resources:
             requests:
               memory: 1024Mi

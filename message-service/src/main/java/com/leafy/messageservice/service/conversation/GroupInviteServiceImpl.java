@@ -26,7 +26,7 @@ public class GroupInviteServiceImpl implements GroupInviteService {
     private final ConversationService conversationService;
     private final MessageService messageService;
 
-    @Value("${bondhub.frontend-url:http://localhost:5173}")
+    @Value("${leafy.frontend-url:http://localhost:5173}")
     private String frontendUrl;
 
     @Override

@@ -34,13 +34,32 @@ spec:
       containers:
         - name: iot-metrics-collector-service
           image: ${ECR_REGISTRY}/leafy-iot-metrics-collector-service:${IMAGE_TAG}
-          ports:
-            - containerPort: 8087
+          env:
+            - name: IMAGE_TAG
+              value: latest
+            - name: SERVER_IOT_PORT
+              value: "8092"
+            - name: DB_HOST
+              value: "leafy-postgresql"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "leafy_iot_db"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: leafy-common-secrets
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: leafy-common-secrets
+                  key: DB_PASSWORD
           envFrom:
             - configMapRef:
                 name: leafy-common-config
-            - secretRef:
-                name: leafy-common-secrets
+          ports:
+            - containerPort: 8092
           resources:
             requests:
               memory: 512Mi
@@ -51,14 +70,14 @@ spec:
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8087
+              port: 8092
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8087
+              port: 8092
             initialDelaySeconds: 90
             periodSeconds: 30
             failureThreshold: 3

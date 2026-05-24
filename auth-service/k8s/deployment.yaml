@@ -34,13 +34,21 @@ spec:
       containers:
         - name: auth-service
           image: ${ECR_REGISTRY}/leafy-auth-service:${IMAGE_TAG}
-          ports:
-            - containerPort: 8081
+          env:
+            - name: IMAGE_TAG
+              value: latest
+            - name: MONGODB_DATABASE_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: leafy-db-secrets
+                  key: MONGODB_DATABASE_AUTH
           envFrom:
             - configMapRef:
                 name: leafy-common-config
             - secretRef:
                 name: leafy-common-secrets
+          ports:
+            - containerPort: 8089
           resources:
             requests:
               memory: 512Mi

@@ -1,0 +1,166 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: leafy-fluent-bit
+  namespace: leafy
+  labels:
+    app: fluent-bit
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/component: logging
+spec:
+  selector:
+    matchLabels:
+      app: fluent-bit
+  template:
+    metadata:
+      labels:
+        app: fluent-bit
+        app.kubernetes.io/name: fluent-bit
+        app.kubernetes.io/component: logging
+    spec:
+      nodeSelector:
+        node-type: search-ai
+      serviceAccountName: fluent-bit
+      tolerations:
+        - key: node-type
+          operator: Equal
+          value: search-ai
+          effect: NoSchedule
+        - key: node-type
+          operator: Equal
+          value: app
+          effect: NoSchedule
+        - key: node-type
+          operator: Equal
+          value: data
+          effect: NoSchedule
+        - key: node-type
+          operator: Equal
+          value: messaging
+          effect: NoSchedule
+      containers:
+        - name: fluent-bit
+          image: cr.fluentbit.io/fluent/fluent-bit:3.2.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 2020
+              protocol: TCP
+          env:
+            - name: FLUENT_ELASTICSEARCH_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: leafy-common-config
+                  key: ELASTICSEARCH_URL
+                  optional: true
+            - name: FLUENT_ELASTICSEARCH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: leafy-common-secrets
+                  key: ELASTICSEARCH_USERNAME
+                  optional: true
+            - name: FLUENT_ELASTICSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: leafy-common-secrets
+                  key: ELASTICSEARCH_PASSWORD
+                  optional: true
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+              cpu: 200m
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: fluent-bit-config
+              mountPath: /fluent-bit/etc
+              readOnly: true
+            - name: state
+              mountPath: /var/log/flb_kube.db
+              subPath: fluent-bit.db
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 2020
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/status
+              port: 2020
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsUser: 0
+            runAsGroup: 0
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+            type: Directory
+        - name: fluent-bit-config
+          configMap:
+            name: leafy-fluent-bit-config
+        - name: state
+          emptyDir: {}
+      terminationGracePeriodSeconds: 10
+      dnsPolicy: ClusterFirst
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluent-bit
+  namespace: leafy
+  labels:
+    app: fluent-bit
+    app.kubernetes.io/name: fluent-bit
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluent-bit-read
+  labels:
+    app: fluent-bit
+rules:
+  - apiGroups: [""]
+    resources:
+      - namespaces
+      - pods
+      - pods/log
+      - nodes
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fluent-bit-read
+  labels:
+    app: fluent-bit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluent-bit-read
+subjects:
+  - kind: ServiceAccount
+    name: fluent-bit
+    namespace: leafy

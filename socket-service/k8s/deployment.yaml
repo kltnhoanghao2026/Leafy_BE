@@ -34,13 +34,21 @@ spec:
       containers:
         - name: socket-service
           image: ${ECR_REGISTRY}/leafy-socket-service:${IMAGE_TAG}
-          ports:
-            - containerPort: 8093
+          env:
+            - name: IMAGE_TAG
+              value: latest
+            - name: MONGODB_DATABASE_SOCKET
+              valueFrom:
+                secretKeyRef:
+                  name: leafy-db-secrets
+                  key: MONGODB_DATABASE_SOCKET
           envFrom:
             - configMapRef:
                 name: leafy-common-config
             - secretRef:
                 name: leafy-common-secrets
+          ports:
+            - containerPort: 8093
           resources:
             requests:
               memory: 512Mi

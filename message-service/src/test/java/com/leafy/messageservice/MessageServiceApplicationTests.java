@@ -1,4 +1,4 @@
-package com.bondhub.messageservice;
+package com.leafy.messageservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

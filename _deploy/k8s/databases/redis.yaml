@@ -29,8 +29,8 @@ spec:
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: leafy-db-secrets
-                  key: redis-password
+                  name: leafy-common-secrets
+                  key: REDIS_PASSWORD
           resources:
             requests:
               memory: 128Mi

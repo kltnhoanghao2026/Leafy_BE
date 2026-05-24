@@ -9,7 +9,7 @@ import java.util.List;
 
 @Data
 @Configuration
-@ConfigurationProperties(prefix = "bondhub.security")
+@ConfigurationProperties(prefix = "leafy.security")
 public class SecurityProperties {
 
     private GatewayAuth gatewayAuth = new GatewayAuth();

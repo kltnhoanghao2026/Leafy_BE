@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: disease-detection-config
+  namespace: leafy
+data:
+  # Service Identity
+  SPRING_APPLICATION_NAME: disease-detection-service
+  SERVICE_NAME: Disease Detection Service
+  HOSTNAME: leafy-disease-detection-service
+
+  # Eureka Client
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://leafy-discovery-server:8761/eureka/"
+  EUREKA_CLIENT_FETCH_REGISTRY: "true"
+  EUREKA_CLIENT_REGISTER_WITH_EUREKA: "true"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+
+  # Service Port
+  SERVER_PORT: "8090"
+
+  # Disease Detection Models
+  MODEL_NAME: Coffee-MobileNetV2
+  MODEL_PATH: weights/coffee_mobilenetv2_prod_final.keras
+  MODEL_INPUT_SIZE: "[224, 224]"
+  MODEL_TOP_K: "3"
+  YOLO_MODEL_PATH: weights/yolo/best.pt
+  YOLO_CLASS_NAMES: '["healthy","leaf_miner","phoma","red_spider_mite","rust"]'
+
+  # ML Runtime
+  TF_CPP_MIN_LOG_LEVEL: "2"
+
+  # Logging
+  LOG_LEVEL: INFO
+
+  # File Service (internal endpoint)
+  FILE_SERVICE_URL: http://leafy-file-service:8084/internal/files
+
+  # Environment
+  ENV_STATE: prod
