@@ -50,7 +50,12 @@ public class TelemetryIngestServiceImpl implements TelemetryIngestService {
             return;
         }
 
-        Instant readingTime = payload.getTs() != null ? payload.getTs() : Instant.now();
+        Instant receivedAt = Instant.now();
+        Instant readingTime = IngestTimestampResolver.resolveTelemetryTime(
+            payload.getTs(),
+            receivedAt,
+            payload.getFirmwareVersion()
+        );
         Map<String, Double> metrics = payload.getMetrics();
 
         if (metrics == null || metrics.isEmpty()) {

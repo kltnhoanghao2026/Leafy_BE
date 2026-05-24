@@ -51,8 +51,6 @@ public class PlantEventResponse {
     TrackingGranularity trackingGranularity;
     List<String> excludedPlantIds;
     List<String> excludedFarmZoneIds;
-    Integer progressTotal;
-    Integer progressCompleted;
 
     /** File IDs of images/videos attached to this event. */
     List<String> attachmentIds;

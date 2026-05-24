@@ -26,6 +26,7 @@ public class PlanApplyResponse {
 
     // ── Who applied ──────────────────────────────────────────────────────────
     String appliedById;
+    String appliedByName;
 
     // ── Target scope ─────────────────────────────────────────────────────────
     String plantId;
@@ -59,4 +60,63 @@ public class PlanApplyResponse {
     // ── Audit fields ─────────────────────────────────────────────────────────
     LocalDateTime createdAt;
     LocalDateTime lastModifiedAt;
+
+    // ── Denormalized related entity summaries ─────────────────────────────────
+
+    /**
+     * Denormalized plant info for quick display without extra API calls.
+     */
+    PlantSummary plant;
+
+    /**
+     * Denormalized farm plot info for quick display.
+     */
+    FarmPlotSummary farmPlot;
+
+    /**
+     * Denormalized farm zone info for quick display.
+     */
+    FarmZoneSummary farmZone;
+
+    // ── Nested summary DTOs ────────────────────────────────────────────────────
+
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Builder
+    public static class PlantSummary {
+        String id;
+        String plantNumber;
+        String nickName;
+        String tagCode;
+        String speciesId;
+        String farmPlotId;
+        String farmZoneId;
+    }
+
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Builder
+    public static class FarmPlotSummary {
+        String id;
+        String name;
+        String code;
+        String addressLine;
+        String ownerProfileId;
+    }
+
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Builder
+    public static class FarmZoneSummary {
+        String id;
+        String farmPlotId;
+        String zoneName;
+        String zoneCode;
+    }
 }

@@ -165,7 +165,8 @@ public class NotificationController {
                 n.getTitle(),
                 n.getBody(),
                 n.isRead(),
-                n.getOccurredAt()
+                n.getOccurredAt(),
+                n.getPayload()
         );
     }
 

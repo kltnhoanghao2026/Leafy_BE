@@ -71,7 +71,7 @@ public class UserController {
      */
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser() {
-        String userId = ServiceSecurityUtils.getCurrentAccountId();
+        String userId = ServiceSecurityUtils.getCurrentUserId();
         log.info("GET /users/me - Getting user by ID");
         UserResponse response = userService.getUserById(userId);
         return ResponseEntity.ok(ApiResponse.success(response));

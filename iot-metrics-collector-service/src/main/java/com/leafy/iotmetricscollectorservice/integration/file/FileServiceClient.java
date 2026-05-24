@@ -1,84 +1,79 @@
 package com.leafy.iotmetricscollectorservice.integration.file;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.leafy.common.dto.ApiResponse;
 import com.leafy.iotmetricscollectorservice.dto.file.FileUploadResult;
 import java.io.IOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.multipart.MultipartFile;
 
 @Component
 @RequiredArgsConstructor
 public class FileServiceClient {
 
-    private final RestTemplate restTemplate;
+    private static final String FILE_SERVICE_INTERNAL_DOWNLOAD_URL = "http://file-service/internal/files/download/s3-key";
 
-    @Value("${app.file-service.internal-upload-url:http://localhost:8080/internal/files/upload}")
-    private String internalUploadUrl;
-
-    @Value("${app.file-service.presigned-url-template:http://localhost:8080/files/presigned-url/%s}")
-    private String presignedUrlTemplate;
+    private final FileServiceFeignClient fileServiceFeignClient;
 
     public FileUploadResult upload(MultipartFile file) throws IOException {
-        ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
-            @Override
-            public String getFilename() {
-                return file.getOriginalFilename();
-            }
-        };
-
-        HttpHeaders partHeaders = new HttpHeaders();
-        partHeaders.setContentType(file.getContentType() != null
-            ? MediaType.parseMediaType(file.getContentType())
-            : MediaType.APPLICATION_OCTET_STREAM);
-
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("file", new HttpEntity<>(resource, partHeaders));
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-
-        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-            internalUploadUrl,
-            new HttpEntity<>(body, headers),
-            JsonNode.class
-        );
-
-        JsonNode data = response.getBody() != null ? response.getBody().path("data") : null;
-        if (data == null || data.isMissingNode() || data.path("id").asText("").isBlank()) {
+        ApiResponse<FileUploadResult> response = fileServiceFeignClient.upload(file);
+        FileUploadResult data = response != null ? response.data() : null;
+        if (data == null || data.getId() == null || data.getId().isBlank()) {
             throw new IllegalStateException("File service upload response did not contain data.id");
         }
-
-        FileUploadResult result = new FileUploadResult();
-        result.setId(data.path("id").asText());
-        result.setS3Key(data.path("s3Key").asText(null));
-        result.setOriginalFileName(data.path("originalFileName").asText(file.getOriginalFilename()));
-        result.setContentType(data.path("contentType").asText(file.getContentType()));
-        result.setFileType(data.path("fileType").asText(null));
-        result.setFileSize(data.path("fileSize").asLong(file.getSize()));
-        result.setUploadedBy(data.path("uploadedBy").asText(null));
-        result.setActive(data.path("active").asBoolean(true));
-        return result;
+        return data;
     }
 
     public String getPresignedUrl(String fileId) {
-        ResponseEntity<JsonNode> response = restTemplate.getForEntity(
-            String.format(presignedUrlTemplate, fileId),
-            JsonNode.class
-        );
-        JsonNode data = response.getBody() != null ? response.getBody().path("data") : null;
-        if (data == null || data.isMissingNode() || data.asText("").isBlank()) {
+        ApiResponse<String> response = fileServiceFeignClient.getPresignedUrl(fileId, 60);
+        String data = response != null ? response.data() : null;
+        if (data == null || data.isBlank()) {
             throw new IllegalStateException("File service presigned URL response did not contain data");
         }
-        return data.asText();
+        return data;
+    }
+
+    public String getInternalDownloadUrl(String fileId) {
+        String s3Key = getS3Key(fileId);
+        return UriComponentsBuilder.fromHttpUrl(FILE_SERVICE_INTERNAL_DOWNLOAD_URL)
+            .queryParam("s3Key", s3Key)
+            .build()
+            .encode()
+            .toUriString();
+    }
+
+    public ResponseEntity<byte[]> downloadInternalImage(String fileUrl) {
+        String s3Key = extractS3Key(fileUrl);
+        return fileServiceFeignClient.downloadByS3Key(s3Key);
+    }
+
+    private String getS3Key(String fileId) {
+        ApiResponse<FileUploadResult> response = fileServiceFeignClient.getFileById(fileId);
+        FileUploadResult data = response != null ? response.data() : null;
+        if (data == null || data.getS3Key() == null || data.getS3Key().isBlank()) {
+            throw new IllegalStateException("File service metadata response did not contain data.s3Key");
+        }
+        return data.getS3Key();
+    }
+
+    private String extractS3Key(String fileUrl) {
+        String query = UriComponentsBuilder.fromUriString(fileUrl).build().getQuery();
+        if (query == null || query.isBlank()) {
+            throw new IllegalArgumentException("Internal file-service download URL did not contain s3Key");
+        }
+        for (String part : query.split("&")) {
+            if (part.startsWith("s3Key=")) {
+                String encoded = part.substring("s3Key=".length());
+                String decoded = URLDecoder.decode(encoded, StandardCharsets.UTF_8);
+                if (!decoded.isBlank()) {
+                    return decoded;
+                }
+            }
+        }
+        throw new IllegalArgumentException("Internal file-service download URL did not contain s3Key");
     }
 }

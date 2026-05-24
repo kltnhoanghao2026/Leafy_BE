@@ -18,7 +18,7 @@ public class ServiceSecurityUtils {
      *
      * @return the account ID of the authenticated user, or null if unauthenticated/anonymous
      */
-    public static String getCurrentAccountId() {
+    public static String getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
             return principal.getUserId();

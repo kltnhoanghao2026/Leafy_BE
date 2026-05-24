@@ -8,13 +8,10 @@ import com.leafy.plantmanagementservice.dto.response.farmplot.FarmPlotResponse;
 import com.leafy.plantmanagementservice.dto.response.farmzone.FarmZoneResponse;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanApplyResponse;
 import com.leafy.plantmanagementservice.dto.response.plantevent.PlantEventResponse;
+import com.leafy.plantmanagementservice.mapper.PlantEventMapper;
 import com.leafy.plantmanagementservice.model.enums.PlantStatus;
 import com.leafy.plantmanagementservice.model.enums.TargetType;
 import com.leafy.plantmanagementservice.utils.ConsultingAccessHelper;
-import com.leafy.plantmanagementservice.mapper.PlantEventMapper;
-import com.leafy.plantmanagementservice.model.EventTask;
-import com.leafy.plantmanagementservice.model.Plant;
-import com.leafy.plantmanagementservice.model.PlantEvent;
 import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
 import com.leafy.plantmanagementservice.model.enums.EventType;
 import com.leafy.common.utils.ServiceSecurityUtils;
@@ -23,8 +20,12 @@ import com.leafy.plantmanagementservice.service.farmzone.FarmZoneService;
 import com.leafy.plantmanagementservice.repository.PlantEventRepository;
 import com.leafy.plantmanagementservice.repository.PlantRepository;
 import com.leafy.plantmanagementservice.repository.PlanApplyRepository;
-import com.leafy.plantmanagementservice.service.eventprogress.EventProgressService;
+import com.leafy.plantmanagementservice.model.EventTask;
+import com.leafy.plantmanagementservice.model.Plant;
+import com.leafy.plantmanagementservice.model.PlantEvent;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.data.domain.Page;
@@ -41,16 +42,16 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@FieldDefaults(level =  AccessLevel.PRIVATE, makeFinal = true)
 public class PlantEventServiceImpl implements PlantEventService {
 
-    private final PlantEventRepository plantEventRepository;
-    private final PlantRepository plantRepository;
-    private final PlanApplyRepository planApplyRepository;
-    private final PlantEventMapper plantEventMapper;
-    private final FarmPlotService farmPlotService;
-    private final FarmZoneService farmZoneService;
-    private final ConsultingAccessHelper consultingAccessHelper;
-    private final EventProgressService eventProgressService;
+    PlantEventRepository plantEventRepository;
+    PlantRepository plantRepository;
+    PlanApplyRepository planApplyRepository;
+    PlantEventMapper plantEventMapper;
+    FarmPlotService farmPlotService;
+    FarmZoneService farmZoneService;
+    ConsultingAccessHelper consultingAccessHelper;
 
     @Override
     @Transactional
@@ -61,10 +62,7 @@ public class PlantEventServiceImpl implements PlantEventService {
         PlantEvent event = plantEventMapper.toEntity(request);
         event.setAttachmentIds(request.getAttachmentIds());
         PlantEvent saved = plantEventRepository.save(event);
-        eventProgressService.generateForEvent(saved);
-        // Re-read in case generateForEvent updated counters on the parent document.
-        PlantEvent finalEvent = plantEventRepository.findById(saved.getId()).orElse(saved);
-        PlantEventResponse response = plantEventMapper.toResponse(finalEvent);
+        PlantEventResponse response = plantEventMapper.toResponse(saved);
         populateRelatedEntities(response);
         return response;
     }
@@ -85,9 +83,6 @@ public class PlantEventServiceImpl implements PlantEventService {
                 })
                 .toList();
         List<PlantEvent> saved = plantEventRepository.saveAll(entities);
-        for (PlantEvent ev : saved) {
-            eventProgressService.generateForEvent(ev);
-        }
         List<PlantEventResponse> responses = plantEventMapper.toResponseList(saved);
         populateRelatedEntities(responses);
         return responses;
@@ -106,20 +101,10 @@ public class PlantEventServiceImpl implements PlantEventService {
             if (event.getTasks() != null) {
                 event.getTasks().forEach(task -> task.setCompleted(true));
             }
-            int completedCount = eventProgressService.completeAllByEventId(eventId);
-            if (completedCount > 0) {
-                event.setProgressTotal(completedCount);
-                event.setProgressCompleted(completedCount);
-            } else if (event.getProgressTotal() != null && event.getProgressTotal() > 0) {
-                event.setProgressCompleted(event.getProgressTotal());
-            }
         } else if (Boolean.FALSE.equals(request.getCompleted())) {
-            // Un-completion: reset tasks and progress on this event
+            // Un-completion: reset tasks on this event
             if (event.getTasks() != null) {
                 event.getTasks().forEach(task -> task.setCompleted(false));
-            }
-            if (event.getProgressTotal() != null && event.getProgressTotal() > 0) {
-                event.setProgressCompleted(0);
             }
         }
         PlantEvent updated = plantEventRepository.save(event);
@@ -203,7 +188,6 @@ public class PlantEventServiceImpl implements PlantEventService {
         if (!plantEventRepository.existsById(eventId)) {
             throw new AppException(ErrorCode.PLANT_EVENT_NOT_FOUND);
         }
-        eventProgressService.deleteByEventId(eventId);
         plantEventRepository.deleteById(eventId);
     }
 
@@ -232,9 +216,6 @@ public class PlantEventServiceImpl implements PlantEventService {
             return;
         }
         List<String> eventIds = deletable.stream().map(PlantEvent::getId).toList();
-        for (String id : eventIds) {
-            eventProgressService.deleteByEventId(id);
-        }
         plantEventRepository.deleteAllById(eventIds);
         log.info("Deleted {} completed events for eventId={}", eventIds.size(), eventId);
     }
@@ -264,11 +245,6 @@ public class PlantEventServiceImpl implements PlantEventService {
         // Recursively collect all events to delete (parent + children chain)
         List<String> allEventIds = collectAllEventIdsRecursive(incompleteEvents);
         log.info("Collected {} events to delete for planApplyId={}", allEventIds.size(), planApplyId);
-
-        // Delete all associated progress entries first
-        for (String eventId : allEventIds) {
-            eventProgressService.deleteByEventId(eventId);
-        }
 
         // Delete all events
         plantEventRepository.deleteAllById(allEventIds);
@@ -527,6 +503,9 @@ public class PlantEventServiceImpl implements PlantEventService {
         task.setCompleted(!task.isCompleted());
         PlantEvent updated = plantEventRepository.save(event);
         PlantEventResponse response = plantEventMapper.toResponse(updated);
+
+        // Populate related entities AND children so parent hierarchy updates in UI
+        populateChildren(response);
         populateRelatedEntities(response);
         return response;
     }
@@ -574,11 +553,9 @@ public class PlantEventServiceImpl implements PlantEventService {
     /**
      * Recursively cascades the completion state to all child events in the hierarchy.
      * <p>
-     * When {@code completed = true}: marks all child events as completed, completes
-     * their tasks and progress entries.
+     * When {@code completed = true}: marks all child events as completed and completes their tasks.
      * <p>
-     * When {@code completed = false}: marks all child events as un-completed, un-completes
-     * their tasks and resets progress counters.
+     * When {@code completed = false}: marks all child events as un-completed and un-completes their tasks.
      */
     private void cascadeCompletionState(String parentEventId, boolean completed) {
         List<PlantEvent> children = plantEventRepository.findByParentPlantEventId(parentEventId);
@@ -590,20 +567,6 @@ public class PlantEventServiceImpl implements PlantEventService {
                 child.setCompleted(completed);
                 if (child.getTasks() != null) {
                     child.getTasks().forEach(t -> t.setCompleted(completed));
-                }
-                if (completed) {
-                    int completedCount = eventProgressService.completeAllByEventId(child.getId());
-                    if (completedCount > 0) {
-                        child.setProgressTotal(completedCount);
-                        child.setProgressCompleted(completedCount);
-                    } else if (child.getProgressTotal() != null && child.getProgressTotal() > 0) {
-                        child.setProgressCompleted(child.getProgressTotal());
-                    }
-                } else {
-                    // Un-complete: reset progress counters
-                    if (child.getProgressTotal() != null && child.getProgressTotal() > 0) {
-                        child.setProgressCompleted(0);
-                    }
                 }
                 plantEventRepository.save(child);
             }
@@ -654,9 +617,6 @@ public class PlantEventServiceImpl implements PlantEventService {
             if (parent.getTasks() != null) {
                 parent.getTasks().forEach(t -> t.setCompleted(true));
             }
-            if (parent.getProgressTotal() != null && parent.getProgressTotal() > 0) {
-                parent.setProgressCompleted(parent.getProgressTotal());
-            }
             plantEventRepository.save(parent);
             log.info("Auto-completed parent event {} (all {} children completed)", parentEventId, siblings.size());
         } else if (!allChildrenCompleted && parent.isCompleted()) {
@@ -664,9 +624,6 @@ public class PlantEventServiceImpl implements PlantEventService {
             parent.setCompleted(false);
             if (parent.getTasks() != null) {
                 parent.getTasks().forEach(t -> t.setCompleted(false));
-            }
-            if (parent.getProgressTotal() != null && parent.getProgressTotal() > 0) {
-                parent.setProgressCompleted((int) siblings.stream().filter(PlantEvent::isCompleted).count());
             }
             plantEventRepository.save(parent);
             log.info("Auto-uncompleted parent event {} (not all children completed)", parentEventId);

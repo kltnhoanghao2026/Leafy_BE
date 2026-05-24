@@ -63,6 +63,14 @@ public class CertificateServiceImpl implements CertificateService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<ApprovalRequestDto> getApprovalRequests(String profileId) {
+        log.info("Fetching all approval requests for profile ID: {}", profileId);
+        List<ApprovalRequest> requests = approvalRequestRepository.findByProfileId(profileId);
+        return certificateMapper.toApprovalRequestDtoList(requests);
+    }
+
+    @Override
     public ProfileResponse patchApprovalRequestStatus(String profileId, String requestId,
             UpdateCertificateStatusRequest request) {
         log.info("Updating status for approval request ID: {} in profile ID: {} to {}", requestId, profileId,

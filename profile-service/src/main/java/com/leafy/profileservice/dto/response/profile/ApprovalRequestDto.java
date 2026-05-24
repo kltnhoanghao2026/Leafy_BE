@@ -2,6 +2,7 @@ package com.leafy.profileservice.dto.response.profile;
 
 import com.leafy.profileservice.model.enums.CertificateStatus;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record ApprovalRequestDto(
@@ -10,6 +11,7 @@ public record ApprovalRequestDto(
         List<CertificateDto> certificates,
         CertificateStatus status,
         String rejectionReason,
-        String proposedSpecialty
+        String proposedSpecialty,
+        LocalDateTime createdAt
 ) {
 }

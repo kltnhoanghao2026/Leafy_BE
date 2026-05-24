@@ -24,8 +24,6 @@ public interface PlantEventMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "completed", ignore = true)
-    @Mapping(target = "progressTotal", ignore = true)
-    @Mapping(target = "progressCompleted", ignore = true)
     PlantEvent toEntity(PlantEventCreateRequest request);
 
     @Mapping(target = "children", ignore = true)
@@ -55,8 +53,6 @@ public interface PlantEventMapper {
     @Mapping(target = "trackingGranularity", ignore = true)
     @Mapping(target = "excludedPlantIds", ignore = true)
     @Mapping(target = "excludedFarmZoneIds", ignore = true)
-    @Mapping(target = "progressTotal", ignore = true)
-    @Mapping(target = "progressCompleted", ignore = true)
     @Mapping(target = "parentPlantEventId", ignore = true)
     @Mapping(target = "attachmentIds", ignore = true)
     // targetType is intentionally NOT ignored — allows scope correction via PATCH

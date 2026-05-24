@@ -252,7 +252,7 @@ public class SeederServiceImpl implements SeederService {
             Post post = Post.builder()
                     .authorId(authorId)
                     .postType(PostType.FEED)
-                    .visibility(random.nextBoolean() ? Visibility.ALL : Visibility.FRIEND)
+                    .visibility(random.nextBoolean() ? Visibility.ALL : Visibility.FOLLOWER)
                     .content(PostContent.builder()
                             .title("Seed Post #" + (i + 1))
                             .caption("Community feed seeded content " + (i + 1))

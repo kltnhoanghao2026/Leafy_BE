@@ -22,7 +22,7 @@ public class ProfileSecurityServiceImpl implements ProfileSecurityService {
     @Override
     public boolean isOwner(String profileId) {
         try {
-            String currentUserId = ServiceSecurityUtils.getCurrentAccountId();
+            String currentUserId = ServiceSecurityUtils.getCurrentProfileId();
 
             Optional<Profile> profileOpt = profileRepository.findById(profileId);
             if (profileOpt.isEmpty()) {
@@ -30,7 +30,7 @@ public class ProfileSecurityServiceImpl implements ProfileSecurityService {
                 return false;
             }
 
-            boolean isOwner = currentUserId.equals(profileOpt.get().getUserId());
+            boolean isOwner = currentUserId.equals(profileOpt.get().getId());
             log.debug("Checking if current user ({}) owns profile ({}): {}",
                     currentUserId, profileId, isOwner);
             return isOwner;
@@ -43,7 +43,7 @@ public class ProfileSecurityServiceImpl implements ProfileSecurityService {
     @Override
     public boolean isCurrentUser(String userId) {
         try {
-            String currentUserId = ServiceSecurityUtils.getCurrentAccountId();
+            String currentUserId = ServiceSecurityUtils.getCurrentUserId();
             boolean isCurrentUser = currentUserId.equals(userId);
             log.debug("Checking if current user ({}) matches target user ({}): {}",
                     currentUserId, userId, isCurrentUser);
@@ -57,7 +57,7 @@ public class ProfileSecurityServiceImpl implements ProfileSecurityService {
     @Override
     public boolean isExpert() {
         try {
-            String currentUserId = ServiceSecurityUtils.getCurrentAccountId();
+            String currentUserId = ServiceSecurityUtils.getCurrentUserId();
             Optional<Profile> profileOpt = profileRepository.findByUserId(currentUserId);
             if (profileOpt.isEmpty()) {
                 return false;

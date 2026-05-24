@@ -7,6 +7,8 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.List;
+
 /**
  * Feign client for communicating with profile-service.
  *
@@ -22,4 +24,22 @@ public interface ProfileServiceClient {
             @RequestParam("size") int size,
             @RequestParam("sortBy") String sortBy,
             @RequestParam("sortDir") String sortDir);
+
+    /**
+     * Get list of profile IDs that the given user is following.
+     */
+    @GetMapping("/profiles/internal/following")
+    ExternalApiResponse<List<String>> getFollowingUserIds(@RequestParam String profileId);
+
+    /**
+     * Get list of profile IDs who follow the given user.
+     */
+    @GetMapping("/profiles/internal/followers")
+    ExternalApiResponse<List<String>> getFollowerUserIds(@RequestParam String profileId);
+
+    /**
+     * Get list of farmer profile IDs that the given expert is actively consulting.
+     */
+    @GetMapping("/internal/profiles/consulting/farmers")
+    ExternalApiResponse<List<String>> getConsultingFarmers(@RequestParam String expertProfileId);
 }

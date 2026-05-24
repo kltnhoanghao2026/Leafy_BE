@@ -46,6 +46,12 @@ public class PlanResponse {
     /** Number of times this plan has been applied (count of PlanApply records). */
     Long applyCount;
 
+    /** Number of completed applies where success=true. */
+    Long successApplyCount;
+
+    /** Number of completed applies where success=false. */
+    Long failedApplyCount;
+
     /** Inline list of applies — populated in detail views. */
     List<PlanApplyResponse> applies;
 

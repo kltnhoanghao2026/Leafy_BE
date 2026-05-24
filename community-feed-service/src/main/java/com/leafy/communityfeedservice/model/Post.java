@@ -56,8 +56,6 @@ public class Post extends BaseModel {
     @Indexed
     String rootPostId;
 
-    LocationInfo location;
-
     Visibility visibility;
 
     /** ID of the treatment plan shared in this post. Only set when postType is PLAN_SHARE. */

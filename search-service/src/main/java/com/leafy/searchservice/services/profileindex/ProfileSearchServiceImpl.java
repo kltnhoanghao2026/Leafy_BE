@@ -132,7 +132,7 @@ public class ProfileSearchServiceImpl implements ProfileSearchService {
 
     private String resolveCurrentUserId() {
         try {
-            return ServiceSecurityUtils.getCurrentAccountId();
+            return ServiceSecurityUtils.getCurrentUserId();
         } catch (Exception ex) {
             log.debug("Cannot resolve current user id from security context", ex);
             return null;

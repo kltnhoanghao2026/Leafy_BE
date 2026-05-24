@@ -96,4 +96,26 @@ public class InternalProfileController {
                 userConnectionService.getFollowingUsers(profileId != null ? profileId : userId)
         ));
     }
+
+    /**
+     * Get list of profile IDs that the given profile is following.
+     * Takes profileId directly (not userId).
+     */
+    @GetMapping("/internal/following")
+    public ResponseEntity<ApiResponse<List<String>>> getFollowingUserIds(@RequestParam String profileId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                userConnectionService.getFollowingUsers(profileId)
+        ));
+    }
+
+    /**
+     * Get list of profile IDs who follow the given profile.
+     * Takes profileId directly (not userId).
+     */
+    @GetMapping("/internal/followers")
+    public ResponseEntity<ApiResponse<List<String>>> getFollowerUserIds(@RequestParam String profileId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                userConnectionService.getUserFollowers(profileId)
+        ));
+    }
 }

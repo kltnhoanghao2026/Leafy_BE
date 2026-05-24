@@ -140,3 +140,27 @@ class PredictionService:
         finally:
              file.file.close()
 
+    @classmethod
+    def predict_internal(cls, file: UploadFile, model) -> dict:
+        start_time = time.time()
+
+        try:
+             image_bytes = cls.validate_file(file)
+             image_array = cls.preprocess_image(image_bytes)
+
+             if not model:
+                  raise AppException(ErrorCode.MODEL_NOT_LOADED)
+
+             predictions = AIModelInference.perform_inference(model, image_array)
+             processing_time = (time.time() - start_time) * 1000
+             prediction_results = [PredictionResult(**p) for p in predictions]
+
+             response = PredictionResponse(
+                  predictions=prediction_results,
+                  modelName=config.MODEL_NAME,
+                  processingTimeMs=round(processing_time, 2)
+             )
+             return response.model_dump()
+        finally:
+             file.file.close()
+

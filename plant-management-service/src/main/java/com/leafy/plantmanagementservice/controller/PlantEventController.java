@@ -2,14 +2,11 @@ package com.leafy.plantmanagementservice.controller;
 
 import com.leafy.common.dto.ApiResponse;
 import com.leafy.common.utils.ServiceSecurityUtils;
-import com.leafy.plantmanagementservice.dto.request.plantevent.EventProgressUpdateRequest;
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventCreateRequest;
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventUpdateRequest;
-import com.leafy.plantmanagementservice.dto.response.plantevent.EventProgressResponse;
 import com.leafy.plantmanagementservice.dto.response.plantevent.PlantEventResponse;
 import com.leafy.plantmanagementservice.model.enums.EventType;
 import com.leafy.plantmanagementservice.model.enums.TargetType;
-import com.leafy.plantmanagementservice.service.eventprogress.EventProgressService;
 import com.leafy.plantmanagementservice.service.plantevent.PlantEventService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +31,6 @@ import java.util.List;
 public class PlantEventController {
 
     private final PlantEventService plantEventService;
-    private final EventProgressService eventProgressService;
 
     // ── List All (Admin) ───────────────────────────────────────────────────────
 
@@ -287,35 +283,5 @@ public class PlantEventController {
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
         return PageRequest.of(page, size, sort);
-    }
-
-    // ── Progress tracking endpoints ───────────────────────────────────────────
-
-    @GetMapping("/{eventId}/progress")
-    public ResponseEntity<ApiResponse<Page<EventProgressResponse>>> getEventProgress(
-            @PathVariable String eventId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size,
-            @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "ASC") String sortDir) {
-        log.info("GET /plant-events/{}/progress", eventId);
-        Pageable pageable = buildPageable(page, size, sortBy, sortDir);
-        return ResponseEntity.ok(ApiResponse.success(eventProgressService.getByEventId(eventId, pageable)));
-    }
-
-    @PostMapping("/{eventId}/progress/generate")
-    public ResponseEntity<ApiResponse<List<EventProgressResponse>>> generateEventProgress(
-            @PathVariable String eventId) {
-        log.info("POST /plant-events/{}/progress/generate", eventId);
-        return ResponseEntity.ok(ApiResponse.success(eventProgressService.generateOrRefresh(eventId)));
-    }
-
-    @PatchMapping("/{eventId}/progress/{progressId}")
-    public ResponseEntity<ApiResponse<EventProgressResponse>> updateEventProgress(
-            @PathVariable String eventId,
-            @PathVariable String progressId,
-            @Valid @RequestBody EventProgressUpdateRequest request) {
-        log.info("PATCH /plant-events/{}/progress/{}", eventId, progressId);
-        return ResponseEntity.ok(ApiResponse.success(eventProgressService.update(progressId, request)));
     }
 }

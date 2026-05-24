@@ -35,4 +35,6 @@ public interface PlanApplyRepository extends MongoRepository<PlanApply, String> 
     Page<PlanApply> findByFarmZoneId(String farmZoneId, Pageable pageable);
 
     long countByPlanId(String planId);
+
+    long countByPlanIdAndSuccess(String planId, Boolean success);
 }

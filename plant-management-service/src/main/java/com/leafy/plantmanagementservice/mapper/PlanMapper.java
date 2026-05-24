@@ -27,12 +27,16 @@ public interface PlanMapper {
     @Mapping(target = "isPublic",    expression = "java(plan.isPublic())")
     @Mapping(target = "sourceType",  expression = "java(plan.getSourceType())")
     @Mapping(target = "applyCount",  ignore = true)
+    @Mapping(target = "successApplyCount",  ignore = true)
+    @Mapping(target = "failedApplyCount",   ignore = true)
     @Mapping(target = "applies",     ignore = true)
     PlanResponse toResponse(Plan plan);
 
     @Mapping(target = "isPublic",    expression = "java(plan.isPublic())")
     @Mapping(target = "sourceType",  expression = "java(plan.getSourceType())")
     @Mapping(target = "applyCount",  ignore = true)
+    @Mapping(target = "successApplyCount",  ignore = true)
+    @Mapping(target = "failedApplyCount",   ignore = true)
     @Mapping(target = "applies",     ignore = true)
     List<PlanResponse> toResponseList(List<Plan> plans);
 

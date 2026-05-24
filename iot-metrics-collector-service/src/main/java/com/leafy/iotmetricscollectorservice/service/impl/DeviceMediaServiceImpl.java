@@ -125,9 +125,9 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
             return;
         }
 
-        Instant metadataTime = payload.getTimestamp() != null
-            ? payload.getTimestamp()
-            : (payload.getTs() != null ? payload.getTs() : Instant.now());
+        Instant receivedAt = Instant.now();
+        Instant payloadTime = payload.getTimestamp() != null ? payload.getTimestamp() : payload.getTs();
+        Instant metadataTime = IngestTimestampResolver.resolveLiveEventTime(payloadTime, receivedAt);
         boolean successful = Boolean.TRUE.equals(payload.getSuccess())
             || "SUCCESS".equalsIgnoreCase(payload.getStatus());
 

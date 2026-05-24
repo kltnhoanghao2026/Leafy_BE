@@ -60,9 +60,7 @@ app:
     connection-timeout: 10
     keep-alive-interval: 20
   file-service:
-#    upload-url: ${FILE_SERVICE_UPLOAD_URL:http://file-service:8084/internal/files/upload}
-#    internal-upload-url: ${FILE_SERVICE_INTERNAL_UPLOAD_URL:http://localhost:8084/internal/files/upload}
-#    presigned-url-template: ${FILE_SERVICE_PRESIGNED_URL_TEMPLATE:http://localhost:8084/internal/files/presigned-url/%s}
-    upload-url: http://192.168.1.3:8084/internal/files/upload
-    internal-upload-url: http://192.168.1.3:8084/internal/files/upload
-    presigned-url-template: http://192.168.1.3:8084/internal/files/presigned-url/%s
+    upload-url: ${FILE_SERVICE_UPLOAD_URL:http://localhost:8084/internal/files/upload}
+  disease-detection:
+    gateway-url: ${DISEASE_DETECTION_GATEWAY_URL:http://localhost:${SERVER_PORT_GATEWAY:8080}}
+    predict-url: ${DISEASE_DETECTION_PREDICT_URL:http://localhost:${SERVER_PORT_GATEWAY:8080}/internal/diseases/predict}

@@ -1,6 +1,5 @@
 package com.leafy.communityfeedservice.dto.request;
 
-import com.leafy.communityfeedservice.model.embedded.LocationInfo;
 import com.leafy.communityfeedservice.model.embedded.PostContent;
 import com.leafy.communityfeedservice.model.embedded.PostMedia;
 import com.leafy.communityfeedservice.model.enums.PostType;
@@ -20,7 +19,6 @@ public record PostCreateRequest(
         String originalAuthorId,
         PostContent sharedCaption,
         String rootPostId,
-        LocationInfo location,
         @NotNull
         Visibility visibility,
         String planId

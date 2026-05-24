@@ -26,7 +26,7 @@ public class PlanSearchController {
 
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<Page<PlanSearchResponse>>> searchPlans(
-            @RequestParam("searchTerm") String searchTerm,
+            @RequestParam(required = false) String searchTerm,
             @RequestParam(required = false) String severityLevel,
             @RequestParam(required = false) String urgency,
             @RequestParam(required = false) Boolean isPublic,

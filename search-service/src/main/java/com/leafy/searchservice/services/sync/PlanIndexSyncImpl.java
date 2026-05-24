@@ -146,6 +146,8 @@ public class PlanIndexSyncImpl {
                 .sourceType(plan.getSourceType())
                 .eventCount(plan.getEvents() != null ? plan.getEvents().size() : 0)
                 .applyCount(plan.getApplyCount())
+                .successApplyCount(plan.getSuccessApplyCount())
+                .failedApplyCount(plan.getFailedApplyCount())
                 .creatorName(creatorName)
                 .creatorAvatar(creatorAvatar)
                 .creatorRole(creatorRole)

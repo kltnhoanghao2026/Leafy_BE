@@ -14,6 +14,7 @@ import com.leafy.plantmanagementservice.model.FarmZone;
 import com.leafy.plantmanagementservice.model.Plan;
 import com.leafy.plantmanagementservice.model.PlanApply;
 import com.leafy.plantmanagementservice.model.Plant;
+import com.leafy.plantmanagementservice.model.PlantEvent;
 import com.leafy.plantmanagementservice.model.enums.PlanStatus;
 import com.leafy.plantmanagementservice.model.enums.TargetType;
 import com.leafy.plantmanagementservice.model.enums.TrackingGranularity;
@@ -180,6 +181,17 @@ public class PlanApplyConsumer {
 
     /**
      * PLANT scope: one PlantEvent per template against the single target plant.
+     *
+     * <p>Implements a "nested apply" pattern where parent FARM/ZONE events are created
+     * if they don't already exist, and plant-scope events are linked to them:
+     * <ol>
+     *   <li>If no FARM events exist for the farm plot → create them (top-level)</li>
+     *   <li>If the plant's zone doesn't have FARM_ZONE events in this apply → create them (parent=FARM)</li>
+     *   <li>Create PLANT events linked to the appropriate FARM_ZONE parent</li>
+     * </ol>
+     *
+     * <p>Parent matching is done by index position so each plant event aligns
+     * with its corresponding template position in the hierarchy.
      */
     private List<PlantEventResponse> applyPlantScope(String planId, String applyId, PlanApplyRequestedEvent event, List<EmbeddedPlanEvent> templateEvents) {
         Plant target = plantRepository.findById(event.getPlantId()).orElse(null);
@@ -187,19 +199,100 @@ public class PlanApplyConsumer {
             log.warn("Target plant id={} not found for planId={}", event.getPlantId(), planId);
             return List.of();
         }
-        List<PlantEventCreateRequest> newEvents = new ArrayList<>();
-        for (EmbeddedPlanEvent template : templateEvents) {
-        int originalDuration = getOriginalDurationDays(templateEvents, template);
-        PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
-                target.getId(), target.getFarmPlotId(), target.getFarmZoneId(),
-                null, null, null, null, originalDuration);
-            // Apply-time scope is definitively PLANT — override whatever the template said
-            req.setTargetType(TargetType.PLANT);
-            newEvents.add(req);
+
+        List<PlantEventResponse> allResponses = new ArrayList<>();
+        String farmPlotId = target.getFarmPlotId();
+        String farmZoneId = target.getFarmZoneId();
+
+        // Step 1: Ensure FARM parent events exist for this apply
+        List<PlantEvent> existingFarmEvents = plantEventRepository
+                .findByPlanApplyIdAndTargetTypeOrderByCalculatedStartDate(applyId, TargetType.FARM);
+        List<PlantEventResponse> farmResponses;
+        List<String> farmEventIds;
+        if (existingFarmEvents.isEmpty()) {
+            log.info("No FARM events found for applyId={}, creating parent FARM events", applyId);
+            List<PlantEventCreateRequest> farmRequests = new ArrayList<>();
+            for (EmbeddedPlanEvent template : templateEvents) {
+                int originalDuration = getOriginalDurationDays(templateEvents, template);
+                PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
+                        null, farmPlotId, null,
+                        TrackingGranularity.ZONE, null, null, null, originalDuration);
+                req.setTargetType(TargetType.FARM);
+                farmRequests.add(req);
+            }
+            farmResponses = plantEventService.createEvents(farmRequests);
+            allResponses.addAll(farmResponses);
+            log.info("Created {} FARM parent events for planId={} applyId={}", farmResponses.size(), planId, applyId);
+        } else {
+            // Convert existing PlantEvent to PlantEventResponse for consistent handling
+            farmResponses = existingFarmEvents.stream()
+                    .map(e -> PlantEventResponse.builder()
+                            .id(e.getId())
+                            .daysFromStart(e.getDaysFromStart())
+                            .farmPlotId(e.getFarmPlotId())
+                            .farmZoneId(e.getFarmZoneId())
+                            .targetType(e.getTargetType())
+                            .build())
+                    .toList();
         }
-        List<PlantEventResponse> responses = plantEventService.createEvents(newEvents);
-        log.info("Created {} plant-scope events for planId={} applyId={} plantId={}", responses.size(), planId, applyId, target.getId());
-        return responses;
+        farmEventIds = farmResponses.stream().map(PlantEventResponse::getId).toList();
+
+        // Step 2: Ensure FARM_ZONE events exist for this plant's zone
+        List<PlantEvent> existingZoneEvents = plantEventRepository
+                .findByPlanApplyIdAndTargetTypeOrderByCalculatedStartDate(applyId, TargetType.FARM_ZONE)
+                .stream()
+                .filter(e -> farmZoneId != null && farmZoneId.equals(e.getFarmZoneId()))
+                .toList();
+
+        List<PlantEventResponse> zoneResponses;
+        List<String> zoneEventIds;
+        if (existingZoneEvents.isEmpty()) {
+            log.info("No FARM_ZONE events found for zone={} in applyId={}, creating zone events", farmZoneId, applyId);
+            List<PlantEventCreateRequest> zoneRequests = new ArrayList<>();
+            for (int i = 0; i < templateEvents.size(); i++) {
+                EmbeddedPlanEvent template = templateEvents.get(i);
+                String parentFarmEventId = farmEventIds.get(i);
+                PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
+                        null, farmPlotId, farmZoneId,
+                        TrackingGranularity.PLANT, null, null, parentFarmEventId,
+                        getOriginalDurationDaysByIndex(templateEvents, i));
+                req.setTargetType(TargetType.FARM_ZONE);
+                zoneRequests.add(req);
+            }
+            zoneResponses = plantEventService.createEvents(zoneRequests);
+            allResponses.addAll(zoneResponses);
+            log.info("Created {} FARM_ZONE events for zone={} planId={} applyId={}", zoneResponses.size(), farmZoneId, planId, applyId);
+        } else {
+            // Convert existing PlantEvent to PlantEventResponse for consistent handling
+            zoneResponses = existingZoneEvents.stream()
+                    .map(e -> PlantEventResponse.builder()
+                            .id(e.getId())
+                            .daysFromStart(e.getDaysFromStart())
+                            .farmPlotId(e.getFarmPlotId())
+                            .farmZoneId(e.getFarmZoneId())
+                            .targetType(e.getTargetType())
+                            .build())
+                    .toList();
+        }
+        zoneEventIds = zoneResponses.stream().map(PlantEventResponse::getId).toList();
+
+        // Step 3: Create PLANT events linked to FARM_ZONE parent
+        List<PlantEventCreateRequest> plantRequests = new ArrayList<>();
+        for (int i = 0; i < templateEvents.size(); i++) {
+            EmbeddedPlanEvent template = templateEvents.get(i);
+            String parentZoneEventId = zoneEventIds.get(i);
+            PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
+                    target.getId(), farmPlotId, farmZoneId,
+                    null, null, null, parentZoneEventId,
+                    getOriginalDurationDaysByIndex(templateEvents, i));
+            req.setTargetType(TargetType.PLANT);
+            plantRequests.add(req);
+        }
+        List<PlantEventResponse> plantResponses = plantEventService.createEvents(plantRequests);
+        allResponses.addAll(plantResponses);
+        log.info("Created {} plant-scope events for planId={} applyId={} plantId={}", plantResponses.size(), planId, applyId, target.getId());
+
+        return allResponses;
     }
 
     /**

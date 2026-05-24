@@ -31,6 +31,8 @@ public interface UserConnectionService {
 
     Page<ProfileResponse> getUserFollowerProfiles(String followingId, Pageable pageable);
 
+    Page<ProfileResponse> getUserFollowingProfiles(String followerId, Pageable pageable);
+
     boolean isActiveConsultation(String expertProfileId, String farmerProfileId);
 
     List<String> getConsultingFarmerIds(String expertProfileId);

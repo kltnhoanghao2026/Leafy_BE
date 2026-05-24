@@ -26,10 +26,6 @@ public class PlantSeederResponse {
     long deletedEventCount;
     int seededEventCount;
 
-    // Event Progress
-    long deletedProgressCount;
-    int seededProgressCount;
-
     // Treatment Plans
     long deletedPlanCount;
     int seededPlanCount;

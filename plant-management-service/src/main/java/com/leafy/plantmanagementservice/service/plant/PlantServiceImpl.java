@@ -17,7 +17,9 @@ import com.leafy.plantmanagementservice.model.Plant;
 import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
 import com.leafy.plantmanagementservice.model.enums.PlantStatus;
 import com.leafy.plantmanagementservice.repository.PlantRepository;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,14 +42,15 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@FieldDefaults(level =  AccessLevel.PRIVATE, makeFinal = true)
 public class PlantServiceImpl implements PlantService {
 
-    private final PlantRepository plantRepository;
-    private final PlantMapper plantMapper;
-    private final FarmPlotService farmPlotService;
-    private final FarmZoneService farmZoneService;
-    private final ConsultingAccessHelper consultingAccessHelper;
-    private final SpeciesService speciesService;
+    PlantRepository plantRepository;
+    PlantMapper plantMapper;
+    FarmPlotService farmPlotService;
+    FarmZoneService farmZoneService;
+    ConsultingAccessHelper consultingAccessHelper;
+    SpeciesService speciesService;
 
     @Override
     @Transactional

@@ -11,7 +11,9 @@ import com.leafy.plantmanagementservice.dto.response.species.SpeciesResponse;
 import com.leafy.plantmanagementservice.mapper.SpeciesMapper;
 import com.leafy.plantmanagementservice.model.Species;
 import com.leafy.plantmanagementservice.repository.SpeciesRepository;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,12 +34,12 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@FieldDefaults(level =  AccessLevel.PRIVATE, makeFinal = true)
 public class SpeciesServiceImpl implements SpeciesService {
-
-    private final SpeciesRepository speciesRepository;
-    private final SpeciesMapper speciesMapper;
-    private final RestClient.Builder restClientBuilder;
-    private final PerenualApiProperties perenualApiProperties;
+    SpeciesRepository speciesRepository;
+    SpeciesMapper speciesMapper;
+    RestClient.Builder restClientBuilder;
+    PerenualApiProperties perenualApiProperties;
 
     @Override
     @Transactional

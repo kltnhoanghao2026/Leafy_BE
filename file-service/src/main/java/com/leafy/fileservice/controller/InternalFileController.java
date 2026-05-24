@@ -9,10 +9,12 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
@@ -86,6 +88,52 @@ public class InternalFileController {
                     log.error("Error generating internal presigned URL: {}", error.getMessage(), error);
                     return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                             .body(ApiResponse.error(9999, "Failed to generate presigned URL", null)));
+                });
+    }
+
+    /**
+     * Get file metadata internally so service clients can resolve fileId to S3 key.
+     *
+     * @param fileId the file ID
+     * @return saved file metadata
+     */
+    @GetMapping("/{fileId}")
+    public Mono<ResponseEntity<ApiResponse<FileResponse>>> getFileByIdInternal(@PathVariable String fileId) {
+        log.info("GET /internal/files/{} - system metadata lookup", fileId);
+
+        return fileService.getFileById(fileId)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)))
+                .onErrorResume(error -> {
+                    log.error("Error getting internal file metadata: {}", error.getMessage(), error);
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(ApiResponse.error(9999, "Failed to get file metadata", null)));
+                });
+    }
+
+    /**
+     * Download a file internally through file-service instead of exposing S3 presigned URLs.
+     *
+     * @param s3Key the S3 object key
+     * @return proxied file bytes from S3
+     */
+    @GetMapping("/download/s3-key")
+    public Mono<ResponseEntity<Flux<DataBuffer>>> downloadFileByS3KeyInternal(@RequestParam String s3Key) {
+        log.info("GET /internal/files/download/s3-key - system download: {}", s3Key);
+
+        return fileService.getFileByS3Key(s3Key)
+                .map(fileResponse -> {
+                    Flux<DataBuffer> fileData = s3Service.downloadFile(s3Key);
+                    return ResponseEntity.ok()
+                            .header("Content-Type", fileResponse.getContentType() != null
+                                    ? fileResponse.getContentType()
+                                    : "application/octet-stream")
+                            .header("Content-Disposition",
+                                    "attachment; filename=\"" + fileResponse.getOriginalFileName() + "\"")
+                            .body(fileData);
+                })
+                .onErrorResume(error -> {
+                    log.error("Error downloading internal file by S3 key: {}", error.getMessage(), error);
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
                 });
     }
 }

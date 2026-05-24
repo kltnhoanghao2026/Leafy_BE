@@ -37,13 +37,26 @@ public class CertificateController {
      * @return the created approval request response
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or @profileSecurityService.isOwner(#profileId)")
     public ResponseEntity<ApiResponse<ApprovalRequestDto>> submitApprovalRequest(
             @PathVariable String profileId,
             @Valid @RequestBody CreateApprovalRequest request) {
         log.info("POST /profiles/{}/approval-requests - Submitting approval request", profileId);
         ApprovalRequestDto response = certificateService.submitApprovalRequest(profileId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    /**
+     * Get all approval requests for a specific profile (owner view)
+     *
+     * @param profileId the profile ID
+     * @return list of approval requests
+     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<ApprovalRequestDto>>> getApprovalRequests(
+            @PathVariable String profileId) {
+        log.info("GET /profiles/{}/approval-requests - Fetching approval requests", profileId);
+        List<ApprovalRequestDto> response = certificateService.getApprovalRequests(profileId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     /**

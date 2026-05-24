@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 public class SecurityUtil {
 
     public String getCurrentUserId() {
-        return ServiceSecurityUtils.getCurrentAccountId();
+        return ServiceSecurityUtils.getCurrentUserId();
     }
 
     public String getCurrentProfileId() {
