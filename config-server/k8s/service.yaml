@@ -4,9 +4,9 @@ metadata:
   name: leafy-config-server
   namespace: leafy
 spec:
+  type: LoadBalancer
   ports:
     - port: 8888
       targetPort: 8888
-      name: config
   selector:
     app: config-server
