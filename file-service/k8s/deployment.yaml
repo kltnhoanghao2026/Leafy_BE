@@ -17,8 +17,8 @@ spec:
         node-type: app
       containers:
         - name: file-service
-          image: leafy-file-service:latest
-          imagePullPolicy: IfNotPresent
+          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/file-service:latest
+          imagePullPolicy: Always
           env:
             - name: MONGODB_DATABASE_FILE
               valueFrom:
@@ -51,5 +51,5 @@ spec:
               path: /actuator/health/liveness
               port: 8084
             initialDelaySeconds: 90
-            periodSeconds: 30
+            periodSeconds: 10
             failureThreshold: 3

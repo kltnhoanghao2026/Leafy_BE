@@ -17,8 +17,8 @@ spec:
         node-type: search-ai
       containers:
         - name: rag-service
-          image: leafy-rag-service:latest
-          imagePullPolicy: IfNotPresent
+          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/rag-service:latest
+          imagePullPolicy: Always
           env:
             - name: MONGODB_DATABASE
               valueFrom:
@@ -45,8 +45,8 @@ spec:
             httpGet:
               path: /health
               port: 8199
-            initialDelaySeconds: 40
-            periodSeconds: 10
+            initialDelaySeconds: 60
+            periodSeconds: 30
             failureThreshold: 3
           livenessProbe:
             httpGet:

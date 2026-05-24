@@ -17,8 +17,8 @@ spec:
         node-type: app
       containers:
         - name: profile-service
-          image: leafy-profile-service:latest
-          imagePullPolicy: IfNotPresent
+          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/profile-service:latest
+          imagePullPolicy: Always
           env:
             - name: SPRING_CLOUD_CONFIG_URI
               valueFrom:
@@ -57,7 +57,7 @@ spec:
             httpGet:
               path: /actuator/health/liveness
               port: 8087
-            initialDelaySeconds: 60
-            periodSeconds: 30
+            initialDelaySeconds: 90
+            periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3

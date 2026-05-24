@@ -29,10 +29,9 @@ spec:
               echo "Discovery server is UP"
       containers:
         - name: config-server
-          image: ${ECR_REGISTRY}/leafy-config-server:${IMAGE_TAG}
+          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/config-server:latest
+          imagePullPolicy: Always
           env:
-            - name: IMAGE_TAG
-              value: latest
             - name: SERVER_PORT_CONFIG
               value: "8888"
           envFrom:
@@ -52,12 +51,12 @@ spec:
               path: /actuator/health/readiness
               port: 8888
             initialDelaySeconds: 10
-            periodSeconds: 15
-            failureThreshold: 5
+            periodSeconds: 10
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: 8888
             initialDelaySeconds: 30
-            periodSeconds: 30
+            periodSeconds: 10
             failureThreshold: 3

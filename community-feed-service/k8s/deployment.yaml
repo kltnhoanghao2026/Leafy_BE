@@ -17,8 +17,8 @@ spec:
         node-type: app
       containers:
         - name: community-feed-service
-          image: leafy-community-feed-service:latest
-          imagePullPolicy: IfNotPresent
+          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/community-feed-service:latest
+          imagePullPolicy: Always
           env:
             - name: MONGODB_DATABASE_COMMUNITY_FEED
               valueFrom:
@@ -52,7 +52,7 @@ spec:
             httpGet:
               path: /actuator/health/liveness
               port: 8091
-            initialDelaySeconds: 60
-            periodSeconds: 30
+            initialDelaySeconds: 90
+            periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3

@@ -17,10 +17,8 @@ spec:
         node-type: app
       containers:
         - name: api-gateway
-          image: ${ECR_REGISTRY}/leafy-api-gateway:${IMAGE_TAG}
-          env:
-            - name: IMAGE_TAG
-              value: latest
+          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/api-gateway:latest
+          imagePullPolicy: Always
           envFrom:
             - configMapRef:
                 name: leafy-common-config
@@ -47,5 +45,5 @@ spec:
               path: /actuator/health/liveness
               port: 8060
             initialDelaySeconds: 90
-            periodSeconds: 30
+            periodSeconds: 10
             failureThreshold: 3

@@ -4,7 +4,10 @@ spring:
   profiles:
     active: native
   cloud:
-   
+    config:
+      server:
+        health:
+          enabled: true
 
   # Disable Eureka client for config server (it registers itself)
   # Config server should NOT register with Eureka to avoid circular dependency
@@ -31,11 +34,3 @@ management:
 logging:
   level:
     org.springframework.cloud.config: INFO
-
-# Add caching to reduce load
-spring:
-  cloud:
-    config:
-      server:
-        health:
-          enabled: true

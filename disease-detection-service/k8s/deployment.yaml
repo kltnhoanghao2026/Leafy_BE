@@ -17,8 +17,8 @@ spec:
         node-type: search-ai
       containers:
         - name: disease-detection-service
-          image: leafy-disease-detection-service:latest
-          imagePullPolicy: IfNotPresent
+          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/disease-detection-service:latest
+          imagePullPolicy: Always
           env:
             - name: MONGODB_DATABASE
               valueFrom:
@@ -46,12 +46,12 @@ spec:
               path: /health
               port: 8090
             initialDelaySeconds: 60
-            periodSeconds: 10
+            periodSeconds: 30
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /health
               port: 8090
-            initialDelaySeconds: 180
+            initialDelaySeconds: 120
             periodSeconds: 30
             failureThreshold: 3
