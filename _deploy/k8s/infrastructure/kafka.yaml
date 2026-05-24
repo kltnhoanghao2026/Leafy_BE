@@ -14,6 +14,8 @@ spec:
       labels:
         app: kafka
     spec:
+      securityContext:
+        fsGroup: 1000
       nodeSelector:
         node-type: messaging
       terminationGracePeriodSeconds: 60
@@ -26,24 +28,57 @@ spec:
             - containerPort: 29092
               name: kafka-internal
             - containerPort: 9093
-              name: kafka-controller
+              name: kafka-ctrl
+            - containerPort: 9997
+              name: kafka-metrics
           env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+
+            # KRaft/Kafka mode - combined broker + controller
             - name: KAFKA_NODE_ID
               value: "1"
             - name: KAFKA_PROCESS_ROLES
               value: broker,controller
-            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
-              value: 1@leafy-kafka:9093
+
+            # Listeners - bind to all interfaces
             - name: KAFKA_LISTENERS
-              value: PLAINTEXT://leafy-kafka:29092,CONTROLLER://leafy-kafka:9093,PLAINTEXT_HOST://0.0.0.0:9092
+              value: >-
+                PLAINTEXT://0.0.0.0:29092,
+                CONTROLLER://0.0.0.0:9093,
+                PLAINTEXT_HOST://0.0.0.0:9092
+
+            # Advertised listeners - use pod FQDN
             - name: KAFKA_ADVERTISED_LISTENERS
-              value: PLAINTEXT://leafy-kafka:29092,PLAINTEXT_HOST://localhost:9092
+              value: >-
+                PLAINTEXT://$(POD_NAME).leafy-kafka.$(POD_NAMESPACE).svc.cluster.local:29092,
+                PLAINTEXT_HOST://localhost:9092
+
+            # Controller quorum voters - use pod FQDN
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "1@$(POD_NAME).leafy-kafka.$(POD_NAMESPACE).svc.cluster.local:9093"
+
+            # Controller advertised listeners - CRITICAL for KRaft
+            - name: KAFKA_CONTROLLER_LISTENER_ADVERTISED_LISTENERS
+              value: CONTROLLER://$(POD_NAME).leafy-kafka.$(POD_NAMESPACE).svc.cluster.local:9093
+
+            # Security protocols
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
               value: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+
+            # Controller config
             - name: KAFKA_CONTROLLER_LISTENER_NAMES
               value: CONTROLLER
             - name: KAFKA_INTER_BROKER_LISTENER_NAME
-              value: PLAINTEXT
+              value: PLAINTEXT_HOST
+
+            # Topic config
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
               value: "1"
             - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
@@ -52,14 +87,23 @@ spec:
               value: "1"
             - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
               value: "true"
+            - name: KAFKA_NUM_PARTITIONS
+              value: "3"
+
+            # Storage
             - name: KAFKA_LOG_DIRS
-              value: /var/lib/kafka/data
+              value: /var/lib/kafka/data/kafka-logs
             - name: CLUSTER_ID
               value: MkU3OEVBNTcwNTJENDM2Qk
             - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
               value: "3000"
-            - name: KAFKA_NUM_PARTITIONS
-              value: "3"
+
+            # JMX Metrics
+            - name: KAFKA_JMX_OPTS
+              value: "-Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.port=9997 -Dcom.sun.management.jmxremote.rmi.port=9997 -Dcom.sun.management.jmxremote.host=0.0.0.0 -Dcom.sun.management.jmxremote.ssl=false"
+            - name: KAFKA_JMX_HOSTNAME
+              value: "0.0.0.0"
+
           resources:
             requests:
               memory: 512Mi
@@ -68,15 +112,15 @@ spec:
               memory: 2048Mi
               cpu: 2000m
           readinessProbe:
-            exec:
-              command: ["kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+            tcpSocket:
+              port: 9092
             initialDelaySeconds: 30
             periodSeconds: 20
             timeoutSeconds: 10
             failureThreshold: 5
           livenessProbe:
-            exec:
-              command: ["kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+            tcpSocket:
+              port: 9092
             initialDelaySeconds: 60
             periodSeconds: 30
             timeoutSeconds: 10

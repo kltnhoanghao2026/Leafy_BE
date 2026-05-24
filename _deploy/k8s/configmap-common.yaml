@@ -34,6 +34,7 @@ data:
   POSTGRES_HOST: "leafy-postgresql"
   POSTGRES_PORT: "5432"
   POSTGRES_USER: "postgres"
+  POSTGRES_PASSWORD: "postgres123"
   POSTGRES_DB: "leafy_iot_db"
 
   # ============================================================

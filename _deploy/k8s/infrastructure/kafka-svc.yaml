@@ -11,6 +11,9 @@ spec:
     - name: kafka-internal
       port: 29092
       targetPort: 29092
+    - name: kafka-metrics
+      port: 9997
+      targetPort: 9997
   selector:
     app: kafka
   clusterIP: None

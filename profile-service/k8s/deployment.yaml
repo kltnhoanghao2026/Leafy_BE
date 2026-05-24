@@ -22,15 +22,28 @@ spec:
             - sh
             - -c
             - |
-              until wget -qO- http://leafy-discovery-server:8761/actuator/health/readiness 2>/dev/null | grep -q '"status":"UP"'; do
-                echo "Waiting for discovery-server..."
+              # Wait for discovery server (Eureka)
+              echo "Waiting for discovery-server..."
+              until wget -qO- http://leafy-discovery-server:8761/actuator/health 2>/dev/null | grep -q '"status":"UP"'; do
                 sleep 5
               done
-              until wget -qO- http://leafy-config-server:8888/actuator/health/readiness 2>/dev/null | grep -q '"status":"UP"'; do
-                echo "Waiting for config-server..."
+              echo "Discovery server is UP"
+
+              # Wait for config server
+              echo "Waiting for config-server..."
+              until wget -qO- http://leafy-config-server:8888/actuator/health 2>/dev/null | grep -q '"status":"UP"'; do
                 sleep 5
               done
-              echo "Infrastructure services are UP"
+              echo "Config server is UP"
+
+              # Wait for MongoDB
+              echo "Waiting for MongoDB..."
+              until wget -qO- http://leafy-mongodb:27017 2>/dev/null; do
+                sleep 5
+              done
+              echo "MongoDB is UP"
+
+              echo "All infrastructure services are ready!"
       containers:
         - name: profile-service
           image: ${ECR_REGISTRY}/leafy-profile-service:${IMAGE_TAG}
@@ -49,6 +62,7 @@ spec:
                 name: leafy-common-secrets
           ports:
             - containerPort: 8087
+              name: http
           resources:
             requests:
               memory: 512Mi
@@ -59,14 +73,16 @@ spec:
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8083
+              port: 8087
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8083
-            initialDelaySeconds: 90
+              port: 8087
+            initialDelaySeconds: 60
             periodSeconds: 30
+            timeoutSeconds: 5
             failureThreshold: 3

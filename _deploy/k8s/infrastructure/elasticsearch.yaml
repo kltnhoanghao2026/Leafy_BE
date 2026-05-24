@@ -14,6 +14,8 @@ spec:
       labels:
         app: elasticsearch
     spec:
+      securityContext:
+        fsGroup: 1000
       nodeSelector:
         node-type: search-ai
       terminationGracePeriodSeconds: 30

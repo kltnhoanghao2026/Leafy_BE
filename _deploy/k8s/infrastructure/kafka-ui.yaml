@@ -1,0 +1,121 @@
+# Kafka UI - Web-based Kafka management interface
+# Documentation: https://docs.kafka-ui.provectus.com/
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leafy-kafka-ui
+  namespace: leafy
+  labels:
+    app: kafka-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-ui
+  template:
+    metadata:
+      labels:
+        app: kafka-ui
+    spec:
+      nodeSelector:
+        node-type: app
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: kafka-ui
+          image: provectuslabs/kafka-ui:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: "leafy-kafka"
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: "leafy-kafka:29092"
+            - name: KAFKA_CLUSTERS_0_ZOOKEEPER
+              value: ""
+            - name: KAFKA_CLUSTERS_0_METRICS_PORT
+              value: "9997"
+            # Security - disable auth for internal access (add auth if needed)
+            - name: KAFKA_CLUSTERS_0_AUTHSESSIONTIMEOUTMS
+              value: "10000"
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leafy-kafka-ui
+  namespace: leafy
+  labels:
+    app: kafka-ui
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: kafka-ui
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: leafy-kafka-ui
+  namespace: leafy
+  labels:
+    app: kafka-ui
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - kafka-ui.leafy.com
+      secretName: leafy-kafka-ui-tls
+  rules:
+    - host: kafka-ui.leafy.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: leafy-kafka-ui
+                port:
+                  number: 8080

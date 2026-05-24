@@ -49,6 +49,7 @@ spec:
                 name: leafy-common-secrets
           ports:
             - containerPort: 8085
+              name: http
           resources:
             requests:
               memory: 512Mi
@@ -59,16 +60,18 @@ spec:
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8095
+              port: 8085
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8095
-            initialDelaySeconds: 90
+              port: 8085
+            initialDelaySeconds: 60
             periodSeconds: 30
+            timeoutSeconds: 5
             failureThreshold: 3
           volumeMounts:
             - name: firebase-credentials

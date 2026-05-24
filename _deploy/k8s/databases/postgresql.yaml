@@ -14,6 +14,8 @@ spec:
       labels:
         app: postgresql
     spec:
+      securityContext:      
+          fsGroup: 1000
       nodeSelector:
         node-type: data
       terminationGracePeriodSeconds: 30
@@ -27,7 +29,7 @@ spec:
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
-                  name: leafy-common-secrets
+                  name: leafy-db-secrets
                   key: POSTGRES_DB
             - name: POSTGRES_USER
               valueFrom:
@@ -39,6 +41,8 @@ spec:
                 secretKeyRef:
                   name: leafy-common-secrets
                   key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           resources:
             requests:
               memory: 512Mi

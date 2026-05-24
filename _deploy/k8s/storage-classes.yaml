@@ -1,0 +1,70 @@
+# Kubernetes Storage Classes for Leafy Application
+# These StorageClasses provision AWS EBS volumes for stateful workloads
+
+---
+# Standard Storage Class - General purpose SSD (gp3)
+# Used by: MongoDB, PostgreSQL, Redis
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+parameters:
+  type: gp3
+  fsType: ext4
+  encrypted: "true"
+reclaimPolicy: Retain
+---
+
+# High-Performance Storage Class - General purpose SSD (gp3) with optimized IOPS
+# Used by: Kafka, Qdrant, Elasticsearch
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-gp3-fast
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+parameters:
+  type: gp3
+  fsType: ext4
+  encrypted: "true"
+  # gp3 allows custom IOPS settings
+  # For high-throughput workloads like Kafka and Elasticsearch
+reclaimPolicy: Retain
+---
+
+# burstable Storage Class - HDD-based st1 (for backup/archive if needed)
+# Not currently used by any deployment
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-st1
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+parameters:
+  type: st1
+  fsType: ext4
+  encrypted: "true"
+reclaimPolicy: Retain
+---
+
+# Cold Storage Class - HDD-based sc1 (for rarely accessed data if needed)
+# Not currently used by any deployment
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc1
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+parameters:
+  type: sc1
+  fsType: ext4
+  encrypted: "true"
+reclaimPolicy: Retain

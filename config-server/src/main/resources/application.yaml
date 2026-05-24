@@ -5,11 +5,19 @@ spring:
     active: native
   cloud:
     config:
+      # Disable config server client - this server should NOT try to fetch config from itself
+      enabled: false
       server:
         native:
           search-locations: classpath:/config
         encrypt:
           enabled: false
+
+  # Disable Eureka client for config server (it registers itself)
+  # Config server should NOT register with Eureka to avoid circular dependency
+  eureka:
+    client:
+      enabled: false
 
   # Disable Kafka for infrastructure service
   kafka:
@@ -17,16 +25,6 @@ spring:
 
 server:
   port: ${SERVER_PORT_CONFIG}
-
-eureka:
-  client:
-    serviceUrl:
-      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
-    registerWithEureka: true
-    fetchRegistry: true
-  instance:
-    preferIpAddress: true
-    hostname: ${HOSTNAME}
 
 management:
   endpoints:
@@ -39,4 +37,4 @@ management:
 
 logging:
   level:
-    org.springframework.cloud.config: DEBUG
+    org.springframework.cloud.config: INFO
