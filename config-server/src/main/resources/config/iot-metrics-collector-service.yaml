@@ -40,6 +40,8 @@ management:
         include: health,info,metrics
 
 app:
+  bootstrap:
+    seed-sensor-types: ${IOT_SEED_SENSOR_TYPES:true}
   kafka:
     topics:
       alert-triggered: ${IOT_ALERT_TRIGGERED_TOPIC:iot.alert.triggered}
