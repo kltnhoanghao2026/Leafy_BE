@@ -33,7 +33,6 @@ public class PostResponse {
     PostContent sharedCaption;
     PostResponse sharedPostInfo;
     String rootPostId;
-    LocationInfo location;
     Visibility visibility;
     String planId;
     /** Embedded plan snapshot — populated for PLAN_SHARE posts. */

@@ -8,11 +8,13 @@ import com.leafy.common.event.notification.RawNotificationEvent;
 import com.leafy.common.publisher.RawNotificationEventPublisher;
 import com.leafy.plantmanagementservice.dto.request.plantevent.EventTaskRequest;
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventCreateRequest;
+import com.leafy.plantmanagementservice.dto.response.plantevent.PlantEventResponse;
 import com.leafy.plantmanagementservice.model.EmbeddedPlanEvent;
 import com.leafy.plantmanagementservice.model.FarmZone;
 import com.leafy.plantmanagementservice.model.Plan;
 import com.leafy.plantmanagementservice.model.PlanApply;
 import com.leafy.plantmanagementservice.model.Plant;
+import com.leafy.plantmanagementservice.model.PlantEvent;
 import com.leafy.plantmanagementservice.model.enums.PlanStatus;
 import com.leafy.plantmanagementservice.model.enums.TargetType;
 import com.leafy.plantmanagementservice.model.enums.TrackingGranularity;
@@ -119,28 +121,40 @@ public class PlanApplyConsumer {
             return;
         }
 
-        List<String> createdEventIds;
+        List<PlantEventResponse> createdEvents;
         if (hasPlantId) {
-            createdEventIds = applyPlantScope(planId, applyId, event, expandedTemplateEvents);
+            createdEvents = applyPlantScope(planId, applyId, event, expandedTemplateEvents);
         } else {
-            createdEventIds = applyBroadScope(planId, applyId, event, expandedTemplateEvents, hasZoneId);
+            createdEvents = applyBroadScope(planId, applyId, event, expandedTemplateEvents, hasZoneId);
         }
 
-        if (createdEventIds.isEmpty()) {
+        if (createdEvents.isEmpty()) {
             log.warn("No events created for applyId={}", applyId);
             apply.setStatus(PlanStatus.PENDING);
             planApplyRepository.save(apply);
             return;
         }
 
-        // Update PlanApply with generated event IDs and ACTIVE status
+        List<String> createdEventIds = createdEvents.stream()
+                .map(PlantEventResponse::getId)
+                .toList();
+
+        // ── Determine lastEventId: the event with the latest calculatedEndDate ──
+        String lastEventId = createdEvents.stream()
+                .filter(e -> e.getCalculatedEndDate() != null)
+                .max(java.util.Comparator.comparing(PlantEventResponse::getCalculatedEndDate))
+                .map(PlantEventResponse::getId)
+                .orElse(createdEventIds.get(createdEventIds.size() - 1)); // fallback: last in list
+
+        // Update PlanApply with generated event IDs, lastEventId, and ACTIVE status
         apply.setPlantEventIds(createdEventIds);
+        apply.setLastEventId(lastEventId);
         apply.setStatus(PlanStatus.ACTIVE);
         apply.setCanCancel(true);
         planApplyRepository.save(apply);
 
         kafkaTemplate.send(kafkaTopicProperties.getSystemEvents().getPlanApplied(), planId, new PlanAppliedEvent(planId));
-        log.info("PlanApply id={} is now ACTIVE with {} events", applyId, createdEventIds.size());
+        log.info("PlanApply id={} is now ACTIVE with {} events, lastEventId={}", applyId, createdEventIds.size(), lastEventId);
 
         // Send IN_APP + FCM notification to the user who applied the plan
         try {
@@ -167,27 +181,118 @@ public class PlanApplyConsumer {
 
     /**
      * PLANT scope: one PlantEvent per template against the single target plant.
+     *
+     * <p>Implements a "nested apply" pattern where parent FARM/ZONE events are created
+     * if they don't already exist, and plant-scope events are linked to them:
+     * <ol>
+     *   <li>If no FARM events exist for the farm plot → create them (top-level)</li>
+     *   <li>If the plant's zone doesn't have FARM_ZONE events in this apply → create them (parent=FARM)</li>
+     *   <li>Create PLANT events linked to the appropriate FARM_ZONE parent</li>
+     * </ol>
+     *
+     * <p>Parent matching is done by index position so each plant event aligns
+     * with its corresponding template position in the hierarchy.
      */
-    private List<String> applyPlantScope(String planId, String applyId, PlanApplyRequestedEvent event, List<EmbeddedPlanEvent> templateEvents) {
+    private List<PlantEventResponse> applyPlantScope(String planId, String applyId, PlanApplyRequestedEvent event, List<EmbeddedPlanEvent> templateEvents) {
         Plant target = plantRepository.findById(event.getPlantId()).orElse(null);
         if (target == null) {
             log.warn("Target plant id={} not found for planId={}", event.getPlantId(), planId);
             return List.of();
         }
-        List<PlantEventCreateRequest> newEvents = new ArrayList<>();
-        for (EmbeddedPlanEvent template : templateEvents) {
-            PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
-                    target.getId(), target.getFarmPlotId(), target.getFarmZoneId(),
-                    null, null, null, null);
-            // Apply-time scope is definitively PLANT — override whatever the template said
-            req.setTargetType(TargetType.PLANT);
-            newEvents.add(req);
+
+        List<PlantEventResponse> allResponses = new ArrayList<>();
+        String farmPlotId = target.getFarmPlotId();
+        String farmZoneId = target.getFarmZoneId();
+
+        // Step 1: Ensure FARM parent events exist for this apply
+        List<PlantEvent> existingFarmEvents = plantEventRepository
+                .findByPlanApplyIdAndTargetTypeOrderByCalculatedStartDate(applyId, TargetType.FARM);
+        List<PlantEventResponse> farmResponses;
+        List<String> farmEventIds;
+        if (existingFarmEvents.isEmpty()) {
+            log.info("No FARM events found for applyId={}, creating parent FARM events", applyId);
+            List<PlantEventCreateRequest> farmRequests = new ArrayList<>();
+            for (EmbeddedPlanEvent template : templateEvents) {
+                int originalDuration = getOriginalDurationDays(templateEvents, template);
+                PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
+                        null, farmPlotId, null,
+                        TrackingGranularity.ZONE, null, null, null, originalDuration);
+                req.setTargetType(TargetType.FARM);
+                farmRequests.add(req);
+            }
+            farmResponses = plantEventService.createEvents(farmRequests);
+            allResponses.addAll(farmResponses);
+            log.info("Created {} FARM parent events for planId={} applyId={}", farmResponses.size(), planId, applyId);
+        } else {
+            // Convert existing PlantEvent to PlantEventResponse for consistent handling
+            farmResponses = existingFarmEvents.stream()
+                    .map(e -> PlantEventResponse.builder()
+                            .id(e.getId())
+                            .daysFromStart(e.getDaysFromStart())
+                            .farmPlotId(e.getFarmPlotId())
+                            .farmZoneId(e.getFarmZoneId())
+                            .targetType(e.getTargetType())
+                            .build())
+                    .toList();
         }
-        List<String> ids = plantEventService.createEvents(newEvents).stream()
-                .map(r -> r.getId())
+        farmEventIds = farmResponses.stream().map(PlantEventResponse::getId).toList();
+
+        // Step 2: Ensure FARM_ZONE events exist for this plant's zone
+        List<PlantEvent> existingZoneEvents = plantEventRepository
+                .findByPlanApplyIdAndTargetTypeOrderByCalculatedStartDate(applyId, TargetType.FARM_ZONE)
+                .stream()
+                .filter(e -> farmZoneId != null && farmZoneId.equals(e.getFarmZoneId()))
                 .toList();
-        log.info("Created {} plant-scope events for planId={} applyId={} plantId={}", ids.size(), planId, applyId, target.getId());
-        return ids;
+
+        List<PlantEventResponse> zoneResponses;
+        List<String> zoneEventIds;
+        if (existingZoneEvents.isEmpty()) {
+            log.info("No FARM_ZONE events found for zone={} in applyId={}, creating zone events", farmZoneId, applyId);
+            List<PlantEventCreateRequest> zoneRequests = new ArrayList<>();
+            for (int i = 0; i < templateEvents.size(); i++) {
+                EmbeddedPlanEvent template = templateEvents.get(i);
+                String parentFarmEventId = farmEventIds.get(i);
+                PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
+                        null, farmPlotId, farmZoneId,
+                        TrackingGranularity.PLANT, null, null, parentFarmEventId,
+                        getOriginalDurationDaysByIndex(templateEvents, i));
+                req.setTargetType(TargetType.FARM_ZONE);
+                zoneRequests.add(req);
+            }
+            zoneResponses = plantEventService.createEvents(zoneRequests);
+            allResponses.addAll(zoneResponses);
+            log.info("Created {} FARM_ZONE events for zone={} planId={} applyId={}", zoneResponses.size(), farmZoneId, planId, applyId);
+        } else {
+            // Convert existing PlantEvent to PlantEventResponse for consistent handling
+            zoneResponses = existingZoneEvents.stream()
+                    .map(e -> PlantEventResponse.builder()
+                            .id(e.getId())
+                            .daysFromStart(e.getDaysFromStart())
+                            .farmPlotId(e.getFarmPlotId())
+                            .farmZoneId(e.getFarmZoneId())
+                            .targetType(e.getTargetType())
+                            .build())
+                    .toList();
+        }
+        zoneEventIds = zoneResponses.stream().map(PlantEventResponse::getId).toList();
+
+        // Step 3: Create PLANT events linked to FARM_ZONE parent
+        List<PlantEventCreateRequest> plantRequests = new ArrayList<>();
+        for (int i = 0; i < templateEvents.size(); i++) {
+            EmbeddedPlanEvent template = templateEvents.get(i);
+            String parentZoneEventId = zoneEventIds.get(i);
+            PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
+                    target.getId(), farmPlotId, farmZoneId,
+                    null, null, null, parentZoneEventId,
+                    getOriginalDurationDaysByIndex(templateEvents, i));
+            req.setTargetType(TargetType.PLANT);
+            plantRequests.add(req);
+        }
+        List<PlantEventResponse> plantResponses = plantEventService.createEvents(plantRequests);
+        allResponses.addAll(plantResponses);
+        log.info("Created {} plant-scope events for planId={} applyId={} plantId={}", plantResponses.size(), planId, applyId, target.getId());
+
+        return allResponses;
     }
 
     /**
@@ -206,7 +311,7 @@ public class PlanApplyConsumer {
      *   <li>One PLANT-targeted child event per plant per template (parentPlantEventId → FARM_ZONE parent).</li>
      * </ol>
      */
-    private List<String> applyBroadScope(String planId, String applyId, PlanApplyRequestedEvent event,
+    private List<PlantEventResponse> applyBroadScope(String planId, String applyId, PlanApplyRequestedEvent event,
                                  List<EmbeddedPlanEvent> templateEvents, boolean hasZoneId) {
 
         // Apply exclusion lists.
@@ -215,11 +320,11 @@ public class PlanApplyConsumer {
         Set<String> excludedZoneIds = event.getExcludedFarmZoneIds() != null
                 ? new HashSet<>(event.getExcludedFarmZoneIds()) : Collections.emptySet();
 
-        List<String> allCreatedIds = new ArrayList<>();
+        List<PlantEventResponse> allResponses = new ArrayList<>();
 
         if (hasZoneId) {
             // ── FARM_ZONE scope: 2-tier hierarchy (FARM_ZONE → PLANT) ────────
-            allCreatedIds.addAll(applyZoneScope(planId, applyId, event, templateEvents,
+            allResponses.addAll(applyZoneScope(planId, applyId, event, templateEvents,
                     event.getFarmZoneId(), event.getFarmPlotId(), excludedPlantIds, null));
         } else {
             // ── FARM scope: 3-tier hierarchy (FARM → FARM_ZONE → PLANT) ──────
@@ -227,16 +332,16 @@ public class PlanApplyConsumer {
             // Step 1: Create FARM parent events (one per template)
             List<PlantEventCreateRequest> farmRequests = new ArrayList<>();
             for (EmbeddedPlanEvent template : templateEvents) {
-                PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
-                        null, event.getFarmPlotId(), null,
-                        TrackingGranularity.ZONE, null, excludedZoneIds.isEmpty() ? null : new ArrayList<>(excludedZoneIds), null);
+            int originalDuration = getOriginalDurationDays(templateEvents, template);
+            PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
+                    null, event.getFarmPlotId(), null,
+                    TrackingGranularity.ZONE, null, excludedZoneIds.isEmpty() ? null : new ArrayList<>(excludedZoneIds), null, originalDuration);
                 req.setTargetType(TargetType.FARM);
                 farmRequests.add(req);
             }
-            List<String> farmEventIds = plantEventService.createEvents(farmRequests).stream()
-                    .map(r -> r.getId())
-                    .toList();
-            allCreatedIds.addAll(farmEventIds);
+            List<PlantEventResponse> farmResponses = plantEventService.createEvents(farmRequests);
+            allResponses.addAll(farmResponses);
+            List<String> farmEventIds = farmResponses.stream().map(PlantEventResponse::getId).toList();
             log.info("Created {} FARM parent events for planId={} applyId={}", farmEventIds.size(), planId, applyId);
 
             // Step 2: For each zone, create FARM_ZONE children then PLANT grandchildren
@@ -247,19 +352,19 @@ public class PlanApplyConsumer {
 
             for (FarmZone zone : zones) {
                 // farmEventIds[i] is the parent for templateEvents[i]
-                allCreatedIds.addAll(applyZoneScope(planId, applyId, event, templateEvents,
+                allResponses.addAll(applyZoneScope(planId, applyId, event, templateEvents,
                         zone.getId(), event.getFarmPlotId(), excludedPlantIds, farmEventIds));
             }
         }
 
-        if (allCreatedIds.isEmpty()) {
+        if (allResponses.isEmpty()) {
             log.warn("applyBroadScope: no events created for planId={}", planId);
             return List.of();
         }
 
         log.info("Created {} total hierarchical events for planId={} applyId={} (zoneScope={})",
-                allCreatedIds.size(), planId, applyId, hasZoneId);
-        return allCreatedIds;
+                allResponses.size(), planId, applyId, hasZoneId);
+        return allResponses;
     }
 
     /**
@@ -272,13 +377,13 @@ public class PlanApplyConsumer {
      * @param parentFarmEventIds if non-null, the i-th entry is the parent FARM event ID for the i-th template.
      *                           If null, the zone events are top-level (zone-scope apply).
      */
-    private List<String> applyZoneScope(String planId, String applyId, PlanApplyRequestedEvent event,
+    private List<PlantEventResponse> applyZoneScope(String planId, String applyId, PlanApplyRequestedEvent event,
                                          List<EmbeddedPlanEvent> templateEvents,
                                          String zoneId, String farmPlotId,
                                          Set<String> excludedPlantIds,
                                          List<String> parentFarmEventIds) {
 
-        List<String> allIds = new ArrayList<>();
+        List<PlantEventResponse> allResponses = new ArrayList<>();
 
         // Step 1: Create FARM_ZONE parent events
         List<PlantEventCreateRequest> zoneRequests = new ArrayList<>();
@@ -287,14 +392,13 @@ public class PlanApplyConsumer {
             String parentId = parentFarmEventIds != null ? parentFarmEventIds.get(i) : null;
             PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
                     null, farmPlotId, zoneId,
-                    TrackingGranularity.PLANT, null, null, parentId);
+                    TrackingGranularity.PLANT, null, null, parentId,
+                    getOriginalDurationDaysByIndex(templateEvents, i));
             req.setTargetType(TargetType.FARM_ZONE);
             zoneRequests.add(req);
         }
-        List<String> zoneEventIds = plantEventService.createEvents(zoneRequests).stream()
-                .map(r -> r.getId())
-                .toList();
-        allIds.addAll(zoneEventIds);
+        List<PlantEventResponse> zoneResponses = plantEventService.createEvents(zoneRequests);
+        allResponses.addAll(zoneResponses);
 
         // Step 2: Create PLANT children for each plant in this zone
         List<Plant> plants = plantRepository.findByFarmZoneId(zoneId);
@@ -307,22 +411,21 @@ public class PlanApplyConsumer {
             for (Plant plant : plants) {
                 for (int i = 0; i < templateEvents.size(); i++) {
                     EmbeddedPlanEvent template = templateEvents.get(i);
-                    String parentZoneEventId = zoneEventIds.get(i);
+                    String parentZoneEventId = zoneResponses.get(i).getId();
                     PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
                             plant.getId(), plant.getFarmPlotId(), plant.getFarmZoneId(),
-                            null, null, null, parentZoneEventId);
+                            null, null, null, parentZoneEventId,
+                            getOriginalDurationDaysByIndex(templateEvents, i));
                     req.setTargetType(TargetType.PLANT);
                     plantRequests.add(req);
                 }
             }
-            List<String> plantEventIds = plantEventService.createEvents(plantRequests).stream()
-                    .map(r -> r.getId())
-                    .toList();
-            allIds.addAll(plantEventIds);
-            log.info("Created {} PLANT events under zone={} for planId={}", plantEventIds.size(), zoneId, planId);
+            List<PlantEventResponse> plantResponses = plantEventService.createEvents(plantRequests);
+            allResponses.addAll(plantResponses);
+            log.info("Created {} PLANT events under zone={} for planId={}", plantResponses.size(), zoneId, planId);
         }
 
-        return allIds;
+        return allResponses;
     }
 
     private PlantEventCreateRequest buildRequest(EmbeddedPlanEvent template, String planId, String applyId,
@@ -331,7 +434,8 @@ public class PlanApplyConsumer {
                                                    TrackingGranularity granularity,
                                                    List<String> excludedPlantIds,
                                                    List<String> excludedFarmZoneIds,
-                                                   String parentPlantEventId) {
+                                                   String parentPlantEventId,
+                                                   int originalDurationDays) {
         List<EventTaskRequest> taskRequests = null;
         if (template.getTasks() != null && !template.getTasks().isEmpty()) {
             taskRequests = template.getTasks().stream()
@@ -371,11 +475,52 @@ public class PlanApplyConsumer {
         if (template.getDaysFromStart() != null && startDate != null) {
             LocalDate calcStart = startDate.plusDays(template.getDaysFromStart());
             req.setCalculatedStartDate(calcStart);
-            if (template.getDurationDays() != null) {
-                req.setCalculatedEndDate(calcStart.plusDays(template.getDurationDays()));
+            if (originalDurationDays > 0) {
+                req.setCalculatedEndDate(calcStart.plusDays(originalDurationDays));
             }
         }
         return req;
+    }
+
+    /**
+     * Returns the original durationDays from the {@code originalTemplateEvents} list
+     * that corresponds to the given cloned template. Since each original event is
+     * expanded into N clones (durationDays of that original), the N clones for a given
+     * original occupy a contiguous index range. This method walks backward from the
+     * current position to find the original template's durationDays.
+     *
+     * <p>Example: original template[0] has durationDays=5, template[1] has durationDays=2.
+     * After expansion, templateEvents = [clone0, clone1, clone2, clone3, clone4, clone5, clone6].
+     * When looking up clone0..clone4 → returns 5. When looking up clone5..clone6 → returns 2.
+     */
+    private int getOriginalDurationDays(List<EmbeddedPlanEvent> originalTemplateEvents, EmbeddedPlanEvent clonedTemplate) {
+        int index = originalTemplateEvents.indexOf(clonedTemplate);
+        if (index >= 0) {
+            return originalTemplateEvents.get(index).getDurationDays() != null
+                    ? originalTemplateEvents.get(index).getDurationDays() : 1;
+        }
+        // Fallback: search by matching daysFromStart
+        for (EmbeddedPlanEvent original : originalTemplateEvents) {
+            int origDuration = original.getDurationDays() != null ? original.getDurationDays() : 1;
+            if (clonedTemplate.getDaysFromStart() != null && original.getDaysFromStart() != null) {
+                int daysDiff = clonedTemplate.getDaysFromStart() - original.getDaysFromStart();
+                if (daysDiff >= 0 && daysDiff < origDuration) {
+                    return origDuration;
+                }
+            }
+        }
+        return clonedTemplate.getDurationDays() != null ? clonedTemplate.getDurationDays() : 1;
+    }
+
+    /**
+     * Convenience overload for indexed access within loops.
+     */
+    private int getOriginalDurationDaysByIndex(List<EmbeddedPlanEvent> originalTemplateEvents, int index) {
+        if (index < 0 || index >= originalTemplateEvents.size()) {
+            return 1;
+        }
+        EmbeddedPlanEvent original = originalTemplateEvents.get(index);
+        return original.getDurationDays() != null ? original.getDurationDays() : 1;
     }
 
     @KafkaListener(topics = "#{kafkaTopicProperties.systemEvents.planApplied}", groupId = "${spring.application.name}-group")

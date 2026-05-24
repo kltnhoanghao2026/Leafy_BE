@@ -33,7 +33,7 @@ public class FarmZoneServiceImpl implements FarmZoneService {
 
     @Override
     public FarmZoneResponse create(String farmPlotId, CreateFarmZoneRequest request) {
-        farmPlotRepository.findByIdAndActiveTrue(farmPlotId)
+        FarmPlot farmPlot = farmPlotRepository.findByIdAndActiveTrue(farmPlotId)
                 .orElseThrow(() -> new AppException(ErrorCode.FARM_PLOT_NOT_FOUND));
 
         if (farmZoneRepository.existsByFarmPlotIdAndZoneNameAndActiveTrue(farmPlotId, request.getZoneName())) {
@@ -42,30 +42,39 @@ public class FarmZoneServiceImpl implements FarmZoneService {
 
         FarmZone farmZone = farmZoneMapper.toEntity(request);
         farmZone.setFarmPlotId(farmPlotId);
+        farmZone.setOwnerProfileId(farmPlot.getOwnerProfileId());
         farmZone.setActive(true);
 
-        return farmZoneMapper.toResponse(farmZoneRepository.save(farmZone));
+        return populateOwnerProfileId(farmZoneMapper.toResponse(farmZoneRepository.save(farmZone)));
     }
 
     @Override
     public List<FarmZoneResponse> getByFarmPlot(String farmPlotId) {
         return farmZoneMapper.toResponseList(
-                farmZoneRepository.findByFarmPlotIdAndActiveTrue(farmPlotId));
+                farmZoneRepository.findByFarmPlotIdAndActiveTrue(farmPlotId))
+                .stream()
+                .map(this::populateOwnerProfileId)
+                .toList();
     }
 
     @Override
     public List<FarmZoneResponse> getByFarmPlotAsConsulting(String farmPlotId, String expertProfileId) {
         FarmPlot farmPlot = farmPlotRepository.findByIdAndActiveTrue(farmPlotId)
                 .orElseThrow(() -> new AppException(ErrorCode.FARM_PLOT_NOT_FOUND));
-        // Zone access is derived from farm plot access — gate with FARM_PLOTS data type.
         consultingAccessHelper.requireConsultingAccess(expertProfileId, farmPlot.getOwnerProfileId(), ConsultingDataType.FARM_PLOTS);
         return farmZoneMapper.toResponseList(
-                farmZoneRepository.findByFarmPlotIdAndActiveTrue(farmPlotId));
+                farmZoneRepository.findByFarmPlotIdAndActiveTrue(farmPlotId))
+                .stream()
+                .map(this::populateOwnerProfileId)
+                .toList();
     }
 
     @Override
     public List<FarmZoneResponse> getAllActive() {
-        return farmZoneMapper.toResponseList(farmZoneRepository.findAllByActiveTrue());
+        return farmZoneMapper.toResponseList(farmZoneRepository.findAllByActiveTrue())
+                .stream()
+                .map(this::populateOwnerProfileId)
+                .toList();
     }
 
     @Override
@@ -105,5 +114,30 @@ public class FarmZoneServiceImpl implements FarmZoneService {
     private FarmZone getActiveFarmZone(String id) {
         return farmZoneRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new AppException(ErrorCode.FARM_ZONE_NOT_FOUND));
+    }
+
+    @Override
+    public List<FarmZoneResponse> getByOwnerProfileId(String ownerProfileId) {
+        List<FarmPlot> plots = farmPlotRepository.findByOwnerProfileIdAndActiveTrue(ownerProfileId);
+        if (plots.isEmpty()) {
+            return List.of();
+        }
+        List<String> plotIds = plots.stream().map(FarmPlot::getId).toList();
+        return farmZoneRepository.findByFarmPlotIdInAndActiveTrue(plotIds)
+                .stream()
+                .map(farmZoneMapper::toResponse)
+                .map(this::populateOwnerProfileId)
+                .toList();
+    }
+
+    private FarmZoneResponse populateOwnerProfileId(FarmZoneResponse response) {
+        if (response.getOwnerProfileId() != null) {
+            return response;
+        }
+        if (response.getFarmPlotId() != null) {
+            farmPlotRepository.findByIdAndActiveTrue(response.getFarmPlotId())
+                    .ifPresent(plot -> response.setOwnerProfileId(plot.getOwnerProfileId()));
+        }
+        return response;
     }
 }

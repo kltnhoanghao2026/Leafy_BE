@@ -47,6 +47,8 @@ public class PlantManagementPlanResponse {
 
     // Stats
     Long applyCount;
+    Long successApplyCount;
+    Long failedApplyCount;
 
     // Events (we only need the count)
     List<Object> events;

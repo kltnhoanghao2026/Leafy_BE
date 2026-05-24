@@ -37,8 +37,6 @@ public class PlantEventResponse {
     String estimatedCost;
     String planApplyId;
 
-    String incidentId;
-
     String parentPlantEventId;
 
     boolean completed;
@@ -53,8 +51,6 @@ public class PlantEventResponse {
     TrackingGranularity trackingGranularity;
     List<String> excludedPlantIds;
     List<String> excludedFarmZoneIds;
-    Integer progressTotal;
-    Integer progressCompleted;
 
     /** File IDs of images/videos attached to this event. */
     List<String> attachmentIds;
@@ -87,11 +83,6 @@ public class PlantEventResponse {
      * Denormalized plan apply summary for quick display.
      */
     PlanApplySummary planApply;
-
-    /**
-     * Denormalized incident summary for quick display.
-     */
-    IncidentSummary incident;
 
     // BaseModel audit fields
     LocalDateTime createdAt;
@@ -153,16 +144,5 @@ public class PlantEventResponse {
         String diseaseName;
         String targetName;
         String status;
-    }
-
-    @Getter
-    @Setter
-    @AllArgsConstructor
-    @NoArgsConstructor
-    @Builder
-    public static class IncidentSummary {
-        String id;
-        String diseaseName;
-        String outcome;
     }
 }

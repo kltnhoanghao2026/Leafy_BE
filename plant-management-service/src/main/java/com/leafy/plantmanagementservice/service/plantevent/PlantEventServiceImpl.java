@@ -6,28 +6,26 @@ import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventCreateR
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventUpdateRequest;
 import com.leafy.plantmanagementservice.dto.response.farmplot.FarmPlotResponse;
 import com.leafy.plantmanagementservice.dto.response.farmzone.FarmZoneResponse;
-import com.leafy.plantmanagementservice.dto.response.plan.IncidentResponse;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanApplyResponse;
 import com.leafy.plantmanagementservice.dto.response.plantevent.PlantEventResponse;
+import com.leafy.plantmanagementservice.mapper.PlantEventMapper;
 import com.leafy.plantmanagementservice.model.enums.PlantStatus;
 import com.leafy.plantmanagementservice.model.enums.TargetType;
 import com.leafy.plantmanagementservice.utils.ConsultingAccessHelper;
-import com.leafy.plantmanagementservice.mapper.PlantEventMapper;
-import com.leafy.plantmanagementservice.model.EventTask;
-import com.leafy.plantmanagementservice.model.Plant;
-import com.leafy.plantmanagementservice.model.PlantEvent;
 import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
 import com.leafy.plantmanagementservice.model.enums.EventType;
 import com.leafy.common.utils.ServiceSecurityUtils;
 import com.leafy.plantmanagementservice.service.farmplot.FarmPlotService;
 import com.leafy.plantmanagementservice.service.farmzone.FarmZoneService;
-import com.leafy.plantmanagementservice.service.incident.IncidentService;
 import com.leafy.plantmanagementservice.repository.PlantEventRepository;
 import com.leafy.plantmanagementservice.repository.PlantRepository;
 import com.leafy.plantmanagementservice.repository.PlanApplyRepository;
-import com.leafy.plantmanagementservice.repository.IncidentRepository;
-import com.leafy.plantmanagementservice.service.eventprogress.EventProgressService;
+import com.leafy.plantmanagementservice.model.EventTask;
+import com.leafy.plantmanagementservice.model.Plant;
+import com.leafy.plantmanagementservice.model.PlantEvent;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.data.domain.Page;
@@ -40,23 +38,20 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@FieldDefaults(level =  AccessLevel.PRIVATE, makeFinal = true)
 public class PlantEventServiceImpl implements PlantEventService {
 
-    private final PlantEventRepository plantEventRepository;
-    private final PlantRepository plantRepository;
-    private final PlanApplyRepository planApplyRepository;
-    private final IncidentRepository incidentRepository;
-    private final PlantEventMapper plantEventMapper;
-    private final FarmPlotService farmPlotService;
-    private final FarmZoneService farmZoneService;
-    private final ConsultingAccessHelper consultingAccessHelper;
-    private final EventProgressService eventProgressService;
-    private final IncidentService incidentService;
+    PlantEventRepository plantEventRepository;
+    PlantRepository plantRepository;
+    PlanApplyRepository planApplyRepository;
+    PlantEventMapper plantEventMapper;
+    FarmPlotService farmPlotService;
+    FarmZoneService farmZoneService;
+    ConsultingAccessHelper consultingAccessHelper;
 
     @Override
     @Transactional
@@ -66,12 +61,8 @@ public class PlantEventServiceImpl implements PlantEventService {
         validateEventTarget(request);
         PlantEvent event = plantEventMapper.toEntity(request);
         event.setAttachmentIds(request.getAttachmentIds());
-        resolveIncidentId(request, event);
         PlantEvent saved = plantEventRepository.save(event);
-        eventProgressService.generateForEvent(saved);
-        // Re-read in case generateForEvent updated counters on the parent document.
-        PlantEvent finalEvent = plantEventRepository.findById(saved.getId()).orElse(saved);
-        PlantEventResponse response = plantEventMapper.toResponse(finalEvent);
+        PlantEventResponse response = plantEventMapper.toResponse(saved);
         populateRelatedEntities(response);
         return response;
     }
@@ -84,41 +75,14 @@ public class PlantEventServiceImpl implements PlantEventService {
             return List.of();
         }
 
-        // ── Resolve incidentId for the bulk ────────────────────────────────────
-        // If any event in the batch already has an incidentId, use it.
-        // Otherwise, find the first DISEASE_DETECTED and generate a new UUID.
-        String bulkIncidentId = null;
-        for (PlantEventCreateRequest req : requests) {
-            if (StringUtils.hasText(req.getIncidentId())) {
-                bulkIncidentId = req.getIncidentId();
-                break;
-            }
-        }
-        if (bulkIncidentId == null) {
-            for (PlantEventCreateRequest req : requests) {
-                if (req.getEventType() == EventType.DISEASE_DETECTED) {
-                    bulkIncidentId = UUID.randomUUID().toString();
-                    break;
-                }
-            }
-        }
-
-        final String resolvedIncidentId = bulkIncidentId;
-
         List<PlantEvent> entities = requests.stream()
                 .map(req -> {
                     PlantEvent ev = plantEventMapper.toEntity(req);
                     ev.setAttachmentIds(req.getAttachmentIds());
-                    if (resolvedIncidentId != null && !StringUtils.hasText(ev.getIncidentId())) {
-                        ev.setIncidentId(resolvedIncidentId);
-                    }
                     return ev;
                 })
                 .toList();
         List<PlantEvent> saved = plantEventRepository.saveAll(entities);
-        for (PlantEvent ev : saved) {
-            eventProgressService.generateForEvent(ev);
-        }
         List<PlantEventResponse> responses = plantEventMapper.toResponseList(saved);
         populateRelatedEntities(responses);
         return responses;
@@ -137,20 +101,10 @@ public class PlantEventServiceImpl implements PlantEventService {
             if (event.getTasks() != null) {
                 event.getTasks().forEach(task -> task.setCompleted(true));
             }
-            int completedCount = eventProgressService.completeAllByEventId(eventId);
-            if (completedCount > 0) {
-                event.setProgressTotal(completedCount);
-                event.setProgressCompleted(completedCount);
-            } else if (event.getProgressTotal() != null && event.getProgressTotal() > 0) {
-                event.setProgressCompleted(event.getProgressTotal());
-            }
         } else if (Boolean.FALSE.equals(request.getCompleted())) {
-            // Un-completion: reset tasks and progress on this event
+            // Un-completion: reset tasks on this event
             if (event.getTasks() != null) {
                 event.getTasks().forEach(task -> task.setCompleted(false));
-            }
-            if (event.getProgressTotal() != null && event.getProgressTotal() > 0) {
-                event.setProgressCompleted(0);
             }
         }
         PlantEvent updated = plantEventRepository.save(event);
@@ -165,25 +119,15 @@ public class PlantEventServiceImpl implements PlantEventService {
             bubbleUpCompletionState(updated.getParentPlantEventId());
         }
 
-        // ── Trigger Incident creation on HEALTH_RECOVERY completion ─────────────
-        if (updated.getEventType() == EventType.HEALTH_RECOVERY
-                && updated.isCompleted()
-                && StringUtils.hasText(updated.getPlanApplyId())) {
-            try {
-                incidentService.createIncidentFromHealthRecovery(updated.getId(), updated.getPlanApplyId());
-            } catch (Exception ex) {
-                log.warn("Failed to create Incident for HEALTH_RECOVERY event {}: {}", updated.getId(), ex.getMessage());
-            }
-        }
-
         PlantEventResponse response = plantEventMapper.toResponse(updated);
 
-        // ── Set isLastIncompleteEventForApply on the response ───────────────────
+        // ── Detect and signal the last event completion ──────────────────────────
+        // The last event is identified by matching against PlanApply.lastEventId,
+        // which is set at apply time based on calculatedEndDate.
         if (response != null && StringUtils.hasText(response.getPlanApplyId()) && updated.isCompleted()) {
-            long remaining = planApplyRepository.countIncompleteEventsByPlanApplyId(response.getPlanApplyId());
-            if (remaining == 0) {
-                response.setIsLastIncompleteEventForApply(true);
-            }
+            planApplyRepository.findById(response.getPlanApplyId())
+                    .filter(apply -> response.getId().equals(apply.getLastEventId()))
+                    .ifPresent(apply -> response.setIsLastIncompleteEventForApply(true));
         }
 
         populateChildren(response);
@@ -244,8 +188,48 @@ public class PlantEventServiceImpl implements PlantEventService {
         if (!plantEventRepository.existsById(eventId)) {
             throw new AppException(ErrorCode.PLANT_EVENT_NOT_FOUND);
         }
-        eventProgressService.deleteByEventId(eventId);
         plantEventRepository.deleteById(eventId);
+    }
+
+    @Override
+    public List<PlantEventResponse> getDeletableChildren(String eventId) {
+        log.info("Fetching deletable (completed) children for eventId={}", eventId);
+        PlantEvent event = getEventEntityById(eventId);
+        List<PlantEvent> deletable = collectCompletedDescendants(event);
+        List<PlantEventResponse> responses = plantEventMapper.toResponseList(deletable);
+        populateRelatedEntities(responses);
+        return responses;
+    }
+
+    @Override
+    @Transactional
+    public void deleteWithChildren(String eventId, boolean confirmDelete) {
+        log.info("Delete-with-children requested for eventId={}, confirmDelete={}", eventId, confirmDelete);
+        if (!confirmDelete) {
+            log.info("User declined cascading delete for eventId={}", eventId);
+            return;
+        }
+        PlantEvent event = getEventEntityById(eventId);
+        List<PlantEvent> deletable = collectCompletedDescendants(event);
+        if (deletable.isEmpty()) {
+            log.info("No completed events found for eventId={}", eventId);
+            return;
+        }
+        List<String> eventIds = deletable.stream().map(PlantEvent::getId).toList();
+        plantEventRepository.deleteAllById(eventIds);
+        log.info("Deleted {} completed events for eventId={}", eventIds.size(), eventId);
+    }
+
+    private List<PlantEvent> collectCompletedDescendants(PlantEvent event) {
+        List<PlantEvent> result = new java.util.ArrayList<>();
+        if (event.isCompleted()) {
+            result.add(event);
+        }
+        List<PlantEvent> children = plantEventRepository.findByParentPlantEventId(event.getId());
+        for (PlantEvent child : children) {
+            result.addAll(collectCompletedDescendants(child));
+        }
+        return result;
     }
 
     @Override
@@ -261,11 +245,6 @@ public class PlantEventServiceImpl implements PlantEventService {
         // Recursively collect all events to delete (parent + children chain)
         List<String> allEventIds = collectAllEventIdsRecursive(incompleteEvents);
         log.info("Collected {} events to delete for planApplyId={}", allEventIds.size(), planApplyId);
-
-        // Delete all associated progress entries first
-        for (String eventId : allEventIds) {
-            eventProgressService.deleteByEventId(eventId);
-        }
 
         // Delete all events
         plantEventRepository.deleteAllById(allEventIds);
@@ -287,10 +266,10 @@ public class PlantEventServiceImpl implements PlantEventService {
 
     @Override
     public List<PlantEventResponse> getEventsForCalendar(String targetProfileId, String farmPlotId, String farmZoneId, String plantId,
-                                                          String planApplyId, String incidentId,
+                                                          String planApplyId, EventType eventType, TargetType targetType,
                                                           LocalDate startDate, LocalDate endDate) {
-        log.info("Fetching calendar events: profileId={}, farmPlotId={}, farmZoneId={}, plantId={}, planApplyId={}, incidentId={}, range=[{}, {}]",
-                targetProfileId, farmPlotId, farmZoneId, plantId, planApplyId, incidentId, startDate, endDate);
+        log.info("Fetching calendar events: profileId={}, farmPlotId={}, farmZoneId={}, plantId={}, planApplyId={}, eventType={}, targetType={}, range=[{}, {}]",
+                targetProfileId, farmPlotId, farmZoneId, plantId, planApplyId, eventType, targetType, startDate, endDate);
 
         List<PlantEvent> events;
         boolean hasPlantId    = StringUtils.hasText(plantId);
@@ -348,7 +327,7 @@ public class PlantEventServiceImpl implements PlantEventService {
                 if (plotIds.isEmpty() && zoneIds.isEmpty() && plantIds.isEmpty()) {
                     events = List.of();
                 } else {
-                    events = plantEventRepository.findProfileCalendarEvents(plotIds, zoneIds, plantIds, startDate, endDate);
+                    events = plantEventRepository.findProfileCalendarEvents(plotIds, zoneIds, plantIds, startDate, endDate, targetType);
                 }
 
             } else {
@@ -357,10 +336,17 @@ public class PlantEventServiceImpl implements PlantEventService {
         }
 
         if (!events.isEmpty()) {
-            // Filter by incidentId if provided
-            if (StringUtils.hasText(incidentId)) {
+            // Filter by eventType if provided
+            if (eventType != null) {
                 events = events.stream()
-                        .filter(e -> incidentId.equals(e.getIncidentId()))
+                        .filter(e -> eventType.equals(e.getEventType()))
+                        .toList();
+            }
+
+            // Filter by targetType if provided (for specific-scope branches that bypass findProfileCalendarEvents)
+            if (targetType != null) {
+                events = events.stream()
+                        .filter(e -> matchesTargetType(e, targetType))
                         .toList();
             }
 
@@ -387,6 +373,25 @@ public class PlantEventServiceImpl implements PlantEventService {
         List<PlantEventResponse> responses = plantEventMapper.toNestedResponseList(events);
         populateRelatedEntities(responses);
         return responses;
+    }
+
+    /**
+     * Checks whether a PlantEvent matches a given TargetType by examining its
+     * farmPlotId / farmZoneId / plantId fields.
+     */
+    private boolean matchesTargetType(PlantEvent event, TargetType targetType) {
+        switch (targetType) {
+            case FARM:
+                return StringUtils.hasText(event.getFarmPlotId())
+                        && !StringUtils.hasText(event.getFarmZoneId())
+                        && !StringUtils.hasText(event.getPlantId());
+            case FARM_ZONE:
+                return StringUtils.hasText(event.getFarmZoneId());
+            case PLANT:
+                return StringUtils.hasText(event.getPlantId());
+            default:
+                return true;
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -429,7 +434,6 @@ public class PlantEventServiceImpl implements PlantEventService {
         }
         validateEventTarget(request);
         PlantEvent event = plantEventMapper.toEntity(request);
-        resolveIncidentId(request, event);
         PlantEventResponse response = plantEventMapper.toResponse(plantEventRepository.save(event));
         populateRelatedEntities(response);
         return response;
@@ -475,7 +479,7 @@ public class PlantEventServiceImpl implements PlantEventService {
             return List.of();
         }
 
-        List<PlantEvent> events = plantEventRepository.findProfileCalendarEvents(plotIds, zoneIds, plantIds, startDate, endDate);
+        List<PlantEvent> events = plantEventRepository.findProfileCalendarEvents(plotIds, zoneIds, plantIds, startDate, endDate, null);
         List<PlantEventResponse> responses = plantEventMapper.toResponseList(events);
         populateRelatedEntities(responses);
         return responses;
@@ -499,6 +503,9 @@ public class PlantEventServiceImpl implements PlantEventService {
         task.setCompleted(!task.isCompleted());
         PlantEvent updated = plantEventRepository.save(event);
         PlantEventResponse response = plantEventMapper.toResponse(updated);
+
+        // Populate related entities AND children so parent hierarchy updates in UI
+        populateChildren(response);
         populateRelatedEntities(response);
         return response;
     }
@@ -546,11 +553,9 @@ public class PlantEventServiceImpl implements PlantEventService {
     /**
      * Recursively cascades the completion state to all child events in the hierarchy.
      * <p>
-     * When {@code completed = true}: marks all child events as completed, completes
-     * their tasks and progress entries.
+     * When {@code completed = true}: marks all child events as completed and completes their tasks.
      * <p>
-     * When {@code completed = false}: marks all child events as un-completed, un-completes
-     * their tasks and resets progress counters.
+     * When {@code completed = false}: marks all child events as un-completed and un-completes their tasks.
      */
     private void cascadeCompletionState(String parentEventId, boolean completed) {
         List<PlantEvent> children = plantEventRepository.findByParentPlantEventId(parentEventId);
@@ -562,20 +567,6 @@ public class PlantEventServiceImpl implements PlantEventService {
                 child.setCompleted(completed);
                 if (child.getTasks() != null) {
                     child.getTasks().forEach(t -> t.setCompleted(completed));
-                }
-                if (completed) {
-                    int completedCount = eventProgressService.completeAllByEventId(child.getId());
-                    if (completedCount > 0) {
-                        child.setProgressTotal(completedCount);
-                        child.setProgressCompleted(completedCount);
-                    } else if (child.getProgressTotal() != null && child.getProgressTotal() > 0) {
-                        child.setProgressCompleted(child.getProgressTotal());
-                    }
-                } else {
-                    // Un-complete: reset progress counters
-                    if (child.getProgressTotal() != null && child.getProgressTotal() > 0) {
-                        child.setProgressCompleted(0);
-                    }
                 }
                 plantEventRepository.save(child);
             }
@@ -626,9 +617,6 @@ public class PlantEventServiceImpl implements PlantEventService {
             if (parent.getTasks() != null) {
                 parent.getTasks().forEach(t -> t.setCompleted(true));
             }
-            if (parent.getProgressTotal() != null && parent.getProgressTotal() > 0) {
-                parent.setProgressCompleted(parent.getProgressTotal());
-            }
             plantEventRepository.save(parent);
             log.info("Auto-completed parent event {} (all {} children completed)", parentEventId, siblings.size());
         } else if (!allChildrenCompleted && parent.isCompleted()) {
@@ -636,9 +624,6 @@ public class PlantEventServiceImpl implements PlantEventService {
             parent.setCompleted(false);
             if (parent.getTasks() != null) {
                 parent.getTasks().forEach(t -> t.setCompleted(false));
-            }
-            if (parent.getProgressTotal() != null && parent.getProgressTotal() > 0) {
-                parent.setProgressCompleted((int) siblings.stream().filter(PlantEvent::isCompleted).count());
             }
             plantEventRepository.save(parent);
             log.info("Auto-uncompleted parent event {} (not all children completed)", parentEventId);
@@ -671,20 +656,18 @@ public class PlantEventServiceImpl implements PlantEventService {
         Set<String> farmPlotIds = new java.util.HashSet<>();
         Set<String> farmZoneIds = new java.util.HashSet<>();
         Set<String> planApplyIds = new java.util.HashSet<>();
-        Set<String> incidentIds = new java.util.HashSet<>();
 
-        collectIds(responses, plantIds, farmPlotIds, farmZoneIds, planApplyIds, incidentIds);
+        collectIds(responses, plantIds, farmPlotIds, farmZoneIds, planApplyIds);
 
         // Batch fetch all entities
         Map<String, Plant> plantsMap = fetchPlants(plantIds);
         Map<String, FarmPlotResponse> plotsMap = fetchFarmPlots(farmPlotIds);
         Map<String, FarmZoneResponse> zonesMap = fetchFarmZones(farmZoneIds);
         Map<String, PlanApplyResponse> appliesMap = fetchPlanApplies(planApplyIds);
-        Map<String, IncidentResponse> incidentsMap = fetchIncidents(incidentIds);
 
         // Populate summaries
         for (PlantEventResponse response : responses) {
-            populateSingleResponse(response, plantsMap, plotsMap, zonesMap, appliesMap, incidentsMap);
+            populateSingleResponse(response, plantsMap, plotsMap, zonesMap, appliesMap);
             if (response.getChildren() != null) {
                 populateRelatedEntities(response.getChildren());
             }
@@ -693,13 +676,12 @@ public class PlantEventServiceImpl implements PlantEventService {
 
     private void collectIds(List<PlantEventResponse> responses,
                            Set<String> plantIds, Set<String> farmPlotIds, Set<String> farmZoneIds,
-                           Set<String> planApplyIds, Set<String> incidentIds) {
+                           Set<String> planApplyIds) {
         for (PlantEventResponse response : responses) {
             if (StringUtils.hasText(response.getPlantId())) plantIds.add(response.getPlantId());
             if (StringUtils.hasText(response.getFarmPlotId())) farmPlotIds.add(response.getFarmPlotId());
             if (StringUtils.hasText(response.getFarmZoneId())) farmZoneIds.add(response.getFarmZoneId());
             if (StringUtils.hasText(response.getPlanApplyId())) planApplyIds.add(response.getPlanApplyId());
-            if (StringUtils.hasText(response.getIncidentId())) incidentIds.add(response.getIncidentId());
         }
     }
 
@@ -753,27 +735,11 @@ public class PlantEventServiceImpl implements PlantEventService {
         return map;
     }
 
-    private Map<String, IncidentResponse> fetchIncidents(Set<String> incIds) {
-        if (incIds.isEmpty()) return Map.of();
-        Map<String, IncidentResponse> map = new java.util.HashMap<>();
-        incidentRepository.findAllById(incIds).forEach(inc -> {
-            IncidentResponse r =
-                IncidentResponse.builder()
-                    .id(inc.getId())
-                    .diseaseName(inc.getDiseaseName())
-                    .outcome(inc.getOutcome())
-                    .build();
-            map.put(inc.getId(), r);
-        });
-        return map;
-    }
-
     private void populateSingleResponse(PlantEventResponse response,
                                        Map<String, Plant> plantsMap,
                                        Map<String, FarmPlotResponse> plotsMap,
                                        Map<String, FarmZoneResponse> zonesMap,
-                                       Map<String, PlanApplyResponse> appliesMap,
-                                       Map<String, IncidentResponse> incidentsMap) {
+                                       Map<String, PlanApplyResponse> appliesMap) {
 
         // Plant summary
         String plantId = response.getPlantId();
@@ -833,46 +799,6 @@ public class PlantEventServiceImpl implements PlantEventService {
                         .targetName(apply.getTargetName())
                         .status(apply.getStatus() != null ? apply.getStatus().name() : null)
                         .build());
-            }
-        }
-
-        // Incident summary
-        String incidentId = response.getIncidentId();
-        if (incidentId != null) {
-            IncidentResponse incident = incidentsMap.get(incidentId);
-            if (incident != null) {
-                response.setIncident(PlantEventResponse.IncidentSummary.builder()
-                        .id(incident.getId())
-                        .diseaseName(incident.getDiseaseName())
-                        .outcome(incident.getOutcome() != null ? incident.getOutcome().name() : null)
-                        .build());
-            }
-        }
-    }
-
-    /**
-     * Assigns the incidentId to the event based on the request.
-     * <ul>
-     *   <li>If the request already carries an incidentId, use it as-is.</li>
-     *   <li>If eventType is DISEASE_DETECTED and no incidentId is set, generate a new UUID.</li>
-     *   <li>Otherwise, look up the DISEASE_DETECTED event for this planApplyId and inherit its incidentId.</li>
-     * </ul>
-     */
-    private void resolveIncidentId(PlantEventCreateRequest request, PlantEvent event) {
-        if (StringUtils.hasText(request.getIncidentId())) {
-            event.setIncidentId(request.getIncidentId());
-            return;
-        }
-        if (request.getEventType() == EventType.DISEASE_DETECTED) {
-            event.setIncidentId(UUID.randomUUID().toString());
-            log.info("Generated incidentId={} for DISEASE_DETECTED event", event.getIncidentId());
-            return;
-        }
-        if (StringUtils.hasText(request.getPlanApplyId())) {
-            List<PlantEvent> diseaseEvents = plantEventRepository
-                    .findByPlanApplyIdAndEventType(request.getPlanApplyId(), EventType.DISEASE_DETECTED);
-            if (!diseaseEvents.isEmpty() && StringUtils.hasText(diseaseEvents.get(0).getIncidentId())) {
-                event.setIncidentId(diseaseEvents.get(0).getIncidentId());
             }
         }
     }

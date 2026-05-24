@@ -65,13 +65,6 @@ public class PlantEventCreateRequest {
     /** Optional: link to the PlanApply instance that produced this event. */
     String planApplyId;
 
-    /**
-     * Groups events in the same disease-detection cycle.
-     * Auto-generated as a UUID when eventType = DISEASE_DETECTED.
-     * Propagated to all sibling events in the same plan-apply.
-     */
-    String incidentId;
-
     /** Optional parent event ID for hierarchical plan-apply events. */
     String parentPlantEventId;
 

@@ -2,6 +2,7 @@ package com.leafy.common.dto.client.socketservice;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Typed payload pushed over WebSocket to a connected client when an in-app
@@ -27,6 +28,7 @@ import java.util.List;
  * @param title           Rendered notification title
  * @param body            Rendered notification body (already includes "and N others" suffix when batched)
  * @param occurredAt      When the most-recent source action occurred
+ * @param payload         Additional data for navigation (e.g., conversationId for DIRECT_MESSAGE)
  */
 public record InAppNotificationPayload(
         String notificationId,
@@ -41,5 +43,6 @@ public record InAppNotificationPayload(
         int totalEventCount,
         String title,
         String body,
-        LocalDateTime occurredAt
+        LocalDateTime occurredAt,
+        Map<String, String> payload
 ) {}

@@ -8,6 +8,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+import java.util.stream.Collectors;
+
 /**
  * In-app (WebSocket) {@link ChannelDeliveryStrategy} — handles {@link NotificationChannel#IN_APP}.
  *
@@ -63,6 +66,15 @@ public class InAppDeliveryStrategy implements ChannelDeliveryStrategy {
             return;
         }
 
+        // Convert payload Map<String, Object> to Map<String, String> for WebSocket transport
+        Map<String, String> wsPayload = event.getPayload() != null
+                ? event.getPayload().entrySet().stream()
+                        .collect(Collectors.toMap(
+                                Map.Entry::getKey,
+                                e -> e.getValue() != null ? String.valueOf(e.getValue()) : ""
+                        ))
+                : null;
+
         InAppNotificationPayload payload = new InAppNotificationPayload(
                 event.getNotificationId(),
                 event.getType() != null ? event.getType().name() : null,
@@ -76,7 +88,8 @@ public class InAppDeliveryStrategy implements ChannelDeliveryStrategy {
                 event.getTotalEventCount(),
                 event.getTitle(),
                 event.getBody(),
-                event.getOccurredAt()
+                event.getOccurredAt(),
+                wsPayload
         );
 
         socketEventPublisher.publish(targetUserId, DESTINATION, payload);

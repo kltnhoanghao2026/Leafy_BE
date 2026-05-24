@@ -75,6 +75,7 @@ notification:
       USER_FOLLOW:     { window-seconds: 60, include-reference-in-key: false }
       CONSULT_REQUEST: { window-seconds: 0,  include-reference-in-key: false }
       SYSTEM:          { window-seconds: 0,  include-reference-in-key: false }
+      DIRECT_MESSAGE:  { window-seconds: 0,  include-reference-in-key: false }
 
 firebase:
   enabled: ${FIREBASE_ENABLED:true}

@@ -20,16 +20,11 @@ import com.leafy.plantmanagementservice.model.enums.PlanStatus;
 import com.leafy.plantmanagementservice.model.enums.TargetType;
 import com.leafy.plantmanagementservice.model.enums.TrackingGranularity;
 import com.leafy.plantmanagementservice.model.enums.SeverityLevel;
-import com.leafy.plantmanagementservice.model.enums.IncidentStatus;
-import com.leafy.plantmanagementservice.model.Incident;
-import com.leafy.plantmanagementservice.repository.EventProgressRepository;
-import com.leafy.plantmanagementservice.repository.IncidentRepository;
 import com.leafy.plantmanagementservice.repository.PlantEventRepository;
 import com.leafy.plantmanagementservice.repository.PlantRepository;
 import com.leafy.plantmanagementservice.repository.SpeciesRepository;
 import com.leafy.plantmanagementservice.repository.PlanApplyRepository;
 import com.leafy.plantmanagementservice.repository.PlanRepository;
-import com.leafy.plantmanagementservice.service.eventprogress.EventProgressService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -57,11 +52,8 @@ public class SeederServiceImpl implements SeederService {
     SpeciesRepository speciesRepository;
     PlantRepository plantRepository;
     PlantEventRepository plantEventRepository;
-    EventProgressRepository eventProgressRepository;
-    EventProgressService eventProgressService;
     PlanRepository planRepository;
     PlanApplyRepository planApplyRepository;
-    IncidentRepository incidentRepository;
     FarmPlotService farmPlotService;
     FarmZoneService farmZoneService;
     SeederProperties seederProperties;
@@ -218,12 +210,8 @@ public class SeederServiceImpl implements SeederService {
         long deletedEventCount = plantEventRepository.count();   // capture before deleting
         long deletedPlanCount = planRepository.count();
         long deletedPlanApplyCount = planApplyRepository.count();
-        long deletedIncidentCount = incidentRepository.count();   // capture before deleting
-        long deletedProgressCount = eventProgressRepository.count();
-        eventProgressRepository.deleteAll();    // progress must go first
         plantEventRepository.deleteAll();       // events must go first
         planApplyRepository.deleteAll();        // applies must go before plans
-        incidentRepository.deleteAll();         // incidents reference events/applies; delete after both
         planRepository.deleteAll();
         plantRepository.deleteAll();
 
@@ -278,25 +266,12 @@ public class SeederServiceImpl implements SeederService {
         List<Plan> allSeededPlans = planResult.plans();
         List<PlanApply> allSeededApplies = planResult.applies();
 
-        // --- Incidents (seeded for ~40% of COMPLETED applies with DISEASE_DETECTED events) ---
-        seedIncidents(allSeededApplies, allSeededEvents, random);
-
-        // --- Generate EventProgress for all farm-scoped tracked events ---
-        int totalProgressEntries = 0;
-        for (PlantEvent event : allFarmScopedEvents) {
-            if (event.getTrackingGranularity() != null
-                    && event.getTrackingGranularity() != TrackingGranularity.NONE) {
-                totalProgressEntries += eventProgressService.generateForEvent(event).size();
-            }
-        }
-
         long seededPlanApplyCount = planApplyRepository.count();
-        long seededIncidentCount = incidentRepository.count();
         int totalEventCount = allSeededEvents.size() + allFarmScopedEvents.size();
-        log.info("Plant seeder complete: species={}, plants={}, events={} ({}+{} farm-scoped), progress={}, plans={}, applies={}, incidents={}",
+        log.info("Plant seeder complete: species={}, plants={}, events={} ({}+{} farm-scoped), plans={}, applies={}",
                 speciesIds.size(), allSeededPlants.size(), totalEventCount,
                 allSeededEvents.size(), allFarmScopedEvents.size(),
-                totalProgressEntries, allSeededPlans.size(), seededPlanApplyCount, seededIncidentCount);
+                allSeededPlans.size(), seededPlanApplyCount);
 
         return PlantSeederResponse.builder()
                 .seededSpeciesCount(speciesCounts[0])
@@ -306,14 +281,10 @@ public class SeederServiceImpl implements SeederService {
                 .seededPlantCount(allSeededPlants.size())
                 .deletedEventCount(deletedEventCount)
                 .seededEventCount(totalEventCount)
-                .deletedProgressCount(deletedProgressCount)
-                .seededProgressCount(totalProgressEntries)
                 .deletedPlanCount(deletedPlanCount)
                 .seededPlanCount(allSeededPlans.size())
                 .deletedPlanApplyCount(deletedPlanApplyCount)
                 .seededPlanApplyCount((int) seededPlanApplyCount)
-                .deletedIncidentCount(deletedIncidentCount)
-                .seededIncidentCount((int) seededIncidentCount)
                 .sourceFarmPlotCount(farmPlots.size())
                 .sourceFarmZoneCount(farmZones.size())
                 .build();
@@ -611,7 +582,7 @@ public class SeederServiceImpl implements SeederService {
     }
 
     // -------------------------------------------------------------------------
-    // Farm-scoped PlantEvent seeding (with progress tracking)
+    // Farm-scoped PlantEvent seeding
     // -------------------------------------------------------------------------
 
     /**
@@ -621,8 +592,9 @@ public class SeederServiceImpl implements SeederService {
      *   <li>One plot-scoped event with {@link TrackingGranularity#PLANT}</li>
      *   <li>One zone-scoped event with {@link TrackingGranularity#PLANT} per first zone of the plot</li>
      * </ol>
-     * Events are saved and returned; progress generation is handled by the caller via
-     * {@link com.leafy.plantmanagementservice.service.eventprogress.EventProgressService#generateForEvent}.
+     * Additionally creates child PLANT events with proper {@code parentPlantEventId} links
+     * to demonstrate the progress tracking hierarchy (FARM → FARM_ZONE → PLANT).
+     * Progress is derived from children at read time, not stored as denormalized counters.
      */
     private List<PlantEvent> seedFarmScopedEvents(List<String> farmPlotIds,
                                                    Map<String, List<String>> zonesByPlot,
@@ -631,7 +603,7 @@ public class SeederServiceImpl implements SeederService {
             return List.of();
         }
 
-        List<PlantEvent> events = new ArrayList<>();
+        List<PlantEvent> allEvents = new ArrayList<>();
         LocalDate today = LocalDate.now();
         int seq = startSeqIndex;
 
@@ -642,25 +614,165 @@ public class SeederServiceImpl implements SeederService {
 
         for (String farmPlotId : farmPlotIds) {
             // 1. Plot-scoped event tracked by zone
-            events.add(buildFarmScopedEvent(farmPlotId, null,
+            PlantEvent farmEvent = buildFarmScopedEvent(farmPlotId, null,
                     farmEventTypes[seq % farmEventTypes.length],
-                    TrackingGranularity.ZONE, seq++, today, random));
+                    TrackingGranularity.ZONE, seq++, today, random);
+            allEvents.add(farmEvent);
 
             // 2. Plot-scoped event tracked by plant
-            events.add(buildFarmScopedEvent(farmPlotId, null,
+            PlantEvent farmPlantEvent = buildFarmScopedEvent(farmPlotId, null,
                     farmEventTypes[seq % farmEventTypes.length],
-                    TrackingGranularity.PLANT, seq++, today, random));
+                    TrackingGranularity.PLANT, seq++, today, random);
+            allEvents.add(farmPlantEvent);
 
             // 3. One zone-scoped event tracked by plant per first zone of the plot
             List<String> zones = zonesByPlot.getOrDefault(farmPlotId, List.of());
             if (!zones.isEmpty()) {
-                events.add(buildFarmScopedEvent(farmPlotId, zones.get(0),
+                PlantEvent zoneEvent = buildFarmScopedEvent(farmPlotId, zones.get(0),
                         farmEventTypes[seq % farmEventTypes.length],
-                        TrackingGranularity.PLANT, seq++, today, random));
+                        TrackingGranularity.PLANT, seq++, today, random);
+                allEvents.add(zoneEvent);
+
+                // Create PLANT child events for the zone event
+                List<PlantEvent> plantChildren = createPlantChildrenForZone(
+                        zoneEvent.getId(), farmPlotId, zones.get(0),
+                        farmEventTypes[seq % farmEventTypes.length], seq, today, random);
+                allEvents.addAll(plantChildren);
+                seq += plantChildren.size();
+            }
+
+            // Create zone and plant children for the farm-plant event (tracked by plant)
+            List<PlantEvent> farmPlantChildren = createPlantChildrenForFarm(
+                    farmPlantEvent.getId(), farmEvent.getId(), farmPlotId, zones,
+                    farmEventTypes[seq % farmEventTypes.length], seq, today, random);
+            allEvents.addAll(farmPlantChildren);
+            seq += farmPlantChildren.size();
+        }
+
+        // Save all events (parents and children)
+        return plantEventRepository.saveAll(allEvents);
+    }
+
+    /**
+     * Creates PLANT child events for a zone-scoped parent event.
+     * Links each child to the zone event via {@code parentPlantEventId}.
+     */
+    private List<PlantEvent> createPlantChildrenForZone(String parentZoneEventId,
+                                                          String farmPlotId, String farmZoneId,
+                                                          EventType eventType, int startSeq,
+                                                          LocalDate today, Random random) {
+        List<Plant> zonePlants = plantRepository.findByFarmZoneId(farmZoneId);
+        if (zonePlants.isEmpty()) {
+            return List.of();
+        }
+
+        // Limit to first 3 plants per zone for seeding variety
+        List<Plant> plantsToSeed = zonePlants.stream().limit(3).toList();
+        List<PlantEvent> children = new ArrayList<>();
+
+        String[] noteOptions = EVENT_NOTES.getOrDefault(eventType, new String[]{"Zone child event"});
+        String note = noteOptions[startSeq % noteOptions.length];
+
+        for (int i = 0; i < plantsToSeed.size(); i++) {
+            Plant plant = plantsToSeed.get(i);
+            int durationDays = 1 + ((startSeq + i) % 7);
+            LocalDate calcStart = today.plusDays(random.nextInt(61) - 30);
+            LocalDate calcEnd = calcStart.plusDays(durationDays);
+            boolean completed = !calcStart.isBefore(today) ? false : (random.nextInt(100) < 70);
+
+            PlantEvent child = PlantEvent.builder()
+                    .plantId(plant.getId())
+                    .farmPlotId(farmPlotId)
+                    .farmZoneId(farmZoneId)
+                    .eventType(eventType)
+                    .targetType(TargetType.PLANT)
+                    .note(note + " [plant child]")
+                    .description("Auto-seeded plant child for zone event")
+                    .daysFromStart(0)
+                    .durationDays(durationDays)
+                    .planned(!calcStart.isBefore(today))
+                    .completed(completed)
+                    .calculatedStartDate(calcStart)
+                    .calculatedEndDate(calcEnd)
+                    .parentPlantEventId(parentZoneEventId)
+                    .build();
+            child.setActive(true);
+            children.add(child);
+        }
+
+        return children;
+    }
+
+    /**
+     * Creates a 3-tier hierarchy: FARM_ZONE children under a FARM event, then PLANT children under each FARM_ZONE.
+     * Only creates FARM_ZONE children if zones exist, and PLANT children for the first zone.
+     * This demonstrates the full tracking hierarchy (FARM → FARM_ZONE → PLANT).
+     */
+    private List<PlantEvent> createPlantChildrenForFarm(String parentFarmEventId,
+                                                         String parentZoneEventId,
+                                                         String farmPlotId, List<String> zones,
+                                                         EventType eventType, int startSeq,
+                                                         LocalDate today, Random random) {
+        List<PlantEvent> allChildren = new ArrayList<>();
+
+        // Create FARM_ZONE children (limit to first zone for seeding)
+        if (!zones.isEmpty()) {
+            String farmZoneId = zones.get(0);
+            String[] noteOptions = EVENT_NOTES.getOrDefault(eventType, new String[]{"Farm zone child"});
+            String note = noteOptions[startSeq % noteOptions.length];
+
+            PlantEvent zoneChild = PlantEvent.builder()
+                    .farmPlotId(farmPlotId)
+                    .farmZoneId(farmZoneId)
+                    .eventType(eventType)
+                    .targetType(TargetType.FARM_ZONE)
+                    .note(note + " [zone child]")
+                    .description("Auto-seeded zone child for farm event")
+                    .daysFromStart(0)
+                    .durationDays(1 + (startSeq % 7))
+                    .planned(true)
+                    .completed(false)
+                    .calculatedStartDate(today.plusDays(random.nextInt(61) - 30))
+                    .calculatedEndDate(today.plusDays(random.nextInt(61) - 30).plusDays(1 + (startSeq % 7)))
+                    .parentPlantEventId(parentFarmEventId)
+                    .build();
+            zoneChild.setActive(true);
+            allChildren.add(zoneChild);
+
+            // Create PLANT children under this FARM_ZONE
+            List<Plant> zonePlants = plantRepository.findByFarmZoneId(farmZoneId);
+            if (!zonePlants.isEmpty()) {
+                List<Plant> plantsToSeed = zonePlants.stream().limit(3).toList();
+                for (int i = 0; i < plantsToSeed.size(); i++) {
+                    Plant plant = plantsToSeed.get(i);
+                    int durationDays = 1 + ((startSeq + i) % 7);
+                    LocalDate calcStart = today.plusDays(random.nextInt(61) - 30);
+                    LocalDate calcEnd = calcStart.plusDays(durationDays);
+                    boolean completed = !calcStart.isBefore(today) ? false : (random.nextInt(100) < 70);
+
+                    PlantEvent plantChild = PlantEvent.builder()
+                            .plantId(plant.getId())
+                            .farmPlotId(farmPlotId)
+                            .farmZoneId(farmZoneId)
+                            .eventType(eventType)
+                            .targetType(TargetType.PLANT)
+                            .note(note + " [plant child]")
+                            .description("Auto-seeded plant child for farm event")
+                            .daysFromStart(0)
+                            .durationDays(durationDays)
+                            .planned(!calcStart.isBefore(today))
+                            .completed(completed)
+                            .calculatedStartDate(calcStart)
+                            .calculatedEndDate(calcEnd)
+                            .parentPlantEventId(zoneChild.getId())
+                            .build();
+                    plantChild.setActive(true);
+                    allChildren.add(plantChild);
+                }
             }
         }
 
-        return plantEventRepository.saveAll(events);
+        return allChildren;
     }
 
     private PlantEvent buildFarmScopedEvent(String farmPlotId, String farmZoneId,
@@ -700,8 +812,6 @@ public class SeederServiceImpl implements SeederService {
                 .calculatedStartDate(calcStart)
                 .calculatedEndDate(calcEnd)
                 .trackingGranularity(granularity)
-                .progressTotal(0)
-                .progressCompleted(0)
                 .build();
         event.setActive(true);
         return event;
@@ -856,74 +966,6 @@ public class SeederServiceImpl implements SeederService {
         }
         return new PlanSeedResult(savedPlans, planApplies);
     }
-
-    // -------------------------------------------------------------------------
-    // Incident seeding — created only for COMPLETED applies with disease events
-    // -------------------------------------------------------------------------
-
-    /**
-     * Seeds representative {@link Incident} records for ~40% of COMPLETED applies
-     * whose linked events include a {@code DISEASE_DETECTED} event.  This mirrors the
-     * runtime behaviour where an Incident is created when a DISEASE_DETECTED event is
-     * completed.
-     *
-     * <p>Incidents are only created for COMPLETED applies because ACTIVE and PENDING
-     * applies represent unresolved in-flight disease cycles that have not yet been
-     * decided.
-     */
-    private List<Incident> seedIncidents(List<PlanApply> applies, List<PlantEvent> events, Random random) {
-        // Group events by planApplyId (only plant-scoped events carry a planApplyId)
-        Map<String, List<PlantEvent>> eventsByApply = events.stream()
-                .filter(e -> e.getPlanApplyId() != null)
-                .collect(Collectors.groupingBy(PlantEvent::getPlanApplyId));
-
-        List<Incident> incidents = new ArrayList<>();
-
-        for (PlanApply apply : applies) {
-            if (apply.getStatus() != PlanStatus.COMPLETED) continue;
-            // ~40% chance to seed an incident for this completed apply
-            if (random.nextInt(100) >= 40) continue;
-
-            List<PlantEvent> applyEvents = eventsByApply.getOrDefault(apply.getId(), List.of());
-            if (applyEvents.isEmpty()) continue;
-
-            // Find DISEASE_DETECTED and HEALTH_RECOVERY events among linked events
-            PlantEvent detectedEvent = applyEvents.stream()
-                    .filter(e -> e.getEventType() == EventType.DISEASE_DETECTED)
-                    .findFirst().orElse(null);
-            if (detectedEvent == null) continue;
-
-            PlantEvent recoveredEvent = applyEvents.stream()
-                    .filter(e -> e.getEventType() == EventType.HEALTH_RECOVERY)
-                    .findFirst().orElse(null);
-
-            boolean resolved = recoveredEvent != null;
-
-            Incident incident = Incident.builder()
-                    .planApplyId(apply.getId())
-                    .planId(apply.getPlanId())
-                    .diseaseName(apply.getDiseaseName())
-                    .plantId(apply.getPlantId())
-                    .farmZoneId(apply.getFarmZoneId())
-                    .farmPlotId(apply.getFarmPlotId())
-                    .detectedEventId(detectedEvent.getId())
-                    .recoveredEventId(recoveredEvent != null ? recoveredEvent.getId() : null)
-                    .detectedDate(detectedEvent.getCalculatedStartDate())
-                    .recoveredDate(recoveredEvent != null ? recoveredEvent.getCalculatedEndDate() : null)
-                    .outcome(resolved ? IncidentStatus.RESOLVED : IncidentStatus.FAILED)
-                    .success(resolved)
-                    .build();
-            incident.setActive(true);
-            incidents.add(incident);
-        }
-
-        if (!incidents.isEmpty()) {
-            log.info("Seeding {} incident records for completed applies", incidents.size());
-            return incidentRepository.saveAll(incidents);
-        }
-        return List.of();
-    }
-
 
     // -------------------------------------------------------------------------
     // Farm data fetching via Feign

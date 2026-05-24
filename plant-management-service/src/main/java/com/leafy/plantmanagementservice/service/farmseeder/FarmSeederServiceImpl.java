@@ -285,6 +285,7 @@ public class FarmSeederServiceImpl implements FarmSeederService {
 
         FarmZone zone = new FarmZone();
         zone.setFarmPlotId(plot.getId());
+        zone.setOwnerProfileId(plot.getOwnerProfileId());
         zone.setZoneName(zoneName);
         zone.setZoneCode(zoneCode);
         zone.setDescription(description);

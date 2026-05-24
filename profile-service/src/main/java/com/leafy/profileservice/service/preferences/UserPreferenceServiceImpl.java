@@ -184,7 +184,7 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
     }
 
     private String getCurrentUserId() {
-        String accountId = ServiceSecurityUtils.getCurrentAccountId();
+        String accountId = ServiceSecurityUtils.getCurrentUserId();
         
         Profile profile = profileRepository.findByUserId(accountId)
                 .orElseThrow(() -> {

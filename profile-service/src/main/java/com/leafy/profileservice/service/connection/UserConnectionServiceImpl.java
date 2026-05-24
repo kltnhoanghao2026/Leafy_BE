@@ -214,6 +214,17 @@ public class UserConnectionServiceImpl implements UserConnectionService {
     }
 
     @Override
+    public Page<ProfileResponse> getUserFollowingProfiles(String followerProfileId, Pageable pageable) {
+        return userConnectionRepository
+                .findAllByFollowerIdAndIsFollowingTrue(followerProfileId, pageable)
+                .map(connection -> {
+                    Profile followingProfile = profileRepository.findById(connection.getFollowingId()).orElse(null);
+                    if (followingProfile == null) return null;
+                    return profileMapper.toResponse(followingProfile);
+                });
+    }
+
+    @Override
     public boolean isActiveConsultation(String expertProfileId, String farmerProfileId) {
         Profile expertProfile = profileRepository.findById(expertProfileId).orElse(null);
         if (expertProfile == null || expertProfile.getRole() != ProfileRole.EXPERT) {

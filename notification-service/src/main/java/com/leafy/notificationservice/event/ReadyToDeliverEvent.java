@@ -102,6 +102,12 @@ public class ReadyToDeliverEvent {
      */
     Map<String, String> fcmData;
 
+    /**
+     * Additional payload data for navigation and template rendering.
+     * For DIRECT_MESSAGE, contains conversationId for deep-linking.
+     */
+    Map<String, Object> payload;
+
     /** When the source action occurred (propagated from the original raw event). */
     LocalDateTime occurredAt;
 

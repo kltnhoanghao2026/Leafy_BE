@@ -31,12 +31,19 @@ _SOIL_PH_CODES = ("SOIL_PH", "PH", "SOIL_ACIDITY")
 _NITROGEN_CODES = ("N", "NITROGEN", "NITROGEN_PPM", "SOIL_N")
 _PHOSPHORUS_CODES = ("P", "PHOSPHORUS", "PHOSPHORUS_PPM", "SOIL_P")
 _POTASSIUM_CODES = ("K", "POTASSIUM", "POTASSIUM_PPM", "SOIL_K")
+_ORGANIC_MATTER_CODES = (
+    "ORGANIC_MATTER", "ORGANIC_MATTER_PCT", "OM", "OM_PCT",
+    "SOM", "SOM_PCT", "SOIL_OM", "SOIL_OM_PCT", "HUMUS",
+)
 
 _AIR_TEMP_CODES = ("AIR_TEMP", "AIR_TEMPERATURE", "TEMP", "TEMPERATURE")
 _HUMIDITY_CODES = ("HUMIDITY", "AIR_HUMIDITY", "RH")
 _RAINFALL_CODES = ("RAINFALL_7D", "RAIN_7D", "RAINFALL")
 _WIND_CODES = ("WIND_SPEED", "WIND_SPEED_KMH", "WIND")
 _UV_CODES = ("UV", "UV_INDEX")
+_FORECAST_RAIN_CODES = (
+    "FORECAST_RAIN_24H", "FORECAST_RAIN", "PRECIP_24H", "RAIN_24H", "RAIN_FORECAST"
+)
 
 
 def _extract_plant_id(state: GraphState) -> Optional[str]:
@@ -143,7 +150,7 @@ def _map_overview_to_env_state(zone_context: Dict[str, Any], overview: Dict[str,
             "nitrogen_ppm": _pick_value(reading_index, _NITROGEN_CODES),
             "phosphorus_ppm": _pick_value(reading_index, _PHOSPHORUS_CODES),
             "potassium_ppm": _pick_value(reading_index, _POTASSIUM_CODES),
-            "organic_matter_pct": None,
+            "organic_matter_pct": _pick_value(reading_index, _ORGANIC_MATTER_CODES),
         },
         "weather": {
             "air_temp_c": _pick_value(reading_index, _AIR_TEMP_CODES),
@@ -151,7 +158,7 @@ def _map_overview_to_env_state(zone_context: Dict[str, Any], overview: Dict[str,
             "rainfall_mm_last_7d": _pick_value(reading_index, _RAINFALL_CODES),
             "wind_speed_kmh": _pick_value(reading_index, _WIND_CODES),
             "uv_index": _pick_value(reading_index, _UV_CODES),
-            "forecast_rain_24h": None,
+            "forecast_rain_24h": _pick_value(reading_index, _FORECAST_RAIN_CODES),
         },
         "reading_timestamp": _resolve_reading_timestamp(overview, latest_readings),
         "data_source": "IOT_SENSOR",
@@ -179,9 +186,11 @@ def fetch_env_state(state: GraphState) -> dict:
     # --- Priority 1: resolve via plant_id ---
     plant_id = _extract_plant_id(state)
     if plant_id:
-        zone_context = client.resolve_zone_context(plant_id=plant_id, auth_header=auth_header)
+        zone_context, all_zone_ids = client.resolve_zone_context(
+            plant_id=plant_id, auth_header=auth_header
+        )
         if zone_context is not None:
-            return _fetch_and_build(client, zone_context, auth_header)
+            return _fetch_and_build_with_fallback(client, zone_context, all_zone_ids, auth_header)
         logger.info("[ENV STATE] plant_id=%s did not resolve to a zone; trying fallbacks", plant_id)
 
     # --- Priority 2: use caller-supplied farm_zone_id directly ---
@@ -198,13 +207,13 @@ def fetch_env_state(state: GraphState) -> dict:
     # --- Priority 3: resolve via caller-supplied farm_plot_id ---
     farm_plot_id = state.get("farm_plot_id")
     if isinstance(farm_plot_id, str) and farm_plot_id.strip():
-        zone_context = client.resolve_zone_context_from_plot(
+        zone_context, all_zone_ids = client.resolve_zone_context_from_plot(
             farm_plot_id=farm_plot_id,
             auth_header=auth_header,
             plant_id=plant_id,
         )
         if zone_context is not None:
-            return _fetch_and_build(client, zone_context, auth_header)
+            return _fetch_and_build_with_fallback(client, zone_context, all_zone_ids, auth_header)
         logger.info("[ENV STATE] farm_plot_id=%s did not resolve to a zone", farm_plot_id)
 
     logger.info("[ENV STATE] No plant_id, farm_zone_id, or farm_plot_id available; skipping env context")
@@ -215,16 +224,21 @@ def _fetch_and_build(
     client: "EnvGatewayClient",
     zone_context: Dict[str, Any],
     auth_header: str,
+    all_zone_ids: Optional[List[str]] = None,
 ) -> dict:
     """Fetch the IoT zone overview and map it to an env_state dict."""
     zone_id = zone_context["zone_id"]
     overview = client.get_zone_overview(zone_id=zone_id, auth_header=auth_header)
     if overview is None:
         logger.info("[ENV STATE] IoT overview unavailable for zone_id=%s", zone_id)
+        if all_zone_ids and len(all_zone_ids) > 1:
+            return _fetch_and_build_with_fallback(client, zone_context, all_zone_ids, auth_header)
         return {"env_state": None}
 
     env_state = _map_overview_to_env_state(zone_context, overview)
     if env_state is None:
+        if all_zone_ids and len(all_zone_ids) > 1:
+            return _fetch_and_build_with_fallback(client, zone_context, all_zone_ids, auth_header)
         return {"env_state": None}
 
     logger.debug(
@@ -237,3 +251,42 @@ def _fetch_and_build(
         env_state["weather"].get("humidity_pct"),
     )
     return {"env_state": env_state}
+
+
+def _fetch_and_build_with_fallback(
+    client: "EnvGatewayClient",
+    primary_context: Dict[str, Any],
+    all_zone_ids: List[str],
+    auth_header: str,
+) -> dict:
+    """Try each zone in order until one yields a non-empty IoT overview."""
+    tried: List[str] = []
+    for zone_id in all_zone_ids:
+        if zone_id == primary_context["zone_id"]:
+            continue
+        tried.append(zone_id)
+        zone_context = client.resolve_zone_context_from_zone(
+            farm_zone_id=zone_id,
+            auth_header=auth_header,
+            farm_plot_id=primary_context.get("farm_plot_id"),
+            plant_id=primary_context.get("plant_id"),
+        )
+        overview = client.get_zone_overview(zone_id=zone_id, auth_header=auth_header)
+        if overview is None:
+            logger.info("[ENV STATE] Fallback zone_id=%s has no IoT overview", zone_id)
+            continue
+        env_state = _map_overview_to_env_state(zone_context, overview)
+        if env_state is not None:
+            logger.info(
+                "[ENV STATE] Fallback succeeded: used zone_id=%s (tried: %s)",
+                zone_id,
+                tried,
+            )
+            return {"env_state": env_state}
+        logger.info("[ENV STATE] Fallback zone_id=%s produced empty readings", zone_id)
+
+    logger.info(
+        "[ENV STATE] All zone fallbacks exhausted (tried: %s); returning None",
+        tried,
+    )
+    return {"env_state": None}

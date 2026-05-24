@@ -4,6 +4,7 @@ import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventCreateR
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventUpdateRequest;
 import com.leafy.plantmanagementservice.dto.response.plantevent.PlantEventResponse;
 import com.leafy.plantmanagementservice.model.enums.EventType;
+import com.leafy.plantmanagementservice.model.enums.TargetType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -35,12 +36,26 @@ public interface PlantEventService {
     Page<PlantEventResponse> getEventsByFarmZoneId(String farmZoneId, Pageable pageable);
 
     List<PlantEventResponse> getEventsForCalendar(String profileId, String farmPlotId, String farmZoneId, String plantId,
-                                                   String planApplyId, String incidentId,
+                                                   String planApplyId, EventType eventType, TargetType targetType,
                                                    LocalDate startDate, LocalDate endDate);
 
     Page<PlantEventResponse> getAllEvents(EventType eventType, Boolean planned, String farmPlotId, String farmZoneId, Pageable pageable);
 
     void deleteEvent(String eventId);
+
+    /**
+     * Returns the list of completed child events (and their completed descendants)
+     * under the given event, including the event itself if it is already completed.
+     * Used by the UI to show a confirmation list before a cascading delete.
+     */
+    List<PlantEventResponse> getDeletableChildren(String eventId);
+
+    /**
+     * Deletes the event and all its completed descendants.
+     * If the event itself is not completed, only its completed children are deleted.
+     * If {@code confirmDelete} is false, no deletion is performed.
+     */
+    void deleteWithChildren(String eventId, boolean confirmDelete);
 
     /**
      * Deletes all incomplete events (completed = false) belonging to a PlanApply,

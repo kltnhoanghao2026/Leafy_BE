@@ -185,6 +185,12 @@ public class PlanIndex {
     @Field(type = FieldType.Long)
     Long applyCount;
 
+    @Field(type = FieldType.Long)
+    Long successApplyCount;
+
+    @Field(type = FieldType.Long)
+    Long failedApplyCount;
+
     // ── Denormalized creator info ─────────────────────────────────────────────
 
     @MultiField(

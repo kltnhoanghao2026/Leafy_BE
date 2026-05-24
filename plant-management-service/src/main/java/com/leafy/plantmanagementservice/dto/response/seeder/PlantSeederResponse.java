@@ -26,10 +26,6 @@ public class PlantSeederResponse {
     long deletedEventCount;
     int seededEventCount;
 
-    // Event Progress
-    long deletedProgressCount;
-    int seededProgressCount;
-
     // Treatment Plans
     long deletedPlanCount;
     int seededPlanCount;
@@ -37,10 +33,6 @@ public class PlantSeederResponse {
     // Plan Applies
     long deletedPlanApplyCount;
     int seededPlanApplyCount;
-
-    // Incidents
-    long deletedIncidentCount;
-    int seededIncidentCount;
 
     // Source data used
     int sourceFarmPlotCount;

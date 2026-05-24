@@ -84,6 +84,14 @@ public class PlanApply extends BaseModel {
      */
     List<String> plantEventIds;
 
+    /**
+     * The ID of the last event in the treatment sequence.
+     * When this event is completed by the user, the frontend prompts them to
+     * indicate whether the overall treatment was successful (success=true/false),
+     * which is then stored via {@code completeApply}.
+     */
+    String lastEventId;
+
     // ── Lifecycle ────────────────────────────────────────────────────────────
 
     /** Current status of this application. Defaults to {@link PlanStatus#PENDING}. */

@@ -137,4 +137,14 @@ public class UserConnectionController {
         var page = userConnectionService.getUserFollowerProfiles(profileId, pageable);
         return ResponseEntity.ok(ApiResponse.success(page));
     }
+
+    @GetMapping("/users/{profileId}/following/profiles")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Page<ProfileResponse>>> getUserFollowingProfiles(
+            @PathVariable String profileId,
+            Pageable pageable) {
+        log.info("GET /profiles/users/{}/following/profiles", profileId);
+        var page = userConnectionService.getUserFollowingProfiles(profileId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(page));
+    }
 }

@@ -45,7 +45,7 @@ public class PlanSearchServiceImpl implements PlanSearchService {
             Pageable pageable
     ) {
         if (!StringUtils.hasText(keyword)) {
-            return Page.empty(pageable);
+            return searchAllPlans(severityLevel, urgency, isPublic, pageable);
         }
 
         String searchQuery = keyword.trim();
@@ -186,5 +186,51 @@ public class PlanSearchServiceImpl implements PlanSearchService {
                 .creatorInfo(creatorInfo)
                 .createdAt(planIndex.getCreatedAt())
                 .build();
+    }
+
+    private Page<PlanSearchResponse> searchAllPlans(
+            String severityLevel,
+            String urgency,
+            Boolean isPublic,
+            Pageable pageable
+    ) {
+        String normalizedSeverity = StringUtils.hasText(severityLevel) ? severityLevel.trim().toUpperCase() : null;
+        String normalizedUrgency = StringUtils.hasText(urgency) ? urgency.trim().toUpperCase() : null;
+
+        Query query = Query.of(q -> q.bool(b -> {
+            if (normalizedSeverity != null) {
+                b.filter(f -> f.term(t -> t.field("severityLevel").value(normalizedSeverity)));
+            }
+            if (normalizedUrgency != null) {
+                b.filter(f -> f.term(t -> t.field("urgency").value(normalizedUrgency)));
+            }
+            if (isPublic != null) {
+                b.filter(f -> f.term(t -> t.field("isPublic").value(isPublic)));
+            }
+            return b;
+        }));
+
+        NativeQuery nativeQuery = NativeQuery.builder()
+                .withQuery(query)
+                .withPageable(pageable)
+                .build();
+
+        SearchHits<PlanIndex> searchHits = elasOps.search(
+                nativeQuery,
+                PlanIndex.class,
+                IndexCoordinates.of(elasProps.getPlanAlias())
+        );
+
+        List<PlanIndex> plans = searchHits.stream()
+                .map(hit -> hit.getContent())
+                .toList();
+
+        Map<String, AuthorInfoResponse> creatorInfoMap = fetchCreatorInfoMap(plans);
+
+        List<PlanSearchResponse> results = plans.stream()
+                .map(plan -> toPlanSearchResponse(plan, creatorInfoMap))
+                .toList();
+
+        return new PageImpl<>(results, pageable, searchHits.getTotalHits());
     }
 }

@@ -4,6 +4,7 @@ import com.leafy.common.dto.ApiResponse;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanResponse;
 import com.leafy.plantmanagementservice.mapper.PlanMapper;
 import com.leafy.plantmanagementservice.model.Plan;
+import com.leafy.plantmanagementservice.repository.PlanApplyRepository;
 import com.leafy.plantmanagementservice.repository.PlanRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ import java.util.List;
 public class InternalPlanController {
 
     private final PlanRepository planRepository;
+    private final PlanApplyRepository planApplyRepository;
     private final PlanMapper planMapper;
 
     @GetMapping("/{planId}")
@@ -35,7 +37,9 @@ public class InternalPlanController {
         if (plan == null) {
             return ApiResponse.success(null);
         }
-        return ApiResponse.success(planMapper.toResponse(plan));
+        PlanResponse response = planMapper.toResponse(plan);
+        enrichWithApplyCounts(response);
+        return ApiResponse.success(response);
     }
 
     @GetMapping("/batch")
@@ -47,7 +51,15 @@ public class InternalPlanController {
                 PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id")));
         List<PlanResponse> responses = plans.getContent().stream()
                 .map(planMapper::toResponse)
+                .peek(this::enrichWithApplyCounts)
                 .toList();
         return ApiResponse.success(responses);
+    }
+
+    private void enrichWithApplyCounts(PlanResponse response) {
+        if (response.getId() == null) return;
+        response.setApplyCount(planApplyRepository.countByPlanId(response.getId()));
+        response.setSuccessApplyCount(planApplyRepository.countByPlanIdAndSuccess(response.getId(), true));
+        response.setFailedApplyCount(planApplyRepository.countByPlanIdAndSuccess(response.getId(), false));
     }
 }

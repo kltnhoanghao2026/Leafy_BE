@@ -24,6 +24,8 @@ public class FarmZone extends BaseModel {
     @Indexed
     private String farmPlotId;
 
+    private String ownerProfileId;
+
     private String zoneName;
     private String zoneCode;
     private String description;

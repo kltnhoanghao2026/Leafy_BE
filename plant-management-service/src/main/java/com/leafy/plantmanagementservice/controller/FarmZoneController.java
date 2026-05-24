@@ -41,6 +41,12 @@ public class FarmZoneController {
         return ResponseEntity.ok(ApiResponse.success(farmZoneService.getByFarmPlot(farmPlotId)));
     }
 
+    @GetMapping("/zones")
+    public ResponseEntity<ApiResponse<List<FarmZoneResponse>>> getByOwnerProfileId(
+            @RequestParam String ownerProfileId) {
+        return ResponseEntity.ok(ApiResponse.success(farmZoneService.getByOwnerProfileId(ownerProfileId)));
+    }
+
     @GetMapping("/zones/{id}")
     public ResponseEntity<ApiResponse<FarmZoneResponse>> getById(@PathVariable String id) {
         return ResponseEntity.ok(ApiResponse.success(farmZoneService.getById(id)));

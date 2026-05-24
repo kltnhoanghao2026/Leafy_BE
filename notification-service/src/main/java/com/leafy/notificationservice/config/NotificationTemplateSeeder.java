@@ -104,7 +104,7 @@ public class NotificationTemplateSeeder implements CommandLineRunner {
             // ── Messaging ──────────────────────────────────────────────────────
             new SeedEntry(
                 NotificationType.DIRECT_MESSAGE,
-                FCM_ONLY,
+                PUSH_AND_IN_APP,
                 "{{#isGroup}}{{conversationName}}{{/isGroup}}{{^isGroup}}{{actorName}}{{/isGroup}}",
                 "{{#isGroup}}{{actorName}}: {{/isGroup}}{{#messagePreview}}{{messagePreview}}{{/messagePreview}}{{^messagePreview}}đã nhắn tin cho bạn.{{/messagePreview}}"
             )
@@ -169,7 +169,7 @@ public class NotificationTemplateSeeder implements CommandLineRunner {
             // ── Messaging ──────────────────────────────────────────────────────
             new SeedEntry(
                 NotificationType.DIRECT_MESSAGE,
-                FCM_ONLY,
+                PUSH_AND_IN_APP,
                 "{{#isGroup}}{{conversationName}}{{/isGroup}}{{^isGroup}}{{actorName}}{{/isGroup}}",
                 "{{#isGroup}}{{actorName}}: {{/isGroup}}{{#messagePreview}}{{messagePreview}}{{/messagePreview}}{{^messagePreview}}sent you a message.{{/messagePreview}}"
             )

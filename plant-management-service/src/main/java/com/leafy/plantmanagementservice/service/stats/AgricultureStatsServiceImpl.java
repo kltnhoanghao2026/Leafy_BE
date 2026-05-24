@@ -9,7 +9,9 @@ import com.leafy.plantmanagementservice.model.Plant;
 import com.leafy.plantmanagementservice.model.PlantEvent;
 import com.leafy.plantmanagementservice.model.enums.PlanStatus;
 import com.leafy.plantmanagementservice.repository.*;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -20,14 +22,15 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@FieldDefaults(level =  AccessLevel.PRIVATE, makeFinal = true)
 public class AgricultureStatsServiceImpl implements AgricultureStatsService {
 
-    private final FarmPlotRepository farmPlotRepository;
-    private final FarmZoneRepository farmZoneRepository;
-    private final PlantRepository plantRepository;
-    private final PlantEventRepository plantEventRepository;
-    private final PlanApplyRepository planApplyRepository;
-    private final PlanRepository planRepository;
+    FarmPlotRepository farmPlotRepository;
+    FarmZoneRepository farmZoneRepository;
+    PlantRepository plantRepository;
+    PlantEventRepository plantEventRepository;
+    PlanApplyRepository planApplyRepository;
+    PlanRepository planRepository;
 
     @Override
     public AgricultureStatsResponse getStatsForCurrentUser() {

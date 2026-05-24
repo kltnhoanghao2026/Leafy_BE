@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
@@ -15,20 +15,20 @@ class EnvGatewayClient:
         self.base_url = (base_url or settings.api_gateway_url).rstrip("/")
         self.timeout_seconds = timeout_seconds or settings.env_lookup_timeout_seconds
 
-    def resolve_zone_context(self, plant_id: str, auth_header: Optional[str]) -> Optional[Dict[str, Any]]:
+    def resolve_zone_context(self, plant_id: str, auth_header: Optional[str]) -> Tuple[Optional[Dict[str, Any]], List[str]]:
         """Resolve a single deterministic zone context from a plant id.
 
-        Returns None when the mapping is missing or ambiguous.
+        Returns (None, []) when the mapping is missing or ambiguous.
         """
         plant = self._get_wrapped_data(f"/api/plants/{plant_id}", auth_header)
         if not isinstance(plant, dict):
             logger.info("[ENV LOOKUP] Plant not found or unreadable for plant_id=%s", plant_id)
-            return None
+            return None, []
 
         farm_plot_id = plant.get("farmPlotId")
         if not farm_plot_id:
             logger.info("[ENV LOOKUP] Missing farmPlotId for plant_id=%s", plant_id)
-            return None
+            return None, []
 
         return self.resolve_zone_context_from_plot(
             farm_plot_id=str(farm_plot_id),
@@ -41,23 +41,24 @@ class EnvGatewayClient:
         farm_plot_id: str,
         auth_header: Optional[str],
         plant_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Tuple[Optional[Dict[str, Any]], List[str]]:
         """Resolve a single deterministic zone context directly from a farm plot id.
 
-        Returns None when the zone list is unavailable or empty.
+        Returns (None, []) when the zone list is unavailable or empty.
         Also fetches farm plot details and embeds them in the returned context.
         """
         zones_payload = self._get_wrapped_data(f"/api/farms/plots/{farm_plot_id}/zones", auth_header)
         if not isinstance(zones_payload, list):
             logger.info("[ENV LOOKUP] Zone list unavailable for farm_plot_id=%s", farm_plot_id)
-            return None
+            return None, []
 
         zones = [zone for zone in zones_payload if isinstance(zone, dict) and zone.get("id")]
         if not zones:
             logger.info("[ENV LOOKUP] No zones found for farm_plot_id=%s", farm_plot_id)
-            return None
+            return None, []
 
-        # Use the first zone when there are multiple; log a note if count > 1
+        all_zone_ids: List[str] = [str(zone.get("id")) for zone in zones]
+
         if len(zones) > 1:
             logger.info(
                 "[ENV LOOKUP] Multiple zones (%d) for farm_plot_id=%s — using first zone",
@@ -67,7 +68,7 @@ class EnvGatewayClient:
 
         zone = zones[0]
         plot_info = self.get_farm_plot_info(farm_plot_id=farm_plot_id, auth_header=auth_header)
-        return {
+        zone_context = {
             "plant_id": plant_id,
             "farm_plot_id": str(farm_plot_id),
             "zone_id": str(zone.get("id")),
@@ -86,6 +87,7 @@ class EnvGatewayClient:
             "plot_latitude": self._to_float(plot_info.get("latitude")) if plot_info else None,
             "plot_longitude": self._to_float(plot_info.get("longitude")) if plot_info else None,
         }
+        return zone_context, all_zone_ids
 
     def resolve_zone_context_from_zone(
         self,

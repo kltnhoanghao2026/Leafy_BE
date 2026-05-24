@@ -1,7 +1,7 @@
 package com.leafy.communityfeedservice.model.enums;
 
 public enum Visibility {
-    FRIEND,
+    FOLLOWER,
     ALL,
     ONLY_ME
 }

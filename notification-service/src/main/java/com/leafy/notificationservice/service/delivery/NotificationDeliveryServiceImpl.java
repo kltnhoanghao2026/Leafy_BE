@@ -152,6 +152,7 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
                 .totalEventCount(persisted.getTotalEventCount())
                 .secondActorName(batched.getSecondActorName())
                 .fcmData(buildFcmData(batched, persisted))
+                .payload(persisted.getPayload())
                 .occurredAt(persisted.getOccurredAt())
                 .channels(channels)
                 .build();

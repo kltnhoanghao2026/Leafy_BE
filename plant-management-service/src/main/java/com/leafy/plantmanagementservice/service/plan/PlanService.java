@@ -99,7 +99,6 @@ public interface PlanService {
     /**
      * Mark a PlanApply as COMPLETED with the user's explicit success/failure decision.
      * Called when the user completes the last remaining event of an apply.
-     * Also updates the linked Incident outcome.
      */
     PlanApplyResponse completeApply(String applyId, Boolean success);
 }

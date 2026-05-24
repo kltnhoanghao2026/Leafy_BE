@@ -23,6 +23,14 @@ public interface CertificateService {
     ApprovalRequestDto submitApprovalRequest(String profileId, CreateApprovalRequest request);
 
     /**
+     * Get all approval requests for a specific profile (owner view)
+     *
+     * @param profileId the profile ID
+     * @return list of all approval requests for the profile
+     */
+    List<ApprovalRequestDto> getApprovalRequests(String profileId);
+
+    /**
      * Update the status of an approval request
      *
      * @param profileId the profile ID

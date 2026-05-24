@@ -2,6 +2,7 @@ package com.leafy.plantmanagementservice.repository;
 
 import com.leafy.plantmanagementservice.model.PlantEvent;
 import com.leafy.plantmanagementservice.model.enums.EventType;
+import com.leafy.plantmanagementservice.model.enums.TargetType;
 import lombok.RequiredArgsConstructor;
 import org.bson.Document;
 import org.springframework.data.domain.Page;
@@ -102,7 +103,8 @@ public class PlantEventRepositoryCustomImpl implements PlantEventRepositoryCusto
             List<String> farmZoneIds,
             List<String> plantIds,
             java.time.LocalDate startDate,
-            java.time.LocalDate endDate
+            java.time.LocalDate endDate,
+            TargetType targetType
     ) {
         Criteria dateCriteria = buildDateOverlapCriteria(startDate, endDate);
 
@@ -122,7 +124,32 @@ public class PlantEventRepositoryCustomImpl implements PlantEventRepositoryCusto
         }
 
         Criteria targetCriteria = new Criteria().orOperator(orCriterias.toArray(new Criteria[0]));
-        Query query = new Query(new Criteria().andOperator(dateCriteria, targetCriteria));
+
+        // Apply TargetType filter on top of the ownership scope
+        List<Criteria> allCriteria = new ArrayList<>();
+        allCriteria.add(dateCriteria);
+        allCriteria.add(targetCriteria);
+
+        if (targetType != null) {
+            switch (targetType) {
+                case FARM -> {
+                    // FARM-scope: event has farmPlotId set, no farmZoneId, no plantId
+                    allCriteria.add(Criteria.where("farmPlotId").ne(null));
+                    allCriteria.add(Criteria.where("farmZoneId").is(null));
+                    allCriteria.add(Criteria.where("plantId").is(null));
+                }
+                case FARM_ZONE -> {
+                    // FARM_ZONE-scope: event has farmZoneId set
+                    allCriteria.add(Criteria.where("farmZoneId").ne(null));
+                }
+                case PLANT -> {
+                    // PLANT-scope: event has plantId set
+                    allCriteria.add(Criteria.where("plantId").ne(null));
+                }
+            }
+        }
+
+        Query query = new Query(new Criteria().andOperator(allCriteria.toArray(new Criteria[0])));
         return mongoTemplate.find(query, PlantEvent.class);
     }
 

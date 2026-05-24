@@ -2,9 +2,11 @@ package com.leafy.plantmanagementservice.repository;
 
 import com.leafy.plantmanagementservice.model.PlantEvent;
 import com.leafy.plantmanagementservice.model.enums.EventType;
+import com.leafy.plantmanagementservice.model.enums.TargetType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -44,7 +46,22 @@ public interface PlantEventRepository extends MongoRepository<PlantEvent, String
     /** Find all events for a PlanApply that are NOT completed. */
     List<PlantEvent> findByPlanApplyIdAndCompletedFalse(String planApplyId);
 
-    List<PlantEvent> findByIncidentId(String incidentId);
-
     List<PlantEvent> findByPlanApplyIdAndEventType(String planApplyId, EventType eventType);
+
+    /**
+     * Finds all parent-level events (FARM or FARM_ZONE scope) for a given plan apply.
+     * Used by applyPlantScope to resolve parent plant events when applying a plan to a single plant.
+     *
+     * @param planApplyId the plan apply ID
+     * @param targetType the parent scope (FARM or FARM_ZONE)
+     * @return list of parent plant events ordered by calculatedStartDate
+     */
+    List<PlantEvent> findByPlanApplyIdAndTargetTypeOrderByCalculatedStartDate(String planApplyId, TargetType targetType);
+
+    /**
+     * Counts incomplete (completed = false) PlantEvents for a PlanApply.
+     * Used to determine how many events still need to be completed.
+     */
+    @Query(value = "{ 'planApplyId': ?0, 'completed': false }", count = true)
+    long countIncompleteEventsByPlanApplyId(String planApplyId);
 }

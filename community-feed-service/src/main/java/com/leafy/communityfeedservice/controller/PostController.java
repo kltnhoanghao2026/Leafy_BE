@@ -1,6 +1,7 @@
 package com.leafy.communityfeedservice.controller;
 
 import com.leafy.common.dto.ApiResponse;
+import com.leafy.common.utils.ServiceSecurityUtils;
 import com.leafy.communityfeedservice.dto.request.PostCreateRequest;
 import com.leafy.communityfeedservice.dto.request.PostUpdateRequest;
 import com.leafy.communityfeedservice.dto.response.PostResponse;
@@ -37,10 +38,12 @@ public class PostController {
     }
 
     @GetMapping("/feed")
-    public ApiResponse<Page<PostResponse>> getAllFeedAndSharedPosts(
+    public ApiResponse<Page<PostResponse>> getFeed(
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size) {
-        Page<PostResponse> response = postService.getAllFeedAndSharedPosts(
+        String currentProfileId = ServiceSecurityUtils.getCurrentProfileId();
+        Page<PostResponse> response = postService.getPersonalizedFeed(
+                currentProfileId,
                 PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
         return ApiResponse.success(response);
     }

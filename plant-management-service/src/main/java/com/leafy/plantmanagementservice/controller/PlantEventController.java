@@ -2,13 +2,11 @@ package com.leafy.plantmanagementservice.controller;
 
 import com.leafy.common.dto.ApiResponse;
 import com.leafy.common.utils.ServiceSecurityUtils;
-import com.leafy.plantmanagementservice.dto.request.plantevent.EventProgressUpdateRequest;
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventCreateRequest;
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventUpdateRequest;
-import com.leafy.plantmanagementservice.dto.response.plantevent.EventProgressResponse;
 import com.leafy.plantmanagementservice.dto.response.plantevent.PlantEventResponse;
 import com.leafy.plantmanagementservice.model.enums.EventType;
-import com.leafy.plantmanagementservice.service.eventprogress.EventProgressService;
+import com.leafy.plantmanagementservice.model.enums.TargetType;
 import com.leafy.plantmanagementservice.service.plantevent.PlantEventService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +31,6 @@ import java.util.List;
 public class PlantEventController {
 
     private final PlantEventService plantEventService;
-    private final EventProgressService eventProgressService;
 
     // ── List All (Admin) ───────────────────────────────────────────────────────
 
@@ -193,13 +190,14 @@ public class PlantEventController {
             @RequestParam(required = false) String farmZoneId,
             @RequestParam(required = false) String plantId,
             @RequestParam(required = false) String planApplyId,
-            @RequestParam(required = false) String incidentId,
+            @RequestParam(required = false) EventType eventType,
+            @RequestParam(required = false) TargetType targetType,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        log.info("GET /plant-events/calendar - profileId={}, farmPlotId={}, farmZoneId={}, plantId={}, planApplyId={}, incidentId={}, range=[{}, {}]",
-                profileId, farmPlotId, farmZoneId, plantId, planApplyId, incidentId, startDate, endDate);
+        log.info("GET /plant-events/calendar - profileId={}, farmPlotId={}, farmZoneId={}, plantId={}, planApplyId={}, eventType={}, targetType={}, range=[{}, {}]",
+                profileId, farmPlotId, farmZoneId, plantId, planApplyId, eventType, targetType, startDate, endDate);
         List<PlantEventResponse> events = plantEventService.getEventsForCalendar(
-                profileId, farmPlotId, farmZoneId, plantId, planApplyId, incidentId, startDate, endDate);
+                profileId, farmPlotId, farmZoneId, plantId, planApplyId, eventType, targetType, startDate, endDate);
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 
@@ -210,6 +208,33 @@ public class PlantEventController {
     public ResponseEntity<ApiResponse<Void>> deleteEvent(@PathVariable String eventId) {
         log.info("DELETE /plant-events/{} - Deleting event", eventId);
         plantEventService.deleteEvent(eventId);
+        return ResponseEntity.ok(ApiResponse.successWithoutData());
+    }
+
+    /**
+     * Returns all completed events in the subtree rooted at the given event,
+     * including the event itself (if completed) and all its completed descendants.
+     * The frontend uses this to show a confirmation list before issuing the
+     * cascading delete request.
+     */
+    @GetMapping("/{eventId}/deletable-children")
+    public ResponseEntity<ApiResponse<List<PlantEventResponse>>> getDeletableChildren(@PathVariable String eventId) {
+        log.info("GET /plant-events/{}/deletable-children - Listing completed children before delete", eventId);
+        return ResponseEntity.ok(ApiResponse.success(plantEventService.getDeletableChildren(eventId)));
+    }
+
+    /**
+     * Deletes the event and all its completed descendants.
+     * Callers must first fetch {@code /plant-events/{eventId}/deletable-children}
+     * and display the list to the user. Deletion proceeds only when
+     * {@code confirmDelete=true}.
+     */
+    @DeleteMapping("/{eventId}/with-children")
+    public ResponseEntity<ApiResponse<Void>> deleteWithChildren(
+            @PathVariable String eventId,
+            @RequestParam boolean confirmDelete) {
+        log.info("DELETE /plant-events/{}/with-children?confirmDelete={}", eventId, confirmDelete);
+        plantEventService.deleteWithChildren(eventId, confirmDelete);
         return ResponseEntity.ok(ApiResponse.successWithoutData());
     }
 
@@ -258,35 +283,5 @@ public class PlantEventController {
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
         return PageRequest.of(page, size, sort);
-    }
-
-    // ── Progress tracking endpoints ───────────────────────────────────────────
-
-    @GetMapping("/{eventId}/progress")
-    public ResponseEntity<ApiResponse<Page<EventProgressResponse>>> getEventProgress(
-            @PathVariable String eventId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size,
-            @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "ASC") String sortDir) {
-        log.info("GET /plant-events/{}/progress", eventId);
-        Pageable pageable = buildPageable(page, size, sortBy, sortDir);
-        return ResponseEntity.ok(ApiResponse.success(eventProgressService.getByEventId(eventId, pageable)));
-    }
-
-    @PostMapping("/{eventId}/progress/generate")
-    public ResponseEntity<ApiResponse<List<EventProgressResponse>>> generateEventProgress(
-            @PathVariable String eventId) {
-        log.info("POST /plant-events/{}/progress/generate", eventId);
-        return ResponseEntity.ok(ApiResponse.success(eventProgressService.generateOrRefresh(eventId)));
-    }
-
-    @PatchMapping("/{eventId}/progress/{progressId}")
-    public ResponseEntity<ApiResponse<EventProgressResponse>> updateEventProgress(
-            @PathVariable String eventId,
-            @PathVariable String progressId,
-            @Valid @RequestBody EventProgressUpdateRequest request) {
-        log.info("PATCH /plant-events/{}/progress/{}", eventId, progressId);
-        return ResponseEntity.ok(ApiResponse.success(eventProgressService.update(progressId, request)));
     }
 }

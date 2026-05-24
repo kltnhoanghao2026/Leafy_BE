@@ -89,14 +89,6 @@ public class PlantEvent extends BaseModel {
     String planApplyId;
 
     /**
-     * Groups events in the same disease-detection cycle (DISEASE_DETECTED → HEALTH_RECOVERY).
-     * Auto-generated as a UUID when the first DISEASE_DETECTED event is created.
-     * All subsequent events in the same plan-apply inherit this value.
-     */
-    @Indexed
-    String incidentId;
-
-    /**
      * ID of the parent {@link PlantEvent} in the hierarchy created during plan apply.
      * <ul>
      *   <li>FARM_ZONE events point to their parent FARM event.</li>
@@ -121,28 +113,24 @@ public class PlantEvent extends BaseModel {
      */
     List<EventTask> tasks;
 
-    // ── Progress Tracking (broad-scope events only) ──────────────────────────
+    // ── Progress Tracking ──────────────────────────────────────────────────────
     /**
-     * How this event is tracked across child targets.
+     * How this event tracks completion across child events in the hierarchy.
      * <ul>
-     *   <li>{@code NONE} — no per-target tracking (plant-scope or untracked broad events).</li>
-     *   <li>{@code ZONE} — one progress entry per zone in the parent farm plot.</li>
-     *   <li>{@code PLANT} — one progress entry per plant in the parent plot/zone.</li>
+     *   <li>{@code NONE} — no progress tracking (plant-scope or events with no children).</li>
+     *   <li>{@code ZONE} — tracks progress per zone (FARM-level parent events).</li>
+     *   <li>{@code PLANT} — tracks progress per plant (FARM_ZONE-level parent events).</li>
      * </ul>
+     * When the event has children in the hierarchy, progress is computed by counting
+     * completed child events rather than from denormalized counters.
      */
     TrackingGranularity trackingGranularity;
 
-    /** Plant IDs explicitly excluded from progress generation. */
+    /** Plant IDs explicitly excluded from child event generation. */
     List<String> excludedPlantIds;
 
-    /** Farm zone IDs explicitly excluded from progress generation. */
+    /** Farm zone IDs explicitly excluded from child event generation. */
     List<String> excludedFarmZoneIds;
-
-    /** Denormalized total number of progress entries generated for this event. */
-    Integer progressTotal;
-
-    /** Denormalized number of progress entries currently marked completed. */
-    Integer progressCompleted;
 
     // ── Attachments (images, videos from file-service) ────────────────────────
     /**

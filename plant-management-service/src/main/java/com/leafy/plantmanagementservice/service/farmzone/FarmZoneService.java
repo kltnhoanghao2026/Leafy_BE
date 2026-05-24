@@ -13,6 +13,7 @@ public interface FarmZoneService {
     List<FarmZoneResponse> getByFarmPlot(String farmPlotId);
     List<FarmZoneResponse> getByFarmPlotAsConsulting(String farmPlotId, String expertProfileId);
     List<FarmZoneResponse> getAllActive();
+    List<FarmZoneResponse> getByOwnerProfileId(String ownerProfileId);
     Page<FarmZoneResponse> getFilteredZones(String searchTerm, FarmZoneStatus status, String cropType, String soilType, Double minAreaM2, Double maxAreaM2, Pageable pageable);
     FarmZoneResponse getById(String id);
     FarmZoneResponse update(String id, UpdateFarmZoneRequest request);

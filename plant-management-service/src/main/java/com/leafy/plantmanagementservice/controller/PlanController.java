@@ -194,7 +194,6 @@ public class PlanController {
     // ── Delete ────────────────────────────────────────────────────────────────
 
     @DeleteMapping("/{planId}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deletePlan(@PathVariable String planId) {
         log.info("DELETE /plans/{}", planId);
         planService.deletePlan(planId);
@@ -238,7 +237,6 @@ public class PlanController {
     }
 
     @DeleteMapping("/bulk")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<BulkOperationResult>> bulkDeletePlans(
             @Valid @RequestBody BulkPlanDeleteRequest request) {
         log.info("DELETE /plans/bulk - {} plans", request.getPlanIds().size());

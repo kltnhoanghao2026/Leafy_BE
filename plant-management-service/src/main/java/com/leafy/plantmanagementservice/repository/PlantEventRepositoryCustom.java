@@ -2,6 +2,7 @@ package com.leafy.plantmanagementservice.repository;
 
 import com.leafy.plantmanagementservice.model.PlantEvent;
 import com.leafy.plantmanagementservice.model.enums.EventType;
+import com.leafy.plantmanagementservice.model.enums.TargetType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -36,13 +37,16 @@ public interface PlantEventRepositoryCustom {
      *   <li>{@code farmZoneId IN farmZoneIds} — events attached directly to a zone</li>
      *   <li>{@code plantId IN plantIds}       — events attached to plants in those plots/zones</li>
      * </ul>
+     *
+     * @param targetType optional – if provided, additionally filters by TargetType
      */
     List<PlantEvent> findProfileCalendarEvents(
             List<String> farmPlotIds,
             List<String> farmZoneIds,
             List<String> plantIds,
             java.time.LocalDate startDate,
-            java.time.LocalDate endDate
+            java.time.LocalDate endDate,
+            TargetType targetType
     );
     /**
      * Calendar events where farmPlotId OR farmZoneId matches (both filters provided).

@@ -15,19 +15,22 @@ import com.leafy.plantmanagementservice.dto.response.plan.AuthorInfo;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanApplyResponse;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanResponse;
 import com.leafy.plantmanagementservice.dto.response.plant.BulkOperationResult;
-import com.leafy.plantmanagementservice.service.incident.IncidentService;
+import com.leafy.plantmanagementservice.dto.response.farmplot.FarmPlotResponse;
+import com.leafy.plantmanagementservice.dto.response.farmzone.FarmZoneResponse;
+import com.leafy.plantmanagementservice.model.Plant;
+import com.leafy.plantmanagementservice.repository.PlantRepository;
 import com.leafy.plantmanagementservice.utils.ConsultingAccessHelper;
 import com.leafy.plantmanagementservice.mapper.PlanApplyMapper;
 import com.leafy.plantmanagementservice.mapper.PlanMapper;
 import com.leafy.plantmanagementservice.model.Plan;
 import com.leafy.plantmanagementservice.model.PlanApply;
 import com.leafy.plantmanagementservice.model.enums.ConsultingDataType;
-import com.leafy.plantmanagementservice.model.enums.IncidentStatus;
 import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
 import com.leafy.plantmanagementservice.model.enums.PlanStatus;
-import com.leafy.plantmanagementservice.repository.IncidentRepository;
 import com.leafy.plantmanagementservice.repository.PlanApplyRepository;
 import com.leafy.plantmanagementservice.repository.PlanRepository;
+import com.leafy.plantmanagementservice.service.farmplot.FarmPlotService;
+import com.leafy.plantmanagementservice.service.farmzone.FarmZoneService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -38,6 +41,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -52,8 +56,6 @@ public class PlanServiceImpl implements PlanService {
 
     PlanRepository planRepository;
     PlanApplyRepository planApplyRepository;
-    IncidentRepository incidentRepository;
-    IncidentService incidentService;
     PlanMapper planMapper;
     PlanApplyMapper planApplyMapper;
     KafkaTemplate<String, Object> kafkaTemplate;
@@ -62,11 +64,14 @@ public class PlanServiceImpl implements PlanService {
     ProfileServiceClient profileServiceClient;
     RawNotificationEventPublisher notificationPublisher;
     com.leafy.plantmanagementservice.service.plantevent.PlantEventService plantEventService;
+    FarmPlotService farmPlotService;
+    FarmZoneService farmZoneService;
+    PlantRepository plantRepository;
 
     @Override
     @Transactional
     public PlanResponse createPlan(PlanCreateRequest request) {
-        String userId = ServiceSecurityUtils.getCurrentAccountId();
+        String userId = ServiceSecurityUtils.getCurrentUserId();
         log.info("Creating Plan for userId={} disease={}", userId, request.getDiseaseName());
 
         // 1. Build entity
@@ -171,9 +176,16 @@ public class PlanServiceImpl implements PlanService {
                 visibleApplies = List.of();
             }
         }
-        
-        response.setApplies(planApplyMapper.toResponseList(visibleApplies));
+
+        // Enrich applies with entity summaries
+        List<PlanApplyResponse> enrichedApplies = visibleApplies.stream()
+                .map(planApplyMapper::toResponse)
+                .map(this::enrichPlanApplyResponse)
+                .toList();
+        response.setApplies(enrichedApplies);
         response.setApplyCount(planApplyRepository.countByPlanId(planId));
+        response.setSuccessApplyCount(planApplyRepository.countByPlanIdAndSuccess(planId, true));
+        response.setFailedApplyCount(planApplyRepository.countByPlanIdAndSuccess(planId, false));
         return response;
     }
 
@@ -398,8 +410,9 @@ public class PlanServiceImpl implements PlanService {
         boolean isOwner = profileId != null && profileId.equals(plan.getOwnerId());
         boolean isCreator = profileId != null && profileId.equals(plan.getCreatorId());
 
+        Page<PlanApplyResponse> result;
         if (isOwner || isCreator) {
-            return planApplyRepository.findByPlanId(planId, pageable)
+            result = planApplyRepository.findByPlanId(planId, pageable)
                     .map(planApplyMapper::toResponse);
         } else {
             // For public plans (or if authorized via other means), only return their own applies
@@ -409,9 +422,10 @@ public class PlanServiceImpl implements PlanService {
             if (profileId == null) {
                 return org.springframework.data.domain.Page.empty();
             }
-            return planApplyRepository.findByPlanIdAndAppliedById(planId, profileId, pageable)
+            result = planApplyRepository.findByPlanIdAndAppliedById(planId, profileId, pageable)
                     .map(planApplyMapper::toResponse);
         }
+        return enrichPlanApplyPage(result);
     }
 
     @Override
@@ -423,7 +437,7 @@ public class PlanServiceImpl implements PlanService {
         } else {
             page = planApplyRepository.findByAppliedById(profileId, pageable);
         }
-        return page.map(planApplyMapper::toResponse);
+        return enrichPlanApplyPage(page.map(planApplyMapper::toResponse));
     }
 
     @Override
@@ -431,7 +445,7 @@ public class PlanServiceImpl implements PlanService {
         log.info("Fetching PlanApply id={}", applyId);
         PlanApply apply = planApplyRepository.findById(applyId)
                 .orElseThrow(() -> new AppException(ErrorCode.PLAN_NOT_FOUND));
-        return planApplyMapper.toResponse(apply);
+        return enrichPlanApplyResponse(planApplyMapper.toResponse(apply));
     }
 
     @Override
@@ -551,14 +565,6 @@ public class PlanServiceImpl implements PlanService {
         apply.setSuccess(success);
         apply.setCanCancel(false);
 
-        // Update the linked Incident's outcome
-        incidentRepository.findByPlanApplyId(applyId).ifPresent(incident -> {
-            incident.setSuccess(success);
-            incident.setOutcome(success ? IncidentStatus.RESOLVED : IncidentStatus.FAILED);
-            incidentRepository.save(incident);
-            log.info("Updated Incident id={} outcome={} success={}", incident.getId(), incident.getOutcome(), success);
-        });
-
         PlanApply saved = planApplyRepository.save(apply);
         log.info("PlanApply id={} is now COMPLETED, success={}", applyId, success);
         return planApplyMapper.toResponse(saved);
@@ -581,8 +587,127 @@ public class PlanServiceImpl implements PlanService {
         return response;
     }
 
+    // ── PlanApply enrichment ─────────────────────────────────────────────────
+
+    /**
+     * Enriches a PlanApplyResponse with denormalized entity summaries (plant, farmPlot, farmZone)
+     * and the applier's name.
+     */
+    private PlanApplyResponse enrichPlanApplyResponse(PlanApplyResponse response) {
+        if (response == null) return response;
+
+        // Enrich with applier's name
+        if (StringUtils.hasText(response.getAppliedById())) {
+            try {
+                var profile = profileServiceClient.getProfileById(response.getAppliedById());
+                if (profile != null && profile.getData() != null) {
+                    response.setAppliedByName(profile.getData().getFullName());
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fetch applier profile {}: {}", response.getAppliedById(), e.getMessage());
+            }
+        }
+
+        // Collect IDs for batch fetching
+        Set<String> plantIds = new HashSet<>();
+        Set<String> farmPlotIds = new HashSet<>();
+        Set<String> farmZoneIds = new HashSet<>();
+
+        if (StringUtils.hasText(response.getPlantId())) plantIds.add(response.getPlantId());
+        if (StringUtils.hasText(response.getFarmPlotId())) farmPlotIds.add(response.getFarmPlotId());
+        if (StringUtils.hasText(response.getFarmZoneId())) farmZoneIds.add(response.getFarmZoneId());
+
+        // Batch fetch entities
+        Map<String, Plant> plantsMap = fetchPlants(plantIds);
+        Map<String, FarmPlotResponse> plotsMap = fetchFarmPlots(farmPlotIds);
+        Map<String, FarmZoneResponse> zonesMap = fetchFarmZones(farmZoneIds);
+
+        // Populate plant summary
+        if (StringUtils.hasText(response.getPlantId()) && plantsMap.containsKey(response.getPlantId())) {
+            Plant plant = plantsMap.get(response.getPlantId());
+            response.setPlant(PlanApplyResponse.PlantSummary.builder()
+                    .id(plant.getId())
+                    .plantNumber(plant.getPlantNumber())
+                    .nickName(plant.getNickName())
+                    .tagCode(plant.getTagCode())
+                    .speciesId(plant.getSpeciesId())
+                    .farmPlotId(plant.getFarmPlotId())
+                    .farmZoneId(plant.getFarmZoneId())
+                    .build());
+        }
+
+        // Populate farm plot summary
+        if (StringUtils.hasText(response.getFarmPlotId()) && plotsMap.containsKey(response.getFarmPlotId())) {
+            FarmPlotResponse plot = plotsMap.get(response.getFarmPlotId());
+            response.setFarmPlot(PlanApplyResponse.FarmPlotSummary.builder()
+                    .id(plot.getId())
+                    .name(plot.getName())
+                    .code(plot.getCode())
+                    .addressLine(plot.getAddressLine())
+                    .ownerProfileId(plot.getOwnerProfileId())
+                    .build());
+        }
+
+        // Populate farm zone summary
+        if (StringUtils.hasText(response.getFarmZoneId()) && zonesMap.containsKey(response.getFarmZoneId())) {
+            FarmZoneResponse zone = zonesMap.get(response.getFarmZoneId());
+            response.setFarmZone(PlanApplyResponse.FarmZoneSummary.builder()
+                    .id(zone.getId())
+                    .farmPlotId(zone.getFarmPlotId())
+                    .zoneName(zone.getZoneName())
+                    .zoneCode(zone.getZoneCode())
+                    .build());
+        }
+
+        return response;
+    }
+
+    /**
+     * Enriches a page of PlanApplyResponse with denormalized entity summaries.
+     */
+    private Page<PlanApplyResponse> enrichPlanApplyPage(Page<PlanApplyResponse> page) {
+        if (page.isEmpty()) return page;
+        page.forEach(this::enrichPlanApplyResponse);
+        return page;
+    }
+
+    private Map<String, Plant> fetchPlants(Set<String> plantIds) {
+        if (plantIds.isEmpty()) return Map.of();
+        Map<String, Plant> map = new HashMap<>();
+        plantRepository.findAllById(plantIds).forEach(p -> map.put(p.getId(), p));
+        return map;
+    }
+
+    private Map<String, FarmPlotResponse> fetchFarmPlots(Set<String> farmPlotIds) {
+        if (farmPlotIds.isEmpty()) return Map.of();
+        Map<String, FarmPlotResponse> map = new HashMap<>();
+        try {
+            farmPlotService.getAllActive().stream()
+                    .filter(p -> p.getId() != null && farmPlotIds.contains(p.getId()))
+                    .forEach(p -> map.put(p.getId(), p));
+        } catch (Exception e) {
+            log.warn("Failed to fetch farm plots: {}", e.getMessage());
+        }
+        return map;
+    }
+
+    private Map<String, FarmZoneResponse> fetchFarmZones(Set<String> farmZoneIds) {
+        if (farmZoneIds.isEmpty()) return Map.of();
+        Map<String, FarmZoneResponse> map = new HashMap<>();
+        try {
+            farmZoneService.getAllActive().stream()
+                    .filter(z -> z.getId() != null && farmZoneIds.contains(z.getId()))
+                    .forEach(z -> map.put(z.getId(), z));
+        } catch (Exception e) {
+            log.warn("Failed to fetch farm zones: {}", e.getMessage());
+        }
+        return map;
+    }
+
     private PlanResponse enrichWithApplyCount(PlanResponse response) {
         response.setApplyCount(planApplyRepository.countByPlanId(response.getId()));
+        response.setSuccessApplyCount(planApplyRepository.countByPlanIdAndSuccess(response.getId(), true));
+        response.setFailedApplyCount(planApplyRepository.countByPlanIdAndSuccess(response.getId(), false));
         return response;
     }
 
@@ -599,6 +724,8 @@ public class PlanServiceImpl implements PlanService {
             if (r.getOwnerId() != null) r.setOwnerInfo(profileMap.get(r.getOwnerId()));
             if (r.getCreatorId() != null) r.setCreatorInfo(profileMap.get(r.getCreatorId()));
             r.setApplyCount(planApplyRepository.countByPlanId(r.getId()));
+            r.setSuccessApplyCount(planApplyRepository.countByPlanIdAndSuccess(r.getId(), true));
+            r.setFailedApplyCount(planApplyRepository.countByPlanIdAndSuccess(r.getId(), false));
         });
         return page;
     }

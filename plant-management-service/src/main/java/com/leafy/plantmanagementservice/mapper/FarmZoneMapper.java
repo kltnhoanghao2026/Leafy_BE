@@ -22,6 +22,7 @@ public interface FarmZoneMapper {
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "lastModifiedBy", ignore = true)
     @Mapping(target = "active", ignore = true)
+    @Mapping(target = "ownerProfileId", ignore = true)
     FarmZone toEntity(CreateFarmZoneRequest request);
 
     FarmZoneResponse toResponse(FarmZone farmZone);
