@@ -1,44 +1,60 @@
+server:
+  port: 8888
+
 spring:
   application:
     name: config-server
   profiles:
     active: native
-  config:
-    import: ""  # Prevent self-referencing - config-server should NOT import config from itself
   cloud:
     config:
-      enabled: false
       server:
-        health:
-          enabled: true
-
-  # Eureka client configuration
-  eureka:
-    client:
-      enabled: true
-      service-url:
-        defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
-    instance:
-      prefer-ip-address: true
-      lease-renewal-interval-in-seconds: 30
-      lease-expiration-duration-in-seconds: 90
-
+        native:
+          search-locations: classpath:/config
+        encrypt:
+          enabled: false
+        # Override configuration on the server side
+        override-none: false
+        override-system-properties: false
   # Disable Kafka for infrastructure service
   kafka:
     enabled: false
 
-server:
-  port: ${SERVER_PORT_CONFIG}
+# Eureka Client Configuration (if using service discovery)
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
 
+# Management and Monitoring
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,refresh,busrefresh
+        include: health,info,metrics,env,configprops,refresh,bus-refresh
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
+  info:
+    env:
+      enabled: true
+  health:
+    defaults:
+      enabled: true
 
+# Logging Configuration
 logging:
   level:
-    org.springframework.cloud.config: INFO
+    root: INFO
+    org.springframework.cloud.config: DEBUG
+    com.bondhub: DEBUG
+  file:
+    name: logs/config-server.log
+    max-size: 10MB
+    max-history: 30
