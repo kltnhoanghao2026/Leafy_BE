@@ -327,7 +327,7 @@ public class PlantEventServiceImpl implements PlantEventService {
                 if (plotIds.isEmpty() && zoneIds.isEmpty() && plantIds.isEmpty()) {
                     events = List.of();
                 } else {
-                    events = plantEventRepository.findProfileCalendarEvents(plotIds, zoneIds, plantIds, startDate, endDate, targetType);
+                    events = plantEventRepository.findProfileCalendarEvents(plotIds, zoneIds, plantIds, startDate, endDate, targetType, null);
                 }
 
             } else {
@@ -440,12 +440,38 @@ public class PlantEventServiceImpl implements PlantEventService {
     }
 
     @Override
-    public List<PlantEventResponse> getConsultingCalendarEvents(String expertProfileId, String farmerProfileId, LocalDate startDate, LocalDate endDate) {
-        log.info("Expert {} fetching consulting calendar events for farmer {}, range=[{}, {}]",
-                expertProfileId, farmerProfileId, startDate, endDate);
+    public List<PlantEventResponse> getConsultingCalendarEvents(String expertProfileId, String farmerProfileId, LocalDate startDate, LocalDate endDate,
+            String farmPlotId, String farmZoneId, String plantId, String eventType) {
+        log.info("Expert {} fetching consulting calendar events for farmer {}, range=[{}, {}], farmPlotId={}, farmZoneId={}, plantId={}, eventType={}",
+                expertProfileId, farmerProfileId, startDate, endDate, farmPlotId, farmZoneId, plantId, eventType);
         consultingAccessHelper.requireConsultingAccess(expertProfileId, farmerProfileId, ConsultingDataType.PLANT_EVENTS);
 
-        // ── Resolve farmer's farm plots ────────────────────────────────────
+        // Validate filter IDs belong to the farmer
+        if (farmPlotId != null && !farmPlotId.isBlank()) {
+            FarmPlotResponse plot = farmPlotService.getById(farmPlotId);
+            if (plot == null || !farmerProfileId.equals(plot.getOwnerProfileId())) {
+                throw new AppException(ErrorCode.FARM_PLOT_NOT_FOUND);
+            }
+        }
+        if (farmZoneId != null && !farmZoneId.isBlank()) {
+            FarmZoneResponse zone = farmZoneService.getById(farmZoneId);
+            if (zone == null) {
+                throw new AppException(ErrorCode.FARM_ZONE_NOT_FOUND);
+            }
+            FarmPlotResponse zonePlot = farmPlotService.getById(zone.getFarmPlotId());
+            if (zonePlot == null || !farmerProfileId.equals(zonePlot.getOwnerProfileId())) {
+                throw new AppException(ErrorCode.FARM_ZONE_NOT_FOUND);
+            }
+        }
+        if (plantId != null && !plantId.isBlank()) {
+            Plant plant = plantRepository.findById(plantId)
+                    .orElseThrow(() -> new AppException(ErrorCode.PLANT_NOT_FOUND));
+            if (!farmerProfileId.equals(plant.getOwnerProfileId())) {
+                throw new AppException(ErrorCode.PLANT_NOT_FOUND);
+            }
+        }
+
+        // Resolve farmer's full scope
         List<String> plotIds = new java.util.ArrayList<>();
         List<FarmPlotResponse> plots = farmPlotService.getByOwner(farmerProfileId);
         if (plots != null) {
@@ -455,7 +481,6 @@ public class PlantEventServiceImpl implements PlantEventService {
                     .toList();
         }
 
-        // ── Resolve all zone IDs within those plots ────────────────────────
         List<String> zoneIds = new java.util.ArrayList<>();
         for (String plotId : plotIds) {
             try {
@@ -468,7 +493,6 @@ public class PlantEventServiceImpl implements PlantEventService {
             }
         }
 
-        // ── Resolve all plant IDs within those plots and zones ────────────
         List<String> plantIds = plotIds.isEmpty() && zoneIds.isEmpty()
                 ? List.of()
                 : plantRepository.findByFarmPlotIdInOrFarmZoneIdIn(plotIds, zoneIds).stream()
@@ -479,7 +503,38 @@ public class PlantEventServiceImpl implements PlantEventService {
             return List.of();
         }
 
-        List<PlantEvent> events = plantEventRepository.findProfileCalendarEvents(plotIds, zoneIds, plantIds, startDate, endDate, null);
+        // Narrow scope to the filtered IDs
+        if (farmPlotId != null && !farmPlotId.isBlank()) {
+            plotIds = plotIds.stream().filter(id -> id.equals(farmPlotId)).toList();
+        }
+        if (farmZoneId != null && !farmZoneId.isBlank()) {
+            zoneIds = zoneIds.stream().filter(id -> id.equals(farmZoneId)).toList();
+        }
+        if (plantId != null && !plantId.isBlank()) {
+            plantIds = plantIds.stream().filter(id -> id.equals(plantId)).toList();
+        }
+
+        // Derive TargetType from filter IDs (consistent with main calendar logic)
+        TargetType targetType = null;
+        if (plantId != null && !plantId.isBlank()) {
+            targetType = TargetType.PLANT;
+        } else if (farmZoneId != null && !farmZoneId.isBlank()) {
+            targetType = TargetType.FARM_ZONE;
+        } else if (farmPlotId != null && !farmPlotId.isBlank()) {
+            targetType = TargetType.FARM;
+        }
+
+        // Derive eventType enum
+        com.leafy.plantmanagementservice.model.enums.PlantEventType evtType = null;
+        if (eventType != null && !eventType.isBlank()) {
+            try {
+                evtType = com.leafy.plantmanagementservice.model.enums.PlantEventType.valueOf(eventType);
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid eventType '{}' ignored", eventType);
+            }
+        }
+
+        List<PlantEvent> events = plantEventRepository.findProfileCalendarEvents(plotIds, zoneIds, plantIds, startDate, endDate, targetType, evtType);
         List<PlantEventResponse> responses = plantEventMapper.toResponseList(events);
         populateRelatedEntities(responses);
         return responses;

@@ -38,7 +38,8 @@ public interface PlantEventRepositoryCustom {
      *   <li>{@code plantId IN plantIds}       — events attached to plants in those plots/zones</li>
      * </ul>
      *
-     * @param targetType optional – if provided, additionally filters by TargetType
+     * @param targetType optional - if provided, additionally filters by TargetType
+     * @param eventType optional - if provided, additionally filters by PlantEventType
      */
     List<PlantEvent> findProfileCalendarEvents(
             List<String> farmPlotIds,
@@ -46,7 +47,8 @@ public interface PlantEventRepositoryCustom {
             List<String> plantIds,
             java.time.LocalDate startDate,
             java.time.LocalDate endDate,
-            TargetType targetType
+            TargetType targetType,
+            com.leafy.plantmanagementservice.model.enums.PlantEventType eventType
     );
     /**
      * Calendar events where farmPlotId OR farmZoneId matches (both filters provided).

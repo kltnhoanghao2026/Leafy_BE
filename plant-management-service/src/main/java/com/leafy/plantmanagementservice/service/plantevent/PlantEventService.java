@@ -68,7 +68,8 @@ public interface PlantEventService {
 
     PlantEventResponse createConsultingPlantEvent(String expertProfileId, String farmerProfileId, PlantEventCreateRequest request);
 
-    List<PlantEventResponse> getConsultingCalendarEvents(String expertProfileId, String farmerProfileId, LocalDate startDate, LocalDate endDate);
+    List<PlantEventResponse> getConsultingCalendarEvents(String expertProfileId, String farmerProfileId, LocalDate startDate, LocalDate endDate,
+            String farmPlotId, String farmZoneId, String plantId, String eventType);
 
     /**
      * Toggle the {@code completed} flag of a single task inside an event.

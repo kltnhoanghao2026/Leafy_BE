@@ -269,10 +269,17 @@ public class PlantEventController {
     public ResponseEntity<ApiResponse<List<PlantEventResponse>>> getConsultingCalendarEvents(
             @RequestParam String farmerProfileId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        log.info("GET /plant-events/consulting/calendar - farmerProfileId={}, range=[{}, {}]", farmerProfileId, startDate, endDate);
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String farmPlotId,
+            @RequestParam(required = false) String farmZoneId,
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) String eventType) {
+        log.info("GET /plant-events/consulting/calendar - farmerProfileId={}, range=[{}, {}], farmPlotId={}, farmZoneId={}, plantId={}, eventType={}",
+                farmerProfileId, startDate, endDate, farmPlotId, farmZoneId, plantId, eventType);
         String expertProfileId = ServiceSecurityUtils.getCurrentProfileId();
-        List<PlantEventResponse> events = plantEventService.getConsultingCalendarEvents(expertProfileId, farmerProfileId, startDate, endDate);
+        List<PlantEventResponse> events = plantEventService.getConsultingCalendarEvents(
+                expertProfileId, farmerProfileId, startDate, endDate,
+                farmPlotId, farmZoneId, plantId, eventType);
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 
