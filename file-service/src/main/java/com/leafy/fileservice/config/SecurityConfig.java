@@ -31,7 +31,7 @@ public class SecurityConfig {
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .authorizeExchange(exchanges -> {
                     // Permit internal service-to-service communication
-                    exchanges.pathMatchers("/internal/**").permitAll();
+                    exchanges.pathMatchers("/internal/**", "/files/upload").permitAll();
 
                     // Permit base endpoints
                     exchanges.pathMatchers("/").permitAll();

@@ -8,7 +8,7 @@ data:
   # SERVICE REGISTRY (Eureka)
   # ============================================================
   HOSTNAME: "leafy-config-server"
-  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://leafy-discovery-server:8761/eureka/"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://a05edd1e197284228ad0e9e06f9b0fb0-228788603.ap-southeast-1.elb.amazonaws.com/api/files/upload"
   EUREKA_CLIENT_FETCH_REGISTRY: "true"
   EUREKA_CLIENT_REGISTER_WITH_EUREKA: "true"
   EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
