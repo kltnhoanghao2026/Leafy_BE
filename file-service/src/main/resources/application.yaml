@@ -26,8 +26,20 @@ server:
   port: ${SERVER_PORT_FILE:-8084}
 
 management:
-  server:
-    port: ${SERVER_PORT_FILE:-8084}
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
   health:
     defaults:
-      enabled: false
+      enabled: true
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true

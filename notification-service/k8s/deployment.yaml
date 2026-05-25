@@ -25,6 +25,10 @@ spec:
                 secretKeyRef:
                   name: leafy-db-secrets
                   key: MONGODB_DATABASE_NOTIFICATION
+            - name: FIREBASE_ENABLED
+              value: "true"
+            - name: FIREBASE_CONFIG_PATH
+              value: /etc/firebase/firebase-service-account.json
           envFrom:
             - configMapRef:
                 name: leafy-common-config
@@ -50,12 +54,12 @@ spec:
             failureThreshold: 3
           volumeMounts:
             - name: firebase-credentials
-              mountPath: /run/secrets
+              mountPath: /etc/firebase
               readOnly: true
       volumes:
         - name: firebase-credentials
           secret:
             secretName: leafy-common-secrets
             items:
-              - key: FIREBASE_CREDENTIALS_PATH
+              - key: FIREBASE_CREDENTIALS_JSON
                 path: firebase-service-account.json

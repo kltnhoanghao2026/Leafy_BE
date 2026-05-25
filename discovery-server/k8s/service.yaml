@@ -4,6 +4,7 @@ metadata:
   name: leafy-discovery-server
   namespace: leafy
 spec:
+  type: LoadBalancer
   ports:
     - port: 8761
       targetPort: 8761
