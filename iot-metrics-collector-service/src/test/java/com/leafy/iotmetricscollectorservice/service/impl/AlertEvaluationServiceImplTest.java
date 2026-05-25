@@ -215,11 +215,30 @@ class AlertEvaluationServiceImplTest {
     }
 
     @Test
-    void evaluateReading_notifyMobileFalseCreatesAlertWithoutPublishingPushEvent() {
+    void evaluateReading_notifyWebTrueAndNotifyMobileFalsePublishesNotificationEvent() {
         SensorReadingSeries reading = createReading("AIR_TEMP", 36.5d);
         AlertRule rule = createRule(reading.getSensorType());
         rule.setMaxThreshold(35.0d);
         rule.setNotifyMobile(false);
+        rule.setNotifyWeb(true);
+
+        when(alertRuleRepository.findAllByEnabledTrueAndSensorTypeId(reading.getSensorType().getId()))
+            .thenReturn(List.of(rule));
+        when(alertEventRepository.save(any(AlertEvent.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        alertEvaluationService.evaluateReading(reading);
+
+        verify(alertEventRepository).save(any(AlertEvent.class));
+        verify(alertNotificationPublisher).publishAlertTriggered(any(AlertEvent.class));
+    }
+
+    @Test
+    void evaluateReading_notifyWebFalseAndNotifyMobileFalseCreatesAlertWithoutPublishingEvent() {
+        SensorReadingSeries reading = createReading("AIR_TEMP", 36.5d);
+        AlertRule rule = createRule(reading.getSensorType());
+        rule.setMaxThreshold(35.0d);
+        rule.setNotifyMobile(false);
+        rule.setNotifyWeb(false);
 
         when(alertRuleRepository.findAllByEnabledTrueAndSensorTypeId(reading.getSensorType().getId()))
             .thenReturn(List.of(rule));

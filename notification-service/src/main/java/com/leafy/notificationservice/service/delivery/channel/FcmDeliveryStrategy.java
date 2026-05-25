@@ -8,6 +8,7 @@ import com.google.firebase.messaging.Notification;
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
 import com.leafy.notificationservice.enums.NotificationChannel;
+import com.leafy.notificationservice.enums.Platform;
 import com.leafy.notificationservice.event.ReadyToDeliverEvent;
 import com.leafy.notificationservice.model.TokenDevice;
 import com.leafy.notificationservice.repository.PushTokenRepository;
@@ -18,6 +19,7 @@ import org.springframework.retry.support.RetryTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * FCM-backed {@link ChannelDeliveryStrategy} — handles {@link NotificationChannel#FCM}.
@@ -76,9 +78,13 @@ public class FcmDeliveryStrategy implements ChannelDeliveryStrategy {
             log.warn("[FCM] Cannot deliver — recipientUserId not resolved for profileId={}", event.getRecipientId());
             return;
         }
-        List<TokenDevice> tokens = pushTokenRepository.findByUserIdAndActiveTrue(userId);
+        List<TokenDevice> tokens = filterByPlatform(
+                pushTokenRepository.findByUserIdAndActiveTrue(userId),
+                event.getFcmPlatforms()
+        );
         if (tokens.isEmpty()) {
-            log.debug("[FCM] No active push tokens for userId={} (profileId={})", userId, event.getRecipientId());
+            log.debug("[FCM] No active push tokens for userId={} (profileId={}, platforms={})",
+                    userId, event.getRecipientId(), event.getFcmPlatforms());
             return;
         }
 
@@ -101,6 +107,15 @@ public class FcmDeliveryStrategy implements ChannelDeliveryStrategy {
     }
 
     // ── Internal ─────────────────────────────────────────────────────────────
+
+    private List<TokenDevice> filterByPlatform(List<TokenDevice> tokens, Set<Platform> platforms) {
+        if (platforms == null || platforms.isEmpty()) {
+            return tokens;
+        }
+        return tokens.stream()
+                .filter(token -> token.getPlatform() != null && platforms.contains(token.getPlatform()))
+                .toList();
+    }
 
     /**
      * Sends a single FCM message to {@code token} with exponential-backoff retry.

@@ -98,7 +98,7 @@ public class NotificationPersistenceServiceImpl implements NotificationPersisten
         List<String> source = batched.getActorIds() != null ? batched.getActorIds() : Collections.emptyList();
         
         // Allow self-notifications for system-driven actions
-        if (batched.getType() == NotificationType.PLAN_APPLIED) {
+        if (batched.getType() == NotificationType.PLAN_APPLIED || batched.getType() == NotificationType.IOT_ALERT) {
             return new ArrayList<>(source);
         }
 
@@ -149,13 +149,26 @@ public class NotificationPersistenceServiceImpl implements NotificationPersisten
             };
         }
         String actorName = payload.getOrDefault("actorName", "Ai đó").toString();
-        return new String[]{"Leafy", fallbackBody(type, actorName, actorCount, locale)};
+        if (type == NotificationType.IOT_ALERT) {
+            String fallbackTitle = "en".equals(locale) ? "IoT alert" : "Cảnh báo IoT";
+            return new String[]{
+                    String.valueOf(payload.getOrDefault("title", fallbackTitle)),
+                    fallbackBody(type, actorName, actorCount, locale, payload)
+            };
+        }
+        return new String[]{"Leafy", fallbackBody(type, actorName, actorCount, locale, payload)};
     }
 
-    private String fallbackBody(NotificationType type, String actorName, int actorCount, String locale) {
+    private String fallbackBody(
+            NotificationType type,
+            String actorName,
+            int actorCount,
+            String locale,
+            Map<String, Object> payload) {
         if ("en".equals(locale)) {
             String suffix = actorCount > 1 ? " and " + (actorCount - 1) + " others" : "";
             return switch (type) {
+                case IOT_ALERT       -> String.valueOf(payload.getOrDefault("message", payload.getOrDefault("body", "An IoT alert needs attention.")));
                 case POST_COMMENT    -> actorName + suffix + " commented on your post";
                 case POST_UPVOTE     -> actorName + suffix + " upvoted your post";
                 case COMMENT_REPLY   -> actorName + suffix + " replied to your comment";
@@ -168,6 +181,7 @@ public class NotificationPersistenceServiceImpl implements NotificationPersisten
         // Vietnamese fallback
         String suffix = actorCount > 1 ? " và " + (actorCount - 1) + " người khác" : "";
         return switch (type) {
+            case IOT_ALERT       -> String.valueOf(payload.getOrDefault("message", payload.getOrDefault("body", "Có cảnh báo IoT cần xử lý.")));
             case POST_COMMENT    -> actorName + suffix + " đã bình luận bài viết của bạn";
             case POST_UPVOTE     -> actorName + suffix + " đã thích bài viết của bạn";
             case COMMENT_REPLY   -> actorName + suffix + " đã trả lời bình luận của bạn";

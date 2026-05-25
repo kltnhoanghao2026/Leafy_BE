@@ -79,7 +79,7 @@ public class AlertEvaluationServiceImpl implements AlertEvaluationService {
         }
 
         AlertEvent savedAlertEvent = alertEventRepository.save(buildAlertEvent(rule, reading, violation));
-        if (Boolean.TRUE.equals(rule.getNotifyMobile())) {
+        if (shouldNotify(rule)) {
             alertNotificationPublisher.publishAlertTriggered(savedAlertEvent);
         }
     }
@@ -175,6 +175,10 @@ public class AlertEvaluationServiceImpl implements AlertEvaluationService {
         }
 
         return reading.getDevice().getOwnerUser();
+    }
+
+    private boolean shouldNotify(AlertRule rule) {
+        return Boolean.TRUE.equals(rule.getNotifyWeb()) || Boolean.TRUE.equals(rule.getNotifyMobile());
     }
 
     private String createHighMessage(Double readingValue, AlertRule rule) {

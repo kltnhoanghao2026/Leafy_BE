@@ -129,7 +129,63 @@ class DeviceServiceImplTest {
 
         when(ioTDeviceRepository.findByDeviceUid("device-001")).thenReturn(Optional.of(createDevice()));
 
-        assertThrows(TelemetryQueryException.class, () -> deviceService.provisionDevice(request));
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.provisionDevice(request));
+        assertEquals(4650, exception.getCode());
+        verify(ioTDeviceRepository, never()).save(any(IoTDevice.class));
+    }
+
+    @Test
+    void provisionDevice_rejectsBlankDeviceUid() {
+        ProvisionDeviceRequest request = new ProvisionDeviceRequest();
+        request.setDeviceUid("   ");
+        request.setDeviceCode("IOT-001");
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.provisionDevice(request));
+
+        assertEquals(4638, exception.getCode());
+        verify(ioTDeviceRepository, never()).findByDeviceUid(anyString());
+    }
+
+    @Test
+    void provisionDevice_rejectsBlankDeviceCode() {
+        ProvisionDeviceRequest request = new ProvisionDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setDeviceCode("   ");
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.provisionDevice(request));
+
+        assertEquals(4640, exception.getCode());
+        verify(ioTDeviceRepository, never()).findByDeviceUid(anyString());
+    }
+
+    @Test
+    void provisionDevice_defaultsBlankDeviceTypeToEsp32CamSensor() {
+        ProvisionDeviceRequest request = new ProvisionDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setDeviceCode("IOT-001");
+        request.setDeviceType("   ");
+
+        when(ioTDeviceRepository.findByDeviceUid("device-001")).thenReturn(Optional.empty());
+        when(ioTDeviceRepository.findByDeviceCode("IOT-001")).thenReturn(Optional.empty());
+        when(ioTDeviceRepository.save(any(IoTDevice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeviceResponse response = deviceService.provisionDevice(request);
+
+        assertEquals("ESP32_CAM_SENSOR", response.getDeviceType());
+    }
+
+    @Test
+    void provisionDevice_rejectsDeviceCodeUsedByDifferentDeviceUid() {
+        ProvisionDeviceRequest request = new ProvisionDeviceRequest();
+        request.setDeviceUid("device-002");
+        request.setDeviceCode("IOT-001");
+
+        when(ioTDeviceRepository.findByDeviceUid("device-002")).thenReturn(Optional.empty());
+        when(ioTDeviceRepository.findByDeviceCode("IOT-001")).thenReturn(Optional.of(createDevice()));
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.provisionDevice(request));
+
+        assertEquals(4609, exception.getCode());
         verify(ioTDeviceRepository, never()).save(any(IoTDevice.class));
     }
 
@@ -195,6 +251,8 @@ class DeviceServiceImplTest {
         ClaimDeviceRequest request = new ClaimDeviceRequest();
         request.setDeviceUid(device.getDeviceUid());
         request.setClaimCode("WRONG123");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
 
         when(ioTDeviceRepository.findByDeviceUid(device.getDeviceUid())).thenReturn(Optional.of(device));
         when(deviceClaimRepository.findTopByDeviceIdAndClaimCodeOrderByCreatedAtDesc(device.getId(), "WRONG123"))
@@ -211,6 +269,8 @@ class DeviceServiceImplTest {
         ClaimDeviceRequest request = new ClaimDeviceRequest();
         request.setDeviceUid(device.getDeviceUid());
         request.setClaimCode("CLAIM123");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
 
         when(ioTDeviceRepository.findByDeviceUid(device.getDeviceUid())).thenReturn(Optional.of(device));
         when(deviceClaimRepository.findTopByDeviceIdAndClaimCodeOrderByCreatedAtDesc(device.getId(), "CLAIM123"))
@@ -229,11 +289,65 @@ class DeviceServiceImplTest {
         ClaimDeviceRequest request = new ClaimDeviceRequest();
         request.setDeviceUid(device.getDeviceUid());
         request.setClaimCode("CLAIM123");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
 
         when(ioTDeviceRepository.findByDeviceUid(device.getDeviceUid())).thenReturn(Optional.of(device));
 
         assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice(UUID.randomUUID().toString(), request));
         verify(deviceClaimRepository, never()).findTopByDeviceIdAndClaimCodeOrderByCreatedAtDesc(any(UUID.class), anyString());
+    }
+
+    @Test
+    void claimDevice_rejectsBlankDeviceUid() {
+        ClaimDeviceRequest request = new ClaimDeviceRequest();
+        request.setDeviceUid("  ");
+        request.setClaimCode("CLAIM123");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice("user-1", request));
+
+        assertEquals(4638, exception.getCode());
+        verify(ioTDeviceRepository, never()).findByDeviceUid(anyString());
+    }
+
+    @Test
+    void claimDevice_rejectsBlankClaimCode() {
+        ClaimDeviceRequest request = new ClaimDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setClaimCode("  ");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice("user-1", request));
+
+        assertEquals(4648, exception.getCode());
+        verify(ioTDeviceRepository, never()).findByDeviceUid(anyString());
+    }
+
+    @Test
+    void claimDevice_rejectsMissingFarmPlot() {
+        ClaimDeviceRequest request = new ClaimDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setClaimCode("CLAIM123");
+        request.setZoneId(UUID.randomUUID().toString());
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice("user-1", request));
+
+        assertEquals(4644, exception.getCode());
+    }
+
+    @Test
+    void claimDevice_rejectsMissingZone() {
+        ClaimDeviceRequest request = new ClaimDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setClaimCode("CLAIM123");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.claimDevice("user-1", request));
+
+        assertEquals(4645, exception.getCode());
     }
 
     @Test
@@ -411,6 +525,195 @@ class DeviceServiceImplTest {
         assertEquals(farmPlotId, response.getFarmPlotId());
         assertEquals(zoneId, response.getZoneId());
         assertEquals("CLAIMED", response.getProvisioningStatus());
+    }
+
+    @Test
+    void connectDevice_rejectsBlankDeviceUid() {
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid("  ");
+        request.setDeviceCode("IOT-001");
+        request.setDeviceType("ESP32_CAM_SENSOR");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.connectDevice("user-1", request));
+
+        assertEquals(4638, exception.getCode());
+        verify(ioTDeviceRepository, never()).findByDeviceUid(anyString());
+    }
+
+    @Test
+    void connectDevice_rejectsBlankDeviceCode() {
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setDeviceCode("  ");
+        request.setDeviceType("ESP32_CAM_SENSOR");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.connectDevice("user-1", request));
+
+        assertEquals(4640, exception.getCode());
+        verify(ioTDeviceRepository, never()).findByDeviceUid(anyString());
+    }
+
+    @Test
+    void connectDevice_defaultsBlankDeviceTypeToEsp32CamSensor() {
+        String currentUserId = UUID.randomUUID().toString();
+        String farmPlotId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid("device-002");
+        request.setDeviceCode("IOT-002");
+        request.setDeviceType("  ");
+        request.setFarmPlotId(farmPlotId);
+        request.setZoneId(zoneId);
+
+        when(ioTDeviceRepository.findByDeviceUid("device-002")).thenReturn(Optional.empty());
+        when(ioTDeviceRepository.findByDeviceCode("IOT-002")).thenReturn(Optional.empty());
+        when(userRefRepository.findById(currentUserId)).thenReturn(Optional.empty());
+        when(userRefRepository.save(any(UserRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmPlotRefRepository.findById(farmPlotId)).thenReturn(Optional.empty());
+        when(farmPlotRefRepository.save(any(FarmPlotRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmZoneRefRepository.findById(zoneId)).thenReturn(Optional.empty());
+        when(farmZoneRefRepository.save(any(FarmZoneRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(ioTDeviceRepository.save(any(IoTDevice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeviceResponse response = deviceService.connectDevice(currentUserId, request);
+
+        assertEquals("ESP32_CAM_SENSOR", response.getDeviceType());
+    }
+
+    @Test
+    void connectDevice_rejectsMissingFarmPlot() {
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setDeviceCode("IOT-001");
+        request.setDeviceType("ESP32_CAM_SENSOR");
+        request.setZoneId(UUID.randomUUID().toString());
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.connectDevice("user-1", request));
+
+        assertEquals(4644, exception.getCode());
+        verify(ioTDeviceRepository, never()).findByDeviceUid(anyString());
+    }
+
+    @Test
+    void connectDevice_rejectsMissingZone() {
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setDeviceCode("IOT-001");
+        request.setDeviceType("ESP32_CAM_SENSOR");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.connectDevice("user-1", request));
+
+        assertEquals(4645, exception.getCode());
+        verify(ioTDeviceRepository, never()).findByDeviceUid(anyString());
+    }
+
+    @Test
+    void connectDevice_trimsDeviceUidAndCode() {
+        String currentUserId = UUID.randomUUID().toString();
+        String farmPlotId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid(" device-002 ");
+        request.setDeviceCode(" IOT-002 ");
+        request.setDeviceType(" ESP32_CAM_SENSOR ");
+        request.setFarmPlotId(farmPlotId);
+        request.setZoneId(zoneId);
+
+        when(ioTDeviceRepository.findByDeviceUid("device-002")).thenReturn(Optional.empty());
+        when(ioTDeviceRepository.findByDeviceCode("IOT-002")).thenReturn(Optional.empty());
+        when(userRefRepository.findById(currentUserId)).thenReturn(Optional.empty());
+        when(userRefRepository.save(any(UserRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmPlotRefRepository.findById(farmPlotId)).thenReturn(Optional.empty());
+        when(farmPlotRefRepository.save(any(FarmPlotRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmZoneRefRepository.findById(zoneId)).thenReturn(Optional.empty());
+        when(farmZoneRefRepository.save(any(FarmZoneRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(ioTDeviceRepository.save(any(IoTDevice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeviceResponse response = deviceService.connectDevice(currentUserId, request);
+
+        assertEquals("device-002", response.getDeviceUid());
+        assertEquals("IOT-002", response.getDeviceCode());
+        assertEquals("ESP32_CAM_SENSOR", response.getDeviceType());
+    }
+
+    @Test
+    void connectDevice_rejectsInvalidDeviceUidFormat() {
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid("bad uid");
+        request.setDeviceCode("IOT-001");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.connectDevice("user-1", request));
+
+        assertEquals(4639, exception.getCode());
+    }
+
+    @Test
+    void connectDevice_rejectsInvalidDeviceCodeFormat() {
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setDeviceCode("bad code");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.connectDevice("user-1", request));
+
+        assertEquals(4641, exception.getCode());
+    }
+
+    @Test
+    void connectDevice_rejectsDeviceUidWithDifferentDeviceCode() {
+        String farmPlotId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid("device-001");
+        request.setDeviceCode("IOT-999");
+        request.setFarmPlotId(farmPlotId);
+        request.setZoneId(zoneId);
+
+        when(ioTDeviceRepository.findByDeviceUid("device-001")).thenReturn(Optional.of(createDevice()));
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.connectDevice("user-1", request));
+
+        assertEquals(4650, exception.getCode());
+    }
+
+    @Test
+    void connectDevice_rejectsDeviceCodeUsedByDifferentDeviceUid() {
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid("device-002");
+        request.setDeviceCode("IOT-001");
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
+
+        when(ioTDeviceRepository.findByDeviceUid("device-002")).thenReturn(Optional.empty());
+        when(ioTDeviceRepository.findByDeviceCode("IOT-001")).thenReturn(Optional.of(createDevice()));
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.connectDevice("user-1", request));
+
+        assertEquals(4609, exception.getCode());
+    }
+
+    @Test
+    void connectDevice_rejectsDeviceClaimedByAnotherUserWithStableError() {
+        IoTDevice device = createClaimedDevice("owner-a");
+        ConnectDeviceRequest request = new ConnectDeviceRequest();
+        request.setDeviceUid(device.getDeviceUid());
+        request.setDeviceCode(device.getDeviceCode());
+        request.setFarmPlotId(UUID.randomUUID().toString());
+        request.setZoneId(UUID.randomUUID().toString());
+
+        when(ioTDeviceRepository.findByDeviceUid(device.getDeviceUid())).thenReturn(Optional.of(device));
+
+        TelemetryQueryException exception = assertThrows(TelemetryQueryException.class, () -> deviceService.connectDevice("owner-b", request));
+
+        assertEquals(4613, exception.getCode());
     }
 
     @Test

@@ -13,7 +13,7 @@ import com.leafy.notificationservice.service.delivery.channel.ChannelDeliveryStr
  */
 public enum NotificationChannel {
 
-    /** Firebase Cloud Messaging — mobile push notification. */
+    /** Firebase Cloud Messaging — mobile and web push notification. */
     FCM,
 
     /** Real-time in-app badge / WebSocket push. */

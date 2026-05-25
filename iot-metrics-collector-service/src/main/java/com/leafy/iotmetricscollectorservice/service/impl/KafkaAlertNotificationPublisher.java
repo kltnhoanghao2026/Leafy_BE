@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 public class KafkaAlertNotificationPublisher implements AlertNotificationPublisher {
 
     private static final String EVENT_TYPE = "ALERT_TRIGGERED";
+    private static final String REFERENCE_TYPE = "ALERT_EVENT";
+    private static final String ALERT_URL_PREFIX = "/dashboard/alerts?alertId=";
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
@@ -82,6 +84,9 @@ public class KafkaAlertNotificationPublisher implements AlertNotificationPublish
             : null);
         event.setDeviceUid(alertEvent.getDevice() != null ? alertEvent.getDevice().getDeviceUid() : null);
         event.setZoneId(alertEvent.getZone() != null ? alertEvent.getZone().getId() : null);
+        event.setFarmPlotId(alertEvent.getDevice() != null && alertEvent.getDevice().getFarmPlot() != null
+            ? alertEvent.getDevice().getFarmPlot().getId()
+            : null);
         event.setSensorTypeCode(alertEvent.getSensorType() != null ? alertEvent.getSensorType().getCode() : null);
         event.setAlertType(alertEvent.getAlertType());
         event.setSeverity(alertEvent.getSeverity() != null ? alertEvent.getSeverity().name() : null);
@@ -90,6 +95,11 @@ public class KafkaAlertNotificationPublisher implements AlertNotificationPublish
         event.setThresholdMax(alertEvent.getThresholdMax());
         event.setTitle(buildTitle(alertEvent));
         event.setMessage(alertEvent.getMessage());
+        event.setNotifyWeb(alertEvent.getAlertRule() != null ? Boolean.TRUE.equals(alertEvent.getAlertRule().getNotifyWeb()) : null);
+        event.setNotifyMobile(alertEvent.getAlertRule() != null ? Boolean.TRUE.equals(alertEvent.getAlertRule().getNotifyMobile()) : null);
+        event.setReferenceType(REFERENCE_TYPE);
+        event.setReferenceId(event.getAlertEventId());
+        event.setUrl(event.getAlertEventId() != null ? ALERT_URL_PREFIX + event.getAlertEventId() : null);
         return event;
     }
 
@@ -116,11 +126,12 @@ public class KafkaAlertNotificationPublisher implements AlertNotificationPublish
             && hasText(event.getAlertEventId())
             && hasText(event.getOwnerUserId())
             && hasText(event.getDeviceId())
-            && hasText(event.getZoneId())
             && hasText(event.getSensorTypeCode())
             && hasText(event.getSeverity())
             && hasText(event.getTitle())
-            && hasText(event.getMessage());
+            && hasText(event.getMessage())
+            && (Boolean.TRUE.equals(event.getNotifyWeb()) || Boolean.TRUE.equals(event.getNotifyMobile()))
+            && hasText(event.getUrl());
     }
 
     private boolean hasText(String value) {

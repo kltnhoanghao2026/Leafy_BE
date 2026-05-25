@@ -74,7 +74,7 @@ public class TelemetryQueryException extends RuntimeException {
 
     public static TelemetryQueryException duplicateDeviceUid(String deviceUid) {
         return new TelemetryQueryException(
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             4608,
             "Device UID already exists: " + deviceUid
         );
@@ -82,7 +82,7 @@ public class TelemetryQueryException extends RuntimeException {
 
     public static TelemetryQueryException duplicateDeviceCode(String deviceCode) {
         return new TelemetryQueryException(
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             4609,
             "Device code already exists: " + deviceCode
         );
@@ -114,7 +114,7 @@ public class TelemetryQueryException extends RuntimeException {
 
     public static TelemetryQueryException deviceAlreadyClaimed(UUID deviceId) {
         return new TelemetryQueryException(
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             4613,
             "Device already claimed: " + deviceId
         );
@@ -309,6 +309,118 @@ public class TelemetryQueryException extends RuntimeException {
             HttpStatus.FORBIDDEN,
             4637,
             "Access denied for IoT scope " + scopeType + ": " + scopeId
+        );
+    }
+
+    public static TelemetryQueryException deviceUidRequired() {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4638,
+            "IOT_DEVICE_UID_REQUIRED: Device identifier is required."
+        );
+    }
+
+    public static TelemetryQueryException invalidDeviceUid(String deviceUid) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4639,
+            "IOT_DEVICE_UID_INVALID: Device identifier format is invalid: " + deviceUid
+        );
+    }
+
+    public static TelemetryQueryException deviceCodeRequired() {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4640,
+            "IOT_DEVICE_CODE_REQUIRED: Device code is required."
+        );
+    }
+
+    public static TelemetryQueryException invalidDeviceCode(String deviceCode) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4641,
+            "IOT_DEVICE_CODE_INVALID: Device code format is invalid: " + deviceCode
+        );
+    }
+
+    public static TelemetryQueryException invalidDeviceType(String deviceType) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4642,
+            "IOT_DEVICE_TYPE_INVALID: Device type format is invalid: " + deviceType
+        );
+    }
+
+    public static TelemetryQueryException invalidDeviceName(String message) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4643,
+            "IOT_DEVICE_NAME_INVALID: " + message
+        );
+    }
+
+    public static TelemetryQueryException farmPlotRequired() {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4644,
+            "IOT_FARM_PLOT_REQUIRED: Farm plot is required."
+        );
+    }
+
+    public static TelemetryQueryException farmZoneRequired() {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4645,
+            "IOT_FARM_ZONE_REQUIRED: Farm zone is required."
+        );
+    }
+
+    public static TelemetryQueryException invalidFarmPlot(String farmPlotId) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4646,
+            "IOT_FARM_PLOT_INVALID: Farm plot id format is invalid: " + farmPlotId
+        );
+    }
+
+    public static TelemetryQueryException invalidFarmZone(String zoneId) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4647,
+            "IOT_FARM_ZONE_INVALID: Farm zone id format is invalid: " + zoneId
+        );
+    }
+
+    public static TelemetryQueryException claimCodeRequired() {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4648,
+            "IOT_CLAIM_CODE_REQUIRED: Claim code is required."
+        );
+    }
+
+    public static TelemetryQueryException invalidClaimCodeFormat(String claimCode) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4649,
+            "IOT_CLAIM_CODE_INVALID: Claim code format is invalid: " + claimCode
+        );
+    }
+
+    public static TelemetryQueryException deviceCodeConflict(String deviceCode) {
+        return new TelemetryQueryException(
+            HttpStatus.CONFLICT,
+            4650,
+            "IOT_DEVICE_CODE_CONFLICT: Device code belongs to another device: " + deviceCode
+        );
+    }
+
+    public static TelemetryQueryException deviceUidConflict(String deviceUid) {
+        return new TelemetryQueryException(
+            HttpStatus.CONFLICT,
+            4651,
+            "IOT_DEVICE_UID_CONFLICT: Device identifier conflicts with another device: " + deviceUid
         );
     }
 }

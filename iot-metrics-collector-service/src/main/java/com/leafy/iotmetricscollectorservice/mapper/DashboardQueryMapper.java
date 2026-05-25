@@ -189,8 +189,18 @@ public class DashboardQueryMapper {
         AlertEventItemResponse response = new AlertEventItemResponse();
         response.setId(alertEvent.getId());
         response.setDeviceId(alertEvent.getDevice() != null ? alertEvent.getDevice().getId() : null);
-        response.setZoneId(alertEvent.getZone() != null ? alertEvent.getZone().getId() : null);
+        response.setDeviceName(alertEvent.getDevice() != null ? alertEvent.getDevice().getDeviceName() : null);
+        response.setDeviceCode(alertEvent.getDevice() != null ? alertEvent.getDevice().getDeviceCode() : null);
+        response.setZoneId(resolveZoneId(alertEvent));
+        response.setFarmPlotId(
+            alertEvent.getDevice() != null && alertEvent.getDevice().getFarmPlot() != null
+                ? alertEvent.getDevice().getFarmPlot().getId()
+                : null
+        );
         response.setSensorTypeId(alertEvent.getSensorType() != null ? alertEvent.getSensorType().getId() : null);
+        response.setSensorCode(alertEvent.getSensorType() != null ? alertEvent.getSensorType().getCode() : null);
+        response.setSensorName(alertEvent.getSensorType() != null ? alertEvent.getSensorType().getName() : null);
+        response.setUnit(alertEvent.getSensorType() != null ? alertEvent.getSensorType().getUnit() : null);
         response.setAlertRuleId(alertEvent.getAlertRule() != null ? alertEvent.getAlertRule().getId() : null);
         response.setAlertType(alertEvent.getAlertType());
         response.setMessage(alertEvent.getMessage());
@@ -206,6 +216,16 @@ public class DashboardQueryMapper {
         return response;
     }
 
+    private String resolveZoneId(AlertEvent alertEvent) {
+        if (alertEvent.getZone() != null) {
+            return alertEvent.getZone().getId();
+        }
+
+        return alertEvent.getDevice() != null && alertEvent.getDevice().getZone() != null
+            ? alertEvent.getDevice().getZone().getId()
+            : null;
+    }
+
     public AlertEventDetailResponse toAlertEventDetailResponse(AlertEvent alertEvent) {
         if (alertEvent == null) {
             return null;
@@ -215,8 +235,14 @@ public class DashboardQueryMapper {
         AlertEventDetailResponse response = new AlertEventDetailResponse();
         response.setId(itemResponse.getId());
         response.setDeviceId(itemResponse.getDeviceId());
+        response.setDeviceName(itemResponse.getDeviceName());
+        response.setDeviceCode(itemResponse.getDeviceCode());
         response.setZoneId(itemResponse.getZoneId());
+        response.setFarmPlotId(itemResponse.getFarmPlotId());
         response.setSensorTypeId(itemResponse.getSensorTypeId());
+        response.setSensorCode(itemResponse.getSensorCode());
+        response.setSensorName(itemResponse.getSensorName());
+        response.setUnit(itemResponse.getUnit());
         response.setAlertRuleId(itemResponse.getAlertRuleId());
         response.setAlertType(itemResponse.getAlertType());
         response.setMessage(itemResponse.getMessage());

@@ -135,6 +135,29 @@ class DeviceControllerTest {
     }
 
     @Test
+    void claimBlankCodeReturnsBadRequest() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        when(deviceService.claimDevice(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+            .thenThrow(TelemetryQueryException.claimCodeRequired());
+
+        mockMvc.perform(
+                post("/iot/devices/claim")
+                    .header(DeviceController.USER_ID_HEADER, userId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "deviceUid": "device-001",
+                          "claimCode": " ",
+                          "farmPlotId": "%s",
+                          "zoneId": "%s"
+                        }
+                        """.formatted(UUID.randomUUID(), UUID.randomUUID()))
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(4648));
+    }
+
+    @Test
     void getMyDevices_returnsOwnerDevices() throws Exception {
         String userId = UUID.randomUUID().toString();
         DeviceResponse response = new DeviceResponse();
@@ -354,6 +377,149 @@ class DeviceControllerTest {
             .andExpect(jsonPath("$.zoneId").isEmpty())
             .andExpect(jsonPath("$.isActive").value(true))
             .andExpect(jsonPath("$.provisioningStatus").value("PROVISIONED"));
+    }
+
+    @Test
+    void provisionBlankUidReturnsBadRequest() throws Exception {
+        when(deviceService.provisionDevice(org.mockito.ArgumentMatchers.any()))
+            .thenThrow(TelemetryQueryException.deviceUidRequired());
+
+        mockMvc.perform(
+                post("/iot/devices/provision")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "deviceUid": " ",
+                          "deviceCode": "IOT-001"
+                        }
+                        """)
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(4638));
+    }
+
+    @Test
+    void connectDevice_returnsConnectedPayload() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        DeviceResponse response = new DeviceResponse();
+        response.setId(UUID.randomUUID());
+        response.setDeviceUid("device-001");
+        response.setDeviceCode("IOT-001");
+        response.setProvisioningStatus("CLAIMED");
+        response.setOwnerUserId(userId);
+
+        when(deviceService.connectDevice(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(response);
+
+        mockMvc.perform(
+                post("/iot/devices/connect")
+                    .header(DeviceController.USER_ID_HEADER, userId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "deviceUid": "device-001",
+                          "deviceCode": "IOT-001",
+                          "deviceType": "ESP32_CAM_SENSOR",
+                          "farmPlotId": "%s",
+                          "zoneId": "%s"
+                        }
+                        """.formatted(UUID.randomUUID(), UUID.randomUUID()))
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deviceUid").value("device-001"))
+            .andExpect(jsonPath("$.provisioningStatus").value("CLAIMED"));
+    }
+
+    @Test
+    void connectBlankUidReturnsBadRequest() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        when(deviceService.connectDevice(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+            .thenThrow(TelemetryQueryException.deviceUidRequired());
+
+        mockMvc.perform(
+                post("/iot/devices/connect")
+                    .header(DeviceController.USER_ID_HEADER, userId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "deviceUid": " ",
+                          "deviceCode": "IOT-001",
+                          "farmPlotId": "%s",
+                          "zoneId": "%s"
+                        }
+                        """.formatted(UUID.randomUUID(), UUID.randomUUID()))
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(4638));
+    }
+
+    @Test
+    void connectBlankCodeReturnsBadRequest() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        when(deviceService.connectDevice(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+            .thenThrow(TelemetryQueryException.deviceCodeRequired());
+
+        mockMvc.perform(
+                post("/iot/devices/connect")
+                    .header(DeviceController.USER_ID_HEADER, userId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "deviceUid": "device-001",
+                          "deviceCode": " ",
+                          "farmPlotId": "%s",
+                          "zoneId": "%s"
+                        }
+                        """.formatted(UUID.randomUUID(), UUID.randomUUID()))
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(4640));
+    }
+
+    @Test
+    void connectMissingFarmReturnsBadRequest() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        when(deviceService.connectDevice(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+            .thenThrow(TelemetryQueryException.farmPlotRequired());
+
+        mockMvc.perform(
+                post("/iot/devices/connect")
+                    .header(DeviceController.USER_ID_HEADER, userId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "deviceUid": "device-001",
+                          "deviceCode": "IOT-001",
+                          "zoneId": "%s"
+                        }
+                        """.formatted(UUID.randomUUID()))
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(4644));
+    }
+
+    @Test
+    void connectAlreadyClaimedReturnsConflict() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        UUID deviceId = UUID.randomUUID();
+        when(deviceService.connectDevice(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+            .thenThrow(TelemetryQueryException.deviceAlreadyClaimed(deviceId));
+
+        mockMvc.perform(
+                post("/iot/devices/connect")
+                    .header(DeviceController.USER_ID_HEADER, userId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "deviceUid": "device-001",
+                          "deviceCode": "IOT-001",
+                          "farmPlotId": "%s",
+                          "zoneId": "%s"
+                        }
+                        """.formatted(UUID.randomUUID(), UUID.randomUUID()))
+            )
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value(4613));
     }
 
     @Test
