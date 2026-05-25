@@ -8,8 +8,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 
 @FeignClient(
-    name = "disease-detection-gateway-client",
-    url = "${app.disease-detection.gateway-url}",
+    name = "disease-detection-service",
     path = "/internal/diseases",
     configuration = DiseaseDetectionFeignConfig.class
 )

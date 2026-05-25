@@ -38,6 +38,8 @@ spec:
                 secretKeyRef:
                   name: leafy-common-secrets
                   key: DB_PASSWORD
+            - name: DISEASE_DETECTION_PREDICT_URL
+              value: "http://leafy-disease-detection-service:8090/internal/diseases/predict"
           envFrom:
             - configMapRef:
                 name: leafy-common-config

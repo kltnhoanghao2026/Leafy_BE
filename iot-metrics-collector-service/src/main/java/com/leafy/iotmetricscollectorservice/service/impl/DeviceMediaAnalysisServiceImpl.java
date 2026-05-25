@@ -1,11 +1,12 @@
 package com.leafy.iotmetricscollectorservice.service.impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.leafy.iotmetricscollectorservice.dto.disease.DiseaseDetectRequest;
 import com.leafy.iotmetricscollectorservice.dto.disease.DiseaseDetectResponse;
 import com.leafy.iotmetricscollectorservice.dto.media.DeviceMediaAnalysisResponse;
 import com.leafy.iotmetricscollectorservice.dto.media.ImageAnalysisJob;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
-import com.leafy.iotmetricscollectorservice.integration.disease.DiseaseDetectionClient;
+import com.leafy.iotmetricscollectorservice.integration.disease.DiseaseDetectionFeignClient;
 import com.leafy.iotmetricscollectorservice.integration.file.FileServiceClient;
 import com.leafy.iotmetricscollectorservice.model.AlertEvent;
 import com.leafy.iotmetricscollectorservice.model.DeviceMediaAnalysis;
@@ -16,6 +17,9 @@ import com.leafy.iotmetricscollectorservice.repository.DeviceMediaAnalysisReposi
 import com.leafy.iotmetricscollectorservice.repository.DeviceMediaEventRepository;
 import com.leafy.iotmetricscollectorservice.service.DeviceMediaAnalysisService;
 import com.leafy.iotmetricscollectorservice.service.ImageDiseaseAlertService;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
@@ -25,8 +29,11 @@ import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @Service
@@ -38,11 +45,14 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
     private final DeviceMediaEventRepository mediaEventRepository;
     private final DeviceMediaAnalysisRepository analysisRepository;
     private final FileServiceClient fileServiceClient;
-    private final DiseaseDetectionClient diseaseDetectionClient;
+    private final DiseaseDetectionFeignClient diseaseDetectionFeignClient;
     private final ImageDiseaseAlertService imageDiseaseAlertService;
 
     @Value("${app.image-analysis.max-attempts:2}")
     private int maxAttempts;
+
+    @Value("${app.disease-detection.confidence-threshold:0.70}")
+    private double confidenceThreshold;
 
     @Override
     @Transactional
@@ -154,7 +164,19 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         RuntimeException lastFailure = null;
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
-                DiseaseDetectResponse detection = diseaseDetectionClient.detect(fileUrl, fileId);
+                ResponseEntity<byte[]> imageResponse = fileServiceClient.downloadInternalImage(fileUrl);
+                byte[] imageBytes = imageResponse.getBody();
+                if (imageBytes == null || imageBytes.length == 0) {
+                    throw new IllegalStateException("Image download returned empty content");
+                }
+
+                String contentType = imageResponse.getHeaders().getContentType() != null
+                    ? imageResponse.getHeaders().getContentType().toString()
+                    : MediaType.IMAGE_JPEG_VALUE;
+
+                MultipartFile imageFile = buildMultipartFile(imageBytes, fileId, contentType);
+                JsonNode payload = diseaseDetectionFeignClient.predict(imageFile);
+                DiseaseDetectResponse detection = toDiseaseDetectResponse(payload, fileId);
                 detection.setMediaEventId(mediaEvent.getId());
                 detection.setFileId(fileId);
                 applyDetectionResult(analysis, mediaEvent, detection);
@@ -195,6 +217,84 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
 
         markAnalysisFailed(analysis, lastFailure != null ? lastFailure.getMessage() : "DISEASE_DETECTION_FAILED");
         analysisRepository.save(analysis);
+    }
+
+    private DiseaseDetectResponse toDiseaseDetectResponse(JsonNode payload, String fileId) {
+        JsonNode data = payload != null && payload.has("data") ? payload.path("data") : payload;
+        JsonNode predictions = data != null ? data.path("predictions") : null;
+        if (predictions == null || !predictions.isArray() || predictions.isEmpty()) {
+            throw new IllegalStateException("Disease detection response did not contain predictions");
+        }
+
+        JsonNode top = predictions.get(0);
+        String className = top.path("className").asText("unknown");
+        double confidence = top.path("confidenceScore").asDouble(0.0);
+        boolean healthy = className.toLowerCase(Locale.ROOT).contains("healthy");
+
+        DiseaseDetectResponse result = new DiseaseDetectResponse();
+        result.setFileId(fileId);
+        result.setDiseaseName(className);
+        result.setConfidence(confidence);
+        result.setDiseaseDetected(!healthy && confidence >= confidenceThreshold);
+        result.setNotes(result.isDiseaseDetected()
+            ? "Disease prediction exceeded confidence threshold"
+            : "No disease prediction exceeded confidence threshold");
+        return result;
+    }
+
+    private MultipartFile buildMultipartFile(byte[] imageBytes, String fileId, String contentType) {
+        return new InMemoryMultipartFile(
+            "file",
+            fileId + extensionForContentType(contentType),
+            contentType,
+            imageBytes
+        );
+    }
+
+    private String extensionForContentType(String contentType) {
+        if (MediaType.IMAGE_PNG_VALUE.equalsIgnoreCase(contentType)) {
+            return ".png";
+        }
+        if (MediaType.IMAGE_GIF_VALUE.equalsIgnoreCase(contentType)) {
+            return ".gif";
+        }
+        if ("image/webp".equalsIgnoreCase(contentType)) {
+            return ".webp";
+        }
+        return ".jpg";
+    }
+
+    private boolean isInvalidPresignedUrlFailure(RuntimeException exception) {
+        String message = exception.getMessage();
+        return message != null && message.contains("INVALID_PRESIGNED_URL");
+    }
+
+    private record InMemoryMultipartFile(
+        String name,
+        String originalFilename,
+        String contentType,
+        byte[] bytes
+    ) implements MultipartFile {
+
+        @Override public String getName() { return name; }
+
+        @Override public String getOriginalFilename() { return originalFilename; }
+
+        @Override public String getContentType() { return contentType; }
+
+        @Override public boolean isEmpty() { return bytes.length == 0; }
+
+        @Override public long getSize() { return bytes.length; }
+
+        @Override public byte[] getBytes() { return bytes; }
+
+        @Override public InputStream getInputStream() {
+            return new ByteArrayInputStream(bytes);
+        }
+
+        @Override public void transferTo(java.io.File dest) throws IOException {
+            java.nio.file.Files.write(dest.toPath(), bytes);
+        }
     }
 
     private void markAnalysisFailed(DeviceMediaAnalysis analysis, String error) {
@@ -415,11 +515,6 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
             }
         }
         return null;
-    }
-
-    private boolean isInvalidPresignedUrlFailure(RuntimeException exception) {
-        String message = exception.getMessage();
-        return message != null && message.contains("INVALID_PRESIGNED_URL");
     }
 
     private String sanitizeUrlForLog(String rawUrl) {
