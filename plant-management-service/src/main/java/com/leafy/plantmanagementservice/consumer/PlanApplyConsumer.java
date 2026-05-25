@@ -213,10 +213,9 @@ public class PlanApplyConsumer {
             log.info("No FARM events found for applyId={}, creating parent FARM events", applyId);
             List<PlantEventCreateRequest> farmRequests = new ArrayList<>();
             for (EmbeddedPlanEvent template : templateEvents) {
-                int originalDuration = getOriginalDurationDays(templateEvents, template);
                 PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
                         null, farmPlotId, null,
-                        TrackingGranularity.ZONE, null, null, null, originalDuration);
+                        TrackingGranularity.ZONE, null, null, null);
                 req.setTargetType(TargetType.FARM);
                 farmRequests.add(req);
             }
@@ -254,8 +253,7 @@ public class PlanApplyConsumer {
                 String parentFarmEventId = farmEventIds.get(i);
                 PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
                         null, farmPlotId, farmZoneId,
-                        TrackingGranularity.PLANT, null, null, parentFarmEventId,
-                        getOriginalDurationDaysByIndex(templateEvents, i));
+                        TrackingGranularity.PLANT, null, null, parentFarmEventId);
                 req.setTargetType(TargetType.FARM_ZONE);
                 zoneRequests.add(req);
             }
@@ -283,8 +281,7 @@ public class PlanApplyConsumer {
             String parentZoneEventId = zoneEventIds.get(i);
             PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
                     target.getId(), farmPlotId, farmZoneId,
-                    null, null, null, parentZoneEventId,
-                    getOriginalDurationDaysByIndex(templateEvents, i));
+                    null, null, null, parentZoneEventId);
             req.setTargetType(TargetType.PLANT);
             plantRequests.add(req);
         }
@@ -332,10 +329,9 @@ public class PlanApplyConsumer {
             // Step 1: Create FARM parent events (one per template)
             List<PlantEventCreateRequest> farmRequests = new ArrayList<>();
             for (EmbeddedPlanEvent template : templateEvents) {
-            int originalDuration = getOriginalDurationDays(templateEvents, template);
             PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
                     null, event.getFarmPlotId(), null,
-                    TrackingGranularity.ZONE, null, excludedZoneIds.isEmpty() ? null : new ArrayList<>(excludedZoneIds), null, originalDuration);
+                    TrackingGranularity.ZONE, null, excludedZoneIds.isEmpty() ? null : new ArrayList<>(excludedZoneIds), null);
                 req.setTargetType(TargetType.FARM);
                 farmRequests.add(req);
             }
@@ -392,8 +388,7 @@ public class PlanApplyConsumer {
             String parentId = parentFarmEventIds != null ? parentFarmEventIds.get(i) : null;
             PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
                     null, farmPlotId, zoneId,
-                    TrackingGranularity.PLANT, null, null, parentId,
-                    getOriginalDurationDaysByIndex(templateEvents, i));
+                    TrackingGranularity.PLANT, null, null, parentId);
             req.setTargetType(TargetType.FARM_ZONE);
             zoneRequests.add(req);
         }
@@ -414,8 +409,7 @@ public class PlanApplyConsumer {
                     String parentZoneEventId = zoneResponses.get(i).getId();
                     PlantEventCreateRequest req = buildRequest(template, planId, applyId, event.getStartDate(),
                             plant.getId(), plant.getFarmPlotId(), plant.getFarmZoneId(),
-                            null, null, null, parentZoneEventId,
-                            getOriginalDurationDaysByIndex(templateEvents, i));
+                            null, null, null, parentZoneEventId);
                     req.setTargetType(TargetType.PLANT);
                     plantRequests.add(req);
                 }
@@ -434,8 +428,7 @@ public class PlanApplyConsumer {
                                                    TrackingGranularity granularity,
                                                    List<String> excludedPlantIds,
                                                    List<String> excludedFarmZoneIds,
-                                                   String parentPlantEventId,
-                                                   int originalDurationDays) {
+                                                   String parentPlantEventId) {
         List<EventTaskRequest> taskRequests = null;
         if (template.getTasks() != null && !template.getTasks().isEmpty()) {
             taskRequests = template.getTasks().stream()
@@ -475,52 +468,11 @@ public class PlanApplyConsumer {
         if (template.getDaysFromStart() != null && startDate != null) {
             LocalDate calcStart = startDate.plusDays(template.getDaysFromStart());
             req.setCalculatedStartDate(calcStart);
-            if (originalDurationDays > 0) {
-                req.setCalculatedEndDate(calcStart.plusDays(originalDurationDays));
+            if (template.getDurationDays() != null && template.getDurationDays() > 0) {
+                req.setCalculatedEndDate(calcStart.plusDays(template.getDurationDays()));
             }
         }
         return req;
-    }
-
-    /**
-     * Returns the original durationDays from the {@code originalTemplateEvents} list
-     * that corresponds to the given cloned template. Since each original event is
-     * expanded into N clones (durationDays of that original), the N clones for a given
-     * original occupy a contiguous index range. This method walks backward from the
-     * current position to find the original template's durationDays.
-     *
-     * <p>Example: original template[0] has durationDays=5, template[1] has durationDays=2.
-     * After expansion, templateEvents = [clone0, clone1, clone2, clone3, clone4, clone5, clone6].
-     * When looking up clone0..clone4 → returns 5. When looking up clone5..clone6 → returns 2.
-     */
-    private int getOriginalDurationDays(List<EmbeddedPlanEvent> originalTemplateEvents, EmbeddedPlanEvent clonedTemplate) {
-        int index = originalTemplateEvents.indexOf(clonedTemplate);
-        if (index >= 0) {
-            return originalTemplateEvents.get(index).getDurationDays() != null
-                    ? originalTemplateEvents.get(index).getDurationDays() : 1;
-        }
-        // Fallback: search by matching daysFromStart
-        for (EmbeddedPlanEvent original : originalTemplateEvents) {
-            int origDuration = original.getDurationDays() != null ? original.getDurationDays() : 1;
-            if (clonedTemplate.getDaysFromStart() != null && original.getDaysFromStart() != null) {
-                int daysDiff = clonedTemplate.getDaysFromStart() - original.getDaysFromStart();
-                if (daysDiff >= 0 && daysDiff < origDuration) {
-                    return origDuration;
-                }
-            }
-        }
-        return clonedTemplate.getDurationDays() != null ? clonedTemplate.getDurationDays() : 1;
-    }
-
-    /**
-     * Convenience overload for indexed access within loops.
-     */
-    private int getOriginalDurationDaysByIndex(List<EmbeddedPlanEvent> originalTemplateEvents, int index) {
-        if (index < 0 || index >= originalTemplateEvents.size()) {
-            return 1;
-        }
-        EmbeddedPlanEvent original = originalTemplateEvents.get(index);
-        return original.getDurationDays() != null ? original.getDurationDays() : 1;
     }
 
     @KafkaListener(topics = "#{kafkaTopicProperties.systemEvents.planApplied}", groupId = "${spring.application.name}-group")
