@@ -10,7 +10,6 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
     org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration.class,
     org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration.class,
     org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration.class,
-    org.springframework.boot.actuate.autoconfigure.web.server.ManagementContextAutoConfiguration.class,
     org.springframework.cloud.netflix.eureka.EurekaClientAutoConfiguration.class
 })
 @ComponentScan(basePackages = {"com.leafy.fileservice", "com.leafy.common"})
