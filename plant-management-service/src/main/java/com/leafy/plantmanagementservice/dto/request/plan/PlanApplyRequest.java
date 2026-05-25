@@ -33,4 +33,18 @@ public class PlanApplyRequest {
     List<String> excludedPlantIds;
 
     List<String> excludedFarmZoneIds;
+
+    /**
+     * Apply this plan to ALL farms (farmPlots) owned by the current user.
+     * When set, plantId and farmZoneId must be null; a separate PlanApply
+     * record + Kafka event will be dispatched for each farm plot.
+     */
+    Boolean applyToAllFarms;
+
+    /**
+     * Explicit list of farm plot IDs to apply this plan to.
+     * When set, plantId and farmZoneId must be null.
+     * If empty and applyToAllFarms is not true, falls back to single-scope apply.
+     */
+    List<String> farmPlotIds;
 }

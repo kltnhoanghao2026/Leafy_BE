@@ -34,6 +34,18 @@ public class PlanApplyResponse {
     String farmZoneId;
     String targetName;
 
+    /**
+     * Set when the apply targets multiple farm plots (applyToAllFarms or farmPlotIds list).
+     * Contains the IDs of all farm plots that received individual PlanApply records.
+     */
+    List<String> farmPlotIds;
+
+    /**
+     * Total number of individual PlanApply records created.
+     * Equals 1 for single-scope applies; greater than 1 for multi-farm applies.
+     */
+    Integer applyCount;
+
     // ── Application parameters ───────────────────────────────────────────────
     LocalDate startDate;
     TrackingGranularity trackingGranularity;

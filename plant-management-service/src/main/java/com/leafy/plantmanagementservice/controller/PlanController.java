@@ -2,6 +2,7 @@ package com.leafy.plantmanagementservice.controller;
 
 import com.leafy.common.dto.ApiResponse;
 import com.leafy.common.utils.ServiceSecurityUtils;
+import com.leafy.plantmanagementservice.dto.request.plan.ApplyToAllFarmsRequest;
 import com.leafy.plantmanagementservice.dto.request.plan.BulkApplyCustomRequest;
 import com.leafy.plantmanagementservice.dto.request.plan.BulkPlanDeleteRequest;
 import com.leafy.plantmanagementservice.dto.request.plan.BulkPlanStatusUpdateRequest;
@@ -66,6 +67,15 @@ public class PlanController {
             @Valid @RequestBody PlanApplyRequest request) {
         log.info("POST /plans/{}/apply", planId);
         PlanApplyResponse response = planService.applyPlan(planId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @PostMapping("/{planId}/apply-to-all-farms")
+    public ResponseEntity<ApiResponse<PlanApplyResponse>> applyPlanToAllFarms(
+            @PathVariable String planId,
+            @Valid @RequestBody ApplyToAllFarmsRequest request) {
+        log.info("POST /plans/{}/apply-to-all-farms", planId);
+        PlanApplyResponse response = planService.applyPlanToAllFarms(planId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 

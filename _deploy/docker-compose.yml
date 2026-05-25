@@ -871,7 +871,7 @@ services:
       SPRING_APPLICATION_NAME: ${SPRING_APPLICATION_NAME:-rag-service}
       HOSTNAME: rag-service
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://discovery-server:8761/eureka/}
-      API_GATEWAY_URL: ${API_GATEWAY_URL:-http://api-gateway:8080}
+      API_GATEWAY_URL: ${API_GATEWAY_URL:-http://api-gateway:8060}
       MONGODB_HOST: mongodb
       MONGODB_PORT: 27017
       MONGODB_USERNAME: admin

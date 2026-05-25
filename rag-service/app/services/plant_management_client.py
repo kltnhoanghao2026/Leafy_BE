@@ -4,6 +4,7 @@ Forwards the caller's auth header so that the service can resolve the
 authenticated user's profileId and set it as the plan owner.
 """
 import logging
+import time
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -62,9 +63,19 @@ class PlantManagementClient:
             "Authorization": auth_header,
         }
 
+        logger.info(
+            "[PLAN SYNC] Sending POST to %s\n  headers=%s\n  payload=%s",
+            url,
+            {k: v if k != "Authorization" else "***" for k, v in headers.items()},
+            payload,
+        )
+
+        start = time.monotonic()
         try:
             with httpx.Client(timeout=_TIMEOUT) as client:
                 response = client.post(url, json=payload, headers=headers)
+            elapsed_ms = (time.monotonic() - start) * 1000
+            logger.info("[PLAN SYNC] Response received in %.1fms — status=%d", elapsed_ms, response.status_code)
 
             if response.status_code >= 400:
                 logger.warning(
@@ -86,7 +97,11 @@ class PlantManagementClient:
             return plan_id
 
         except httpx.RequestError as exc:
-            logger.warning("[PLAN SYNC] HTTP request failed: %s", exc)
+            elapsed_ms = (time.monotonic() - start) * 1000
+            logger.warning(
+                "[PLAN SYNC] HTTP request failed after %.1fms — url=%s, timeout=%s, error=%s",
+                elapsed_ms, url, _TIMEOUT, exc,
+            )
             return None
         except Exception as exc:
             logger.warning("[PLAN SYNC] Unexpected error: %s", exc, exc_info=True)

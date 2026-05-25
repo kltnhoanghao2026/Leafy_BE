@@ -129,6 +129,18 @@ async def generate_treatment_plan(
     saved_plan_id: str | None = None
     if auth_header and result.get("plan"):
         try:
+            logger.info(
+                "[PLAN CTRL] Syncing to plant-management-service | docs=%d | web_sources=%d | plan_source=%s",
+                len(result.get("documents", [])),
+                len(result.get("web_sources", [])),
+                result["plan"].get("source"),
+            )
+            if result.get("documents"):
+                for i, doc in enumerate(result["documents"]):
+                    logger.debug("[PLAN CTRL]   doc[%d] title=%r", i, doc.get("title"))
+            if result.get("web_sources"):
+                for i, ws in enumerate(result["web_sources"]):
+                    logger.debug("[PLAN CTRL]   web[%d] title=%r", i, ws.get("title"))
             client = get_plant_management_client()
             saved_plan_id = client.create_plan(
                 generated_plan=result["plan"],
@@ -212,6 +224,18 @@ async def _stream_plan_events(
     saved_plan_id: str | None = None
     if auth_header and result.get("plan"):
         try:
+            logger.info(
+                "[PLAN STREAM] Syncing to plant-management-service | docs=%d | web_sources=%d | plan_source=%s",
+                len(result.get("documents", [])),
+                len(result.get("web_sources", [])),
+                result["plan"].get("source"),
+            )
+            if result.get("documents"):
+                for i, doc in enumerate(result["documents"]):
+                    logger.debug("[PLAN STREAM]   doc[%d] title=%r", i, doc.get("title"))
+            if result.get("web_sources"):
+                for i, ws in enumerate(result["web_sources"]):
+                    logger.debug("[PLAN STREAM]   web[%d] title=%r", i, ws.get("title"))
             client = get_plant_management_client()
             saved_plan_id = client.create_plan(
                 generated_plan=result["plan"],

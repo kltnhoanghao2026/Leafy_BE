@@ -36,3 +36,6 @@ data:
 
   # Environment
   ENV_STATE: prod
+
+  # API Gateway (used by plant_management_client for plan sync)
+  API_GATEWAY_URL: "http://leafy-api-gateway:8060"

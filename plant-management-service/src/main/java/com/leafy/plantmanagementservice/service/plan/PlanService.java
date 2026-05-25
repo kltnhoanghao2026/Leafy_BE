@@ -101,4 +101,10 @@ public interface PlanService {
      * Called when the user completes the last remaining event of an apply.
      */
     PlanApplyResponse completeApply(String applyId, Boolean success);
+
+    /**
+     * Apply a plan to all active farm plots owned by the current user.
+     * Dispatches one Kafka event per farm plot (plantId and farmZoneId are null in each event).
+     */
+    PlanApplyResponse applyPlanToAllFarms(String planId, ApplyToAllFarmsRequest request);
 }

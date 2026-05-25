@@ -14,3 +14,24 @@ spec:
   selector:
     app: qdrant
   clusterIP: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leafy-qdrant-external
+  namespace: leafy
+  labels:
+    app: qdrant
+spec:
+  type: LoadBalancer
+  loadBalancerSourceRanges:
+    - 0.0.0.0/0
+  ports:
+    - name: qdrant-http
+      port: 6333
+      targetPort: 6333
+    - name: qdrant-grpc
+      port: 6334
+      targetPort: 6334
+  selector:
+    app: qdrant

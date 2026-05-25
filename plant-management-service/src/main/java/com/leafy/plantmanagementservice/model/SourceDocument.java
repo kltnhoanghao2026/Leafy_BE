@@ -4,8 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-import java.util.Map;
-
 @Getter
 @Setter
 @AllArgsConstructor
@@ -14,15 +12,15 @@ import java.util.Map;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class SourceDocument {
 
-    @JsonProperty("page_content")
-    String pageContent;
+    @JsonProperty("title")
+    String title;
 
-    Map<String, Object> metadata;
+    @JsonProperty("content")
+    String content;
 
-    @JsonProperty("point_id")
-    String pointId;
+    @JsonProperty("url")
+    String url;
 
-    public Object getMetadataValue(String key) {
-        return metadata != null ? metadata.get(key) : null;
-    }
+    @JsonProperty("score")
+    Double score;
 }

@@ -10,7 +10,9 @@ import com.leafy.common.publisher.RawNotificationEventPublisher;
 import com.leafy.common.utils.ServiceSecurityUtils;
 import com.leafy.plantmanagementservice.client.ProfileServiceClient;
 import com.leafy.plantmanagementservice.client.dto.ProfileSummary;
-import com.leafy.plantmanagementservice.dto.request.plan.*;
+import com.leafy.plantmanagementservice.dto.request.plan.ApplyToAllFarmsRequest;
+import com.leafy.plantmanagementservice.dto.request.plan.PlanApplyItemRequest;
+import com.leafy.plantmanagementservice.dto.request.plan.PlanApplyRequest;;
 import com.leafy.plantmanagementservice.dto.response.plan.AuthorInfo;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanApplyResponse;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanResponse;
@@ -110,13 +112,104 @@ public class PlanServiceImpl implements PlanService {
             throw new AppException(ErrorCode.PLAN_NOT_FOUND);
         }
 
-        // 1. Create a new PlanApply record
         String profileId = ServiceSecurityUtils.getCurrentProfileId();
-        PlanApply apply = PlanApply.builder()
+
+        // ── Multi-farm apply: applyToAllFarms ───────────────────────────────────
+        if (Boolean.TRUE.equals(request.getApplyToAllFarms())) {
+            log.info("applyToAllFarms=true → applying plan {} to all farms for profileId={}", planId, profileId);
+            List<String> userFarmPlotIds = farmPlotService.getByOwner(profileId)
+                    .stream()
+                    .map(com.leafy.plantmanagementservice.dto.response.farmplot.FarmPlotResponse::getId)
+                    .toList();
+            if (userFarmPlotIds.isEmpty()) {
+                log.warn("No active farm plots found for profileId={}, cannot apply to all", profileId);
+                throw new AppException(ErrorCode.FARM_PLOT_NOT_FOUND);
+            }
+            return dispatchMultiFarmApply(plan, planId, request, profileId, userFarmPlotIds);
+        }
+
+        // ── Multi-farm apply: explicit farmPlotIds list ───────────────────────────
+        if (!CollectionUtils.isEmpty(request.getFarmPlotIds())) {
+            List<String> farmPlotIds = request.getFarmPlotIds();
+            log.info("farmPlotIds list provided ({} farms) → applying plan {} to {} farms", farmPlotIds.size(), planId, farmPlotIds.size());
+            return dispatchMultiFarmApply(plan, planId, request, profileId, farmPlotIds);
+        }
+
+        // ── Single-scope apply (original behaviour) ───────────────────────────────
+        return dispatchSingleFarmApply(plan, planId, request, profileId);
+    }
+
+    /**
+     * Applies a plan to a single scope (plant, zone, or farm plot).
+     * Creates one PlanApply record and dispatches one Kafka event.
+     */
+    private PlanApplyResponse dispatchSingleFarmApply(Plan plan, String planId, PlanApplyRequest request, String profileId) {
+        PlanApply apply = buildPlanApply(plan, planId, request, profileId, null);
+        apply = planApplyRepository.save(apply);
+        dispatchKafkaEvent(planId, apply.getId(), request);
+        return planApplyMapper.toResponse(apply);
+    }
+
+    /**
+     * Applies a plan to multiple farm plots.
+     * Creates one PlanApply record per farm plot and dispatches one Kafka event per farm.
+     * Returns a "composite" PlanApplyResponse whose id is null and targetName reflects
+     * the multi-farm nature; the individual PlanApply documents are tracked by
+     * the farmPlotId field in each record.
+     */
+    private PlanApplyResponse dispatchMultiFarmApply(Plan plan, String planId, PlanApplyRequest request,
+                                                    String profileId, List<String> farmPlotIds) {
+        // Excluded plots that appear in farmPlotIds are silently skipped by the consumer,
+        // but we filter them out here so the PlanApply records are accurate.
+        Set<String> excludedPlotIds = request.getExcludedFarmZoneIds() != null
+                ? new HashSet<>(request.getExcludedFarmZoneIds()) : new HashSet<>();
+
+        List<String> createdFarmPlotIds = new java.util.ArrayList<>();
+        int created = 0;
+        for (String farmPlotId : farmPlotIds) {
+            if (excludedPlotIds.contains(farmPlotId)) {
+                log.debug("Skipping excluded farmPlotId={} in multi-farm apply", farmPlotId);
+                continue;
+            }
+            PlanApplyRequest singleRequest = PlanApplyRequest.builder()
+                    .startDate(request.getStartDate())
+                    .farmPlotId(farmPlotId)
+                    .targetName(request.getTargetName())
+                    .trackingGranularity(request.getTrackingGranularity())
+                    .excludedPlantIds(request.getExcludedPlantIds())
+                    .excludedFarmZoneIds(request.getExcludedFarmZoneIds())
+                    .build();
+            PlanApply apply = buildPlanApply(plan, planId, singleRequest, profileId, farmPlotId);
+            planApplyRepository.save(apply);
+            dispatchKafkaEvent(planId, apply.getId(), singleRequest);
+            created++;
+            createdFarmPlotIds.add(farmPlotId);
+        }
+
+        log.info("dispatchMultiFarmApply: created {} PlanApply records for planId={} across {} farm plots",
+                created, planId, farmPlotIds.size());
+
+        return PlanApplyResponse.builder()
+                .id(null)
+                .planId(planId)
+                .planName(plan.getPlanName())
+                .diseaseName(plan.getDiseaseName())
+                .startDate(request.getStartDate())
+                .appliedById(profileId)
+                .status(PlanStatus.APPLYING)
+                .farmPlotId(null)  // multiple farms — no single value
+                .farmPlotIds(createdFarmPlotIds)
+                .applyCount(created)
+                .build();
+    }
+
+    private PlanApply buildPlanApply(Plan plan, String planId, PlanApplyRequest request,
+                                     String profileId, String resolvedFarmPlotId) {
+        return PlanApply.builder()
                 .planId(planId)
                 .appliedById(profileId)
                 .plantId(request.getPlantId())
-                .farmPlotId(request.getFarmPlotId())
+                .farmPlotId(resolvedFarmPlotId != null ? resolvedFarmPlotId : request.getFarmPlotId())
                 .farmZoneId(request.getFarmZoneId())
                 .targetName(request.getTargetName())
                 .planName(plan.getPlanName())
@@ -128,12 +221,12 @@ public class PlanServiceImpl implements PlanService {
                 .status(PlanStatus.APPLYING)
                 .canCancel(true)
                 .build();
-        apply = planApplyRepository.save(apply);
+    }
 
-        // 2. Dispatch Kafka event with both planId and applyId
+    private void dispatchKafkaEvent(String planId, String applyId, PlanApplyRequest request) {
         PlanApplyRequestedEvent event = PlanApplyRequestedEvent.builder()
                 .planId(planId)
-                .applyId(apply.getId())
+                .applyId(applyId)
                 .startDate(request.getStartDate())
                 .plantId(request.getPlantId())
                 .farmZoneId(request.getFarmZoneId())
@@ -142,11 +235,8 @@ public class PlanServiceImpl implements PlanService {
                 .excludedPlantIds(request.getExcludedPlantIds())
                 .excludedFarmZoneIds(request.getExcludedFarmZoneIds())
                 .build();
-
         kafkaTemplate.send(kafkaTopicProperties.getSystemEvents().getPlanApplyRequested(), planId, event);
-        log.info("Dispatched PlanApplyRequestedEvent for planId={} applyId={}", planId, apply.getId());
-
-        return planApplyMapper.toResponse(apply);
+        log.info("Dispatched PlanApplyRequestedEvent for planId={} applyId={}", planId, applyId);
     }
 
     @Override
@@ -534,6 +624,7 @@ public class PlanServiceImpl implements PlanService {
                         .trackingGranularity(item.getTrackingGranularity())
                         .excludedPlantIds(item.getExcludedPlantIds())
                         .excludedFarmZoneIds(item.getExcludedFarmZoneIds())
+                        .farmPlotIds(item.getFarmPlotIds())
                         .build();
                 applyPlan(item.getPlanId(), req);
                 successCount++;
@@ -568,6 +659,39 @@ public class PlanServiceImpl implements PlanService {
         PlanApply saved = planApplyRepository.save(apply);
         log.info("PlanApply id={} is now COMPLETED, success={}", applyId, success);
         return planApplyMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public PlanApplyResponse applyPlanToAllFarms(String planId, ApplyToAllFarmsRequest request) {
+        log.info("Applying plan {} to all farms for the current user", planId);
+        Plan plan = getPlanEntity(planId);
+
+        if (CollectionUtils.isEmpty(plan.getEvents())) {
+            log.warn("Plan id={} has no embedded template events to apply", planId);
+            throw new AppException(ErrorCode.PLAN_NOT_FOUND);
+        }
+
+        String profileId = ServiceSecurityUtils.getCurrentProfileId();
+        List<String> userFarmPlotIds = farmPlotService.getByOwner(profileId)
+                .stream()
+                .map(com.leafy.plantmanagementservice.dto.response.farmplot.FarmPlotResponse::getId)
+                .toList();
+
+        if (userFarmPlotIds.isEmpty()) {
+            log.warn("No active farm plots found for profileId={}", profileId);
+            throw new AppException(ErrorCode.FARM_PLOT_NOT_FOUND);
+        }
+
+        PlanApplyRequest multiRequest = PlanApplyRequest.builder()
+                .startDate(request.getStartDate())
+                .trackingGranularity(request.getTrackingGranularity())
+                .excludedFarmZoneIds(request.getExcludedFarmZoneIds())
+                .excludedPlantIds(request.getExcludedPlantIds())
+                .farmPlotIds(userFarmPlotIds)
+                .build();
+
+        return dispatchMultiFarmApply(plan, planId, multiRequest, profileId, userFarmPlotIds);
     }
 
     // ── Author enrichment ─────────────────────────────────────────────────────

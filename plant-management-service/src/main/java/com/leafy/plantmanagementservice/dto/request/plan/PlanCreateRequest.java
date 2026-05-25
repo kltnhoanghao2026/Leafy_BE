@@ -4,6 +4,9 @@ import com.leafy.plantmanagementservice.dto.request.plan.EmbeddedPlanEventReques
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+
+import com.leafy.plantmanagementservice.model.SourceDocument;
+import com.leafy.plantmanagementservice.model.WebSearchResult;
 import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
 import com.leafy.plantmanagementservice.model.enums.SeverityLevel;
 import lombok.*;
@@ -27,8 +30,8 @@ public class PlanCreateRequest {
 
     PlanSourceType sourceType;
 
-    List<com.leafy.plantmanagementservice.model.SourceDocument> sourceDocuments;
-    List<com.leafy.plantmanagementservice.model.WebSearchResult> webSearchResults;
+    List<SourceDocument> sourceDocuments;
+    List<WebSearchResult> webSearchResults;
 
     // ── Plant / Farm scope ────────────────────────────────────────────────────
 

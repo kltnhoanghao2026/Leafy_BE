@@ -236,6 +236,12 @@ class HealthResponse(BaseModel):
     langsmith_project: str = Field(...)
 
 
+@app.get("/health", tags=["Health"])
+async def k8s_health_check():
+    """Kubernetes readiness/liveness probe endpoint."""
+    return {"status": "UP"}
+
+
 @app.get("/rag/health", tags=["Health"], response_model=HealthResponse, summary="Service health check")
 async def health_check():
     """Returns liveness status and LangSmith tracing configuration."""

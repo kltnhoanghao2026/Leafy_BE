@@ -1,7 +1,6 @@
 package com.leafy.plantmanagementservice.dto.request.plan;
 
 import com.leafy.plantmanagementservice.model.enums.TrackingGranularity;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -10,8 +9,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * One entry in a bulk-apply-custom request.
- * Each plan can have its own start date and scope.
+ * Request for POST /plans/{planId}/apply-to-all-farms.
+ * Applies a plan to all active farm plots owned by the current user.
  */
 @Getter
 @Setter
@@ -19,27 +18,24 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PlanApplyItemRequest {
-
-    @NotBlank(message = "planId is required")
-    String planId;
+public class ApplyToAllFarmsRequest {
 
     @NotNull(message = "startDate is required")
     LocalDate startDate;
 
-    String plantId;
-    String farmPlotId;
-    String farmZoneId;
-    String targetName;
-
+    /**
+     * Tracking granularity for the fan-out (FARM scope only; no plantId/farmZoneId
+     * in the Kafka events — the consumer resolves zones and plants from the farm plot).
+     */
     TrackingGranularity trackingGranularity;
 
-    List<String> excludedPlantIds;
+    /**
+     * Farm zone IDs to exclude from the apply (across all farms).
+     */
     List<String> excludedFarmZoneIds;
 
     /**
-     * Explicit list of farm plot IDs to apply this plan to.
-     * When set, plantId and farmZoneId must be null.
+     * Plant IDs to exclude from the apply (across all farms).
      */
-    List<String> farmPlotIds;
+    List<String> excludedPlantIds;
 }
