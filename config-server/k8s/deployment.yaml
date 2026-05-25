@@ -14,7 +14,7 @@ spec:
         app: config-server
     spec:
       nodeSelector:
-        node-type: app
+        node-type: messaging
       initContainers:
         - name: wait-for-discovery
           image: busybox

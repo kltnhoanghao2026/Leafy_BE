@@ -578,14 +578,7 @@ public class AuthServiceImpl implements AuthService {
                                            HttpServletResponse response,
                                            String accessToken,
                                            String refreshToken) {
-        if (deviceType == DeviceType.WEB) {
-            setRefreshTokenCookie(response, refreshToken);
-            return AuthResponse.builder()
-                    .accessToken(accessToken)
-                    .expiresIn(jwtProperties.getAccessTokenExpiration() / 1000)
-                    .build();
-        }
-
+        setRefreshTokenCookie(response, refreshToken);
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)

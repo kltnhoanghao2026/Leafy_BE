@@ -14,7 +14,7 @@ spec:
         app: discovery-server
     spec:
       nodeSelector:
-        node-type: app
+        node-type: messaging
       containers:
         - name: discovery-server
           image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/discovery-server:latest

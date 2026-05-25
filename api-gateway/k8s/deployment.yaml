@@ -14,7 +14,7 @@ spec:
         app: api-gateway
     spec:
       nodeSelector:
-        node-type: app
+        node-type: messaging
       containers:
         - name: api-gateway
           image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/api-gateway:latest
