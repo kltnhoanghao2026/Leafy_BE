@@ -5,6 +5,7 @@ import com.leafy.iotmetricscollectorservice.dto.device.ConnectDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.GenerateClaimCodeResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.ProvisionDeviceRequest;
+import com.leafy.iotmetricscollectorservice.dto.device.UpdateDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.common.PagedResponse;
 import com.leafy.iotmetricscollectorservice.model.enums.DeviceStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.ProvisioningStatus;
@@ -16,9 +17,13 @@ public interface DeviceService {
 
     DeviceResponse connectDevice(String currentUserId, ConnectDeviceRequest request);
 
-    GenerateClaimCodeResponse generateClaimCode(UUID deviceId);
+    GenerateClaimCodeResponse generateClaimCode(String currentUserId, UUID deviceId);
 
     DeviceResponse claimDevice(String currentUserId, ClaimDeviceRequest request);
+
+    DeviceResponse updateDevice(String currentUserId, UUID deviceId, UpdateDeviceRequest request);
+
+    DeviceResponse releaseDevice(String currentUserId, UUID deviceId);
 
     PagedResponse<DeviceResponse> getDevicesByOwner(
         String ownerUserId,

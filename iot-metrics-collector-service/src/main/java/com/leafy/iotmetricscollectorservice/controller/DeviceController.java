@@ -7,6 +7,7 @@ import com.leafy.iotmetricscollectorservice.dto.device.DeviceResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.GenerateClaimCodeResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.ProvisionDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.device.UpdateDeviceConfigRequest;
+import com.leafy.iotmetricscollectorservice.dto.device.UpdateDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.media.CameraCaptureRequest;
 import com.leafy.iotmetricscollectorservice.dto.media.CameraCaptureResponse;
 import com.leafy.iotmetricscollectorservice.dto.media.DeviceMediaEventResponse;
@@ -15,6 +16,7 @@ import com.leafy.iotmetricscollectorservice.model.enums.DeviceStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.ProvisioningStatus;
 import com.leafy.iotmetricscollectorservice.service.DeviceConfigService;
 import com.leafy.iotmetricscollectorservice.service.DeviceConfigPushService;
+import com.leafy.iotmetricscollectorservice.service.DeviceAccessService;
 import com.leafy.iotmetricscollectorservice.service.DeviceService;
 import com.leafy.iotmetricscollectorservice.service.DeviceMediaService;
 import java.util.List;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -42,6 +45,7 @@ public class DeviceController {
     private final DeviceConfigService deviceConfigService;
     private final DeviceConfigPushService deviceConfigPushService;
     private final DeviceMediaService deviceMediaService;
+    private final DeviceAccessService deviceAccessService;
 
     @PostMapping("/provision")
     public ResponseEntity<DeviceResponse> provisionDevice(@RequestBody ProvisionDeviceRequest request) {
@@ -57,8 +61,11 @@ public class DeviceController {
     }
 
     @PostMapping("/{deviceId}/claim-code")
-    public ResponseEntity<GenerateClaimCodeResponse> generateClaimCode(@PathVariable UUID deviceId) {
-        return ResponseEntity.ok(deviceService.generateClaimCode(deviceId));
+    public ResponseEntity<GenerateClaimCodeResponse> generateClaimCode(
+        @RequestHeader(USER_ID_HEADER) String currentUserId,
+        @PathVariable UUID deviceId
+    ) {
+        return ResponseEntity.ok(deviceService.generateClaimCode(currentUserId, deviceId));
     }
 
     @PostMapping("/claim")
@@ -98,34 +105,67 @@ public class DeviceController {
         );
     }
 
+    @PatchMapping("/{deviceId}")
+    public ResponseEntity<DeviceResponse> updateDevice(
+        @RequestHeader(USER_ID_HEADER) String currentUserId,
+        @PathVariable UUID deviceId,
+        @RequestBody UpdateDeviceRequest request
+    ) {
+        return ResponseEntity.ok(deviceService.updateDevice(currentUserId, deviceId, request));
+    }
+
+    @PostMapping("/{deviceId}/release")
+    public ResponseEntity<DeviceResponse> releaseDevice(
+        @RequestHeader(USER_ID_HEADER) String currentUserId,
+        @PathVariable UUID deviceId
+    ) {
+        return ResponseEntity.ok(deviceService.releaseDevice(currentUserId, deviceId));
+    }
+
     @GetMapping("/{deviceId}/config")
-    public ResponseEntity<DeviceConfigResponse> getDeviceConfig(@PathVariable UUID deviceId) {
+    public ResponseEntity<DeviceConfigResponse> getDeviceConfig(
+        @RequestHeader(USER_ID_HEADER) String currentUserId,
+        @PathVariable UUID deviceId
+    ) {
+        deviceAccessService.requireOwnedDevice(deviceId, currentUserId);
         return ResponseEntity.ok(deviceConfigService.getDeviceConfig(deviceId));
     }
 
     @PutMapping("/{deviceId}/config")
     public ResponseEntity<DeviceConfigResponse> updateDeviceConfig(
+        @RequestHeader(USER_ID_HEADER) String currentUserId,
         @PathVariable UUID deviceId,
         @RequestBody UpdateDeviceConfigRequest request
     ) {
+        deviceAccessService.requireOwnedDevice(deviceId, currentUserId);
         return ResponseEntity.ok(deviceConfigService.updateDeviceConfig(deviceId, request));
     }
 
     @PostMapping("/{deviceId}/config/push")
-    public ResponseEntity<DeviceConfigResponse> pushDeviceConfig(@PathVariable UUID deviceId) {
+    public ResponseEntity<DeviceConfigResponse> pushDeviceConfig(
+        @RequestHeader(USER_ID_HEADER) String currentUserId,
+        @PathVariable UUID deviceId
+    ) {
+        deviceAccessService.requireOwnedDevice(deviceId, currentUserId);
         return ResponseEntity.ok(deviceConfigPushService.pushConfig(deviceId));
     }
 
     @PostMapping("/{deviceId}/camera/capture")
     public ResponseEntity<CameraCaptureResponse> captureDeviceImage(
+        @RequestHeader(USER_ID_HEADER) String currentUserId,
         @PathVariable UUID deviceId,
         @RequestBody(required = false) CameraCaptureRequest request
     ) {
+        deviceAccessService.requireOwnedDevice(deviceId, currentUserId);
         return ResponseEntity.ok(deviceMediaService.requestCapture(deviceId, request));
     }
 
     @GetMapping("/{deviceId}/media")
-    public ResponseEntity<List<DeviceMediaEventResponse>> getDeviceMedia(@PathVariable UUID deviceId) {
+    public ResponseEntity<List<DeviceMediaEventResponse>> getDeviceMedia(
+        @RequestHeader(USER_ID_HEADER) String currentUserId,
+        @PathVariable UUID deviceId
+    ) {
+        deviceAccessService.requireOwnedDevice(deviceId, currentUserId);
         return ResponseEntity.ok(deviceMediaService.listDeviceMedia(deviceId));
     }
 }

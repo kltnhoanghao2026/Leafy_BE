@@ -287,4 +287,28 @@ public class TelemetryQueryException extends RuntimeException {
             "Invalid camera schedule: " + message
         );
     }
+
+    public static TelemetryQueryException invalidDeviceUpdate(String message) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4635,
+            "Invalid device update: " + message
+        );
+    }
+
+    public static TelemetryQueryException deviceAccessDenied(UUID deviceId) {
+        return new TelemetryQueryException(
+            HttpStatus.FORBIDDEN,
+            4636,
+            "Access denied for IoT device: " + deviceId
+        );
+    }
+
+    public static TelemetryQueryException scopeAccessDenied(String scopeType, String scopeId) {
+        return new TelemetryQueryException(
+            HttpStatus.FORBIDDEN,
+            4637,
+            "Access denied for IoT scope " + scopeType + ": " + scopeId
+        );
+    }
 }

@@ -18,6 +18,7 @@ import com.leafy.iotmetricscollectorservice.repository.AlertRuleRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
 import com.leafy.iotmetricscollectorservice.repository.SensorTypeRepository;
 import com.leafy.iotmetricscollectorservice.service.AlertRuleService;
+import com.leafy.iotmetricscollectorservice.service.DeviceAccessService;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -46,20 +47,22 @@ public class AlertRuleServiceImpl implements AlertRuleService {
     private final SensorTypeRepository sensorTypeRepository;
     private final IoTDeviceRepository ioTDeviceRepository;
     private final AlertRuleMapper alertRuleMapper;
+    private final DeviceAccessService deviceAccessService;
 
     @Override
     @Transactional
     public AlertRuleResponse createRule(String currentUserId, CreateAlertRuleRequest request) {
+        String normalizedUserId = requireCurrentUserId(currentUserId);
         CreateAlertRuleRequest ruleRequest = requireCreateRequest(request);
         SensorType sensorType = requireSensorType(ruleRequest.getSensorTypeId());
         validateThresholds(ruleRequest.getMinThreshold(), ruleRequest.getMaxThreshold());
-        validateScope(ruleRequest.getDeviceId(), ruleRequest.getZoneId(), ruleRequest.getFarmPlotId());
+        validateScope(normalizedUserId, ruleRequest.getDeviceId(), ruleRequest.getZoneId(), ruleRequest.getFarmPlotId());
         validateCooldown(ruleRequest.getCooldownMinutes());
 
         AlertRule alertRule = new AlertRule();
         applyRuleFields(
             alertRule,
-            currentUserId,
+            normalizedUserId,
             sensorType,
             ruleRequest.getDeviceId(),
             ruleRequest.getZoneId(),
@@ -90,12 +93,15 @@ public class AlertRuleServiceImpl implements AlertRuleService {
         String sortBy,
         String sortDir
     ) {
-        Specification<AlertRule> specification = hasOwner(currentUserId)
+        String normalizedUserId = requireCurrentUserId(currentUserId);
+        Specification<AlertRule> specification = hasOwner(normalizedUserId)
             .and(hasSensorType(sensorTypeId))
             .and(hasDevice(deviceId))
             .and(hasZone(zoneId))
             .and(hasFarmPlot(farmPlotId))
             .and(hasEnabled(enabled));
+
+        validateExplicitScopeFilters(normalizedUserId, deviceId, zoneId, farmPlotId);
 
         Pageable pageable = buildPageable(page, size, sortBy, sortDir);
         Page<AlertRuleResponse> mappedPage = alertRuleRepository.findAll(specification, pageable)
@@ -107,22 +113,23 @@ public class AlertRuleServiceImpl implements AlertRuleService {
     @Override
     @Transactional(readOnly = true)
     public AlertRuleResponse getRule(String currentUserId, UUID ruleId) {
-        return alertRuleMapper.toAlertRuleResponse(loadOwnedRule(currentUserId, ruleId));
+        return alertRuleMapper.toAlertRuleResponse(loadOwnedRule(requireCurrentUserId(currentUserId), ruleId));
     }
 
     @Override
     @Transactional
     public AlertRuleResponse updateRule(String currentUserId, UUID ruleId, UpdateAlertRuleRequest request) {
+        String normalizedUserId = requireCurrentUserId(currentUserId);
         UpdateAlertRuleRequest ruleRequest = requireUpdateRequest(request);
-        AlertRule alertRule = loadOwnedRule(currentUserId, ruleId);
+        AlertRule alertRule = loadOwnedRule(normalizedUserId, ruleId);
         SensorType sensorType = requireSensorType(ruleRequest.getSensorTypeId());
         validateThresholds(ruleRequest.getMinThreshold(), ruleRequest.getMaxThreshold());
-        validateScope(ruleRequest.getDeviceId(), ruleRequest.getZoneId(), ruleRequest.getFarmPlotId());
+        validateScope(normalizedUserId, ruleRequest.getDeviceId(), ruleRequest.getZoneId(), ruleRequest.getFarmPlotId());
         validateCooldown(ruleRequest.getCooldownMinutes());
 
         applyRuleFields(
             alertRule,
-            currentUserId,
+            normalizedUserId,
             sensorType,
             ruleRequest.getDeviceId(),
             ruleRequest.getZoneId(),
@@ -146,7 +153,7 @@ public class AlertRuleServiceImpl implements AlertRuleService {
             throw TelemetryQueryException.invalidAlertRuleEnabledValue();
         }
 
-        AlertRule alertRule = loadOwnedRule(currentUserId, ruleId);
+        AlertRule alertRule = loadOwnedRule(requireCurrentUserId(currentUserId), ruleId);
         alertRule.setEnabled(enabled);
         return alertRuleMapper.toAlertRuleResponse(alertRuleRepository.save(alertRule));
     }
@@ -154,7 +161,7 @@ public class AlertRuleServiceImpl implements AlertRuleService {
     @Override
     @Transactional
     public void deleteRule(String currentUserId, UUID ruleId) {
-        AlertRule alertRule = loadOwnedRule(currentUserId, ruleId);
+        AlertRule alertRule = loadOwnedRule(requireCurrentUserId(currentUserId), ruleId);
         alertEventRepository.clearAlertRuleByAlertRuleId(alertRule.getId());
         alertRuleRepository.delete(alertRule);
     }
@@ -171,6 +178,13 @@ public class AlertRuleServiceImpl implements AlertRuleService {
             throw TelemetryQueryException.invalidAlertRuleThresholds();
         }
         return request;
+    }
+
+    private String requireCurrentUserId(String currentUserId) {
+        if (currentUserId == null || currentUserId.isBlank()) {
+            throw TelemetryQueryException.invalidDeviceUpdate("X-User-Id must not be blank");
+        }
+        return currentUserId.trim();
     }
 
     private AlertRule loadOwnedRule(String currentUserId, UUID ruleId) {
@@ -225,12 +239,30 @@ public class AlertRuleServiceImpl implements AlertRuleService {
         }
     }
 
-    private void validateScope(UUID deviceId, String zoneId, String farmPlotId) {
+    private void validateScope(String currentUserId, UUID deviceId, String zoneId, String farmPlotId) {
         if (deviceId == null && zoneId == null && farmPlotId == null) {
             throw TelemetryQueryException.invalidAlertRuleScope();
         }
-        if (deviceId != null && !ioTDeviceRepository.existsById(deviceId)) {
-            throw TelemetryQueryException.deviceNotFound(deviceId);
+        if (deviceId != null) {
+            deviceAccessService.requireOwnedDevice(deviceId, currentUserId);
+        }
+        if (zoneId != null) {
+            deviceAccessService.requireOwnedZone(zoneId, currentUserId);
+        }
+        if (farmPlotId != null) {
+            deviceAccessService.requireOwnedFarmPlot(farmPlotId, currentUserId);
+        }
+    }
+
+    private void validateExplicitScopeFilters(String currentUserId, UUID deviceId, String zoneId, String farmPlotId) {
+        if (deviceId != null) {
+            deviceAccessService.requireOwnedDevice(deviceId, currentUserId);
+        }
+        if (zoneId != null) {
+            deviceAccessService.requireOwnedZone(zoneId, currentUserId);
+        }
+        if (farmPlotId != null) {
+            deviceAccessService.requireOwnedFarmPlot(farmPlotId, currentUserId);
         }
     }
 
