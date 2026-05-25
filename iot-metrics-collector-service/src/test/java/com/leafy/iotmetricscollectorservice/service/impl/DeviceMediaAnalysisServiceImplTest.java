@@ -147,7 +147,7 @@ class DeviceMediaAnalysisServiceImplTest {
         when(diseaseDetectionClient.detect("https://s3.test/file-1", "file-1")).thenReturn(detection);
         AlertEvent alert = new AlertEvent();
         alert.setId(UUID.randomUUID());
-        when(imageDiseaseAlertService.createDiseaseAlert(event, detection)).thenReturn(alert);
+        when(imageDiseaseAlertService.createDiseaseAlert(event, detection, analysis)).thenReturn(alert);
 
         service.processJob(ImageAnalysisJob.builder()
             .mediaEventId(mediaEventId)
@@ -434,7 +434,7 @@ class DeviceMediaAnalysisServiceImplTest {
 
         assertThat(analysis.getStatus()).isEqualTo(DeviceMediaAnalysisStatus.DISEASE_DETECTED);
         assertThat(analysis.getSeverity()).isEqualTo("HIGH");
-        verify(imageDiseaseAlertService, never()).createDiseaseAlert(any(), any());
+        verify(imageDiseaseAlertService, never()).createDiseaseAlert(any(), any(), any());
     }
 
     private DeviceMediaEvent uploadedEvent(UUID mediaEventId) {

@@ -22,16 +22,19 @@ import com.leafy.iotmetricscollectorservice.repository.DeviceCameraScheduleRepos
 import com.leafy.iotmetricscollectorservice.repository.FarmPlotRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmZoneRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
+import com.leafy.iotmetricscollectorservice.repository.SensorLatestReadingRepository;
 import com.leafy.iotmetricscollectorservice.repository.UserRefRepository;
 import com.leafy.iotmetricscollectorservice.service.DeviceService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -42,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DeviceServiceImpl implements DeviceService {
 
     private static final long CLAIM_CODE_TTL_SECONDS = 15 * 60;
@@ -64,6 +68,7 @@ public class DeviceServiceImpl implements DeviceService {
     private final FarmPlotRefRepository farmPlotRefRepository;
     private final FarmZoneRefRepository farmZoneRefRepository;
     private final DashboardQueryMapper dashboardQueryMapper;
+    private final SensorLatestReadingRepository sensorLatestReadingRepository;
 
     @Override
     @Transactional
@@ -117,12 +122,16 @@ public class DeviceServiceImpl implements DeviceService {
         }
 
         UserRef ownerUser = ensureUserRef(currentUserId);
+        String oldFarmPlotId = idOf(device.getFarmPlot());
+        String oldZoneId = idOf(device.getZone());
         device.setOwnerUser(ownerUser);
         device.setFarmPlot(ensureFarmPlotRef(normalizedRequest.getFarmPlotId()));
         device.setZone(ensureFarmZoneRef(normalizedRequest.getZoneId()));
         device.setProvisioningStatus(ProvisioningStatus.CLAIMED);
 
-        return dashboardQueryMapper.toDeviceResponse(ioTDeviceRepository.save(device));
+        IoTDevice savedDevice = ioTDeviceRepository.save(device);
+        clearLatestReadingsIfAssignmentChanged(savedDevice, oldFarmPlotId, oldZoneId, "connect");
+        return dashboardQueryMapper.toDeviceResponse(savedDevice);
     }
 
     private IoTDevice resolveDeviceForConnect(ConnectDeviceRequest request) {
@@ -243,6 +252,8 @@ public class DeviceServiceImpl implements DeviceService {
         }
 
         UserRef ownerUser = ensureUserRef(currentUserId);
+        String oldFarmPlotId = idOf(device.getFarmPlot());
+        String oldZoneId = idOf(device.getZone());
         device.setOwnerUser(ownerUser);
         device.setFarmPlot(ensureFarmPlotRef(normalizedRequest.getFarmPlotId()));
         device.setZone(ensureFarmZoneRef(normalizedRequest.getZoneId()));
@@ -254,6 +265,7 @@ public class DeviceServiceImpl implements DeviceService {
         deviceClaim.setStatus(ClaimStatus.CLAIMED.name());
 
         ioTDeviceRepository.save(device);
+        clearLatestReadingsIfAssignmentChanged(device, oldFarmPlotId, oldZoneId, "claim");
         deviceClaimRepository.save(deviceClaim);
         return dashboardQueryMapper.toDeviceResponse(device);
     }
@@ -263,6 +275,8 @@ public class DeviceServiceImpl implements DeviceService {
     public DeviceResponse updateDevice(String currentUserId, UUID deviceId, UpdateDeviceRequest request) {
         IoTDevice device = requireOwnedDevice(deviceId, currentUserId);
         UpdateDeviceRequest updateRequest = request != null ? request : new UpdateDeviceRequest();
+        String oldFarmPlotId = idOf(device.getFarmPlot());
+        String oldZoneId = idOf(device.getZone());
 
         if (updateRequest.getDeviceName() != null) {
             device.setDeviceName(normalizeDeviceName(updateRequest.getDeviceName()));
@@ -277,7 +291,9 @@ public class DeviceServiceImpl implements DeviceService {
             device.setIsActive(updateRequest.getActive());
         }
 
-        return dashboardQueryMapper.toDeviceResponse(ioTDeviceRepository.save(device));
+        IoTDevice savedDevice = ioTDeviceRepository.save(device);
+        clearLatestReadingsIfAssignmentChanged(savedDevice, oldFarmPlotId, oldZoneId, "update");
+        return dashboardQueryMapper.toDeviceResponse(savedDevice);
     }
 
     @Override
@@ -294,6 +310,7 @@ public class DeviceServiceImpl implements DeviceService {
 
         revokePendingClaimCodes(deviceId);
         disableCameraSchedules(deviceUid);
+        clearLatestReadingsForDevice(device, "release");
 
         return dashboardQueryMapper.toDeviceResponse(ioTDeviceRepository.save(device));
     }
@@ -387,6 +404,38 @@ public class DeviceServiceImpl implements DeviceService {
             schedule.setNextRunAt(null);
         });
         deviceCameraScheduleRepository.saveAll(schedules);
+    }
+
+    private void clearLatestReadingsIfAssignmentChanged(
+        IoTDevice device,
+        String oldFarmPlotId,
+        String oldZoneId,
+        String reason
+    ) {
+        if (!Objects.equals(oldFarmPlotId, idOf(device.getFarmPlot())) || !Objects.equals(oldZoneId, idOf(device.getZone()))) {
+            clearLatestReadingsForDevice(device, reason);
+        }
+    }
+
+    private void clearLatestReadingsForDevice(IoTDevice device, String reason) {
+        if (device == null || device.getId() == null) {
+            return;
+        }
+        sensorLatestReadingRepository.deleteByDeviceId(device.getId());
+        log.info(
+            "Cleared sensor latest readings for device assignment change. deviceId={}, deviceUid={}, reason={}",
+            device.getId(),
+            device.getDeviceUid(),
+            reason
+        );
+    }
+
+    private String idOf(FarmPlotRef farmPlot) {
+        return farmPlot != null ? farmPlot.getId() : null;
+    }
+
+    private String idOf(FarmZoneRef zone) {
+        return zone != null ? zone.getId() : null;
     }
 
     private DeviceResponse handleIdempotentClaim(IoTDevice device, String currentUserId, ClaimDeviceRequest request) {

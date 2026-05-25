@@ -32,4 +32,9 @@ public class AlertTriggeredEvent {
     private String referenceType;
     private String referenceId;
     private String url;
+
+    private String mediaEventId;
+    private String analysisId;
+    private String diseaseName;
+    private String confidence;
 }

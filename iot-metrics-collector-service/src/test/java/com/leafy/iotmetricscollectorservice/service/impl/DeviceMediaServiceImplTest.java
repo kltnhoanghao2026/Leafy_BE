@@ -19,6 +19,7 @@ import com.leafy.iotmetricscollectorservice.model.enums.DeviceMediaEventStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.ProvisioningStatus;
 import com.leafy.iotmetricscollectorservice.model.enums.TriggerType;
 import com.leafy.iotmetricscollectorservice.model.ref.FileRef;
+import com.leafy.iotmetricscollectorservice.model.ref.FarmZoneRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.DeviceMediaEventRepository;
 import com.leafy.iotmetricscollectorservice.repository.DeviceMediaAnalysisRepository;
@@ -242,13 +243,50 @@ class DeviceMediaServiceImplTest {
         DeviceMediaEvent older = new DeviceMediaEvent();
         older.setRequestId("older");
         older.setRequestedAt(Instant.parse("2026-04-25T03:00:00Z"));
-        when(ioTDeviceRepository.existsById(deviceId)).thenReturn(true);
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(claimedDevice(deviceId)));
         when(deviceMediaEventRepository.findTop20ByDeviceIdOrderByRequestedAtDesc(deviceId))
             .thenReturn(List.of(newest, older));
 
         var response = service.listDeviceMedia(deviceId);
 
         assertThat(response).extracting("requestId").containsExactly("newest", "older");
+    }
+
+    @Test
+    void listDeviceMedia_withZoneIdReturnsCurrentZoneMediaOnly() {
+        UUID deviceId = UUID.randomUUID();
+        String zoneId = "zone-current";
+        IoTDevice device = claimedDevice(deviceId);
+        FarmZoneRef zone = new FarmZoneRef();
+        zone.setId(zoneId);
+        device.setZone(zone);
+        DeviceMediaEvent mediaEvent = new DeviceMediaEvent();
+        mediaEvent.setRequestId("zone-media");
+        mediaEvent.setRequestedAt(Instant.parse("2026-04-25T03:00:10Z"));
+
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(device));
+        when(deviceMediaEventRepository.findTop20ByDeviceIdAndZoneIdOrderByRequestedAtDesc(deviceId, zoneId))
+            .thenReturn(List.of(mediaEvent));
+
+        var response = service.listDeviceMedia(deviceId, zoneId);
+
+        assertThat(response).extracting("requestId").containsExactly("zone-media");
+        verify(deviceMediaEventRepository, org.mockito.Mockito.never())
+            .findTop20ByDeviceIdOrderByRequestedAtDesc(deviceId);
+    }
+
+    @Test
+    void listDeviceMedia_withMismatchedZoneIdThrowsBusinessError() {
+        UUID deviceId = UUID.randomUUID();
+        IoTDevice device = claimedDevice(deviceId);
+        FarmZoneRef zone = new FarmZoneRef();
+        zone.setId("zone-current");
+        device.setZone(zone);
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(device));
+
+        assertThatThrownBy(() -> service.listDeviceMedia(deviceId, "zone-old"))
+            .isInstanceOf(TelemetryQueryException.class)
+            .hasMessageContaining("IOT_DEVICE_ZONE_MISMATCH");
     }
 
     @Test

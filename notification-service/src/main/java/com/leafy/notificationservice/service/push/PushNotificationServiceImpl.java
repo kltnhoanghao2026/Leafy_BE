@@ -141,6 +141,10 @@ public class PushNotificationServiceImpl implements PushNotificationService {
         payload.put("triggerValue", event.getTriggerValue());
         payload.put("thresholdMin", event.getThresholdMin());
         payload.put("thresholdMax", event.getThresholdMax());
+        payload.put("mediaEventId", event.getMediaEventId());
+        payload.put("analysisId", event.getAnalysisId());
+        payload.put("diseaseName", event.getDiseaseName());
+        payload.put("confidence", event.getConfidence());
         payload.put("title", event.getTitle());
         payload.put("message", event.getMessage());
         payload.put("body", event.getMessage());

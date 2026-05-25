@@ -93,11 +93,24 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
     @Override
     @Transactional(readOnly = true)
     public List<DeviceMediaEventResponse> listDeviceMedia(UUID deviceId) {
-        if (!ioTDeviceRepository.existsById(deviceId)) {
-            throw TelemetryQueryException.deviceNotFound(deviceId);
-        }
+        return listDeviceMedia(deviceId, null);
+    }
 
-        return deviceMediaEventRepository.findTop20ByDeviceIdOrderByRequestedAtDesc(deviceId).stream()
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeviceMediaEventResponse> listDeviceMedia(UUID deviceId, String zoneId) {
+        IoTDevice device = ioTDeviceRepository.findById(deviceId)
+            .orElseThrow(() -> TelemetryQueryException.deviceNotFound(deviceId));
+        String normalizedZoneId = normalizeOptionalZoneId(zoneId);
+
+        List<DeviceMediaEvent> mediaEvents = normalizedZoneId == null
+            ? deviceMediaEventRepository.findTop20ByDeviceIdOrderByRequestedAtDesc(deviceId)
+            : deviceMediaEventRepository.findTop20ByDeviceIdAndZoneIdOrderByRequestedAtDesc(
+                deviceId,
+                requireCurrentZoneId(device, normalizedZoneId)
+            );
+
+        return mediaEvents.stream()
             .map(this::toResponse)
             .toList();
     }
@@ -223,6 +236,24 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
         if (device.getProvisioningStatus() != ProvisioningStatus.CLAIMED || device.getOwnerUser() == null) {
             throw TelemetryQueryException.unclaimedDevice(device.getId());
         }
+    }
+
+    private String requireCurrentZoneId(IoTDevice device, String requestedZoneId) {
+        if (device.getZone() == null || device.getZone().getId() == null) {
+            throw TelemetryQueryException.deviceZoneRequired(device.getId());
+        }
+        String currentZoneId = device.getZone().getId();
+        if (!currentZoneId.equals(requestedZoneId)) {
+            throw TelemetryQueryException.deviceZoneMismatch(device.getId(), requestedZoneId);
+        }
+        return currentZoneId;
+    }
+
+    private String normalizeOptionalZoneId(String zoneId) {
+        if (zoneId == null || zoneId.isBlank()) {
+            return null;
+        }
+        return zoneId.trim();
     }
 
     private CameraCaptureRequest normalize(CameraCaptureRequest request) {

@@ -182,6 +182,10 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
         copyPayloadValue(payload, data, "zoneId");
         copyPayloadValue(payload, data, "farmPlotId");
         copyPayloadValue(payload, data, "sensorTypeCode");
+        copyPayloadValue(payload, data, "mediaEventId");
+        copyPayloadValue(payload, data, "analysisId");
+        copyPayloadValue(payload, data, "diseaseName");
+        copyPayloadValue(payload, data, "confidence");
         return data;
     }
 

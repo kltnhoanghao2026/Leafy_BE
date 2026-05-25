@@ -28,10 +28,11 @@ public class TelemetryQueryController {
     @GetMapping("/devices/{deviceId}/latest-readings")
     public ResponseEntity<List<LatestReadingItemResponse>> getLatestReadingsByDevice(
         @RequestHeader(DeviceController.USER_ID_HEADER) String currentUserId,
-        @PathVariable UUID deviceId
+        @PathVariable UUID deviceId,
+        @RequestParam(required = false) String zoneId
     ) {
         deviceAccessService.requireOwnedDevice(deviceId, currentUserId);
-        return ResponseEntity.ok(telemetryQueryService.getLatestReadingsByDevice(deviceId));
+        return ResponseEntity.ok(telemetryQueryService.getLatestReadingsByDevice(deviceId, zoneId));
     }
 
     @GetMapping("/devices/{deviceId}/charts")
@@ -39,10 +40,11 @@ public class TelemetryQueryController {
         @RequestHeader(DeviceController.USER_ID_HEADER) String currentUserId,
         @PathVariable UUID deviceId,
         @RequestParam String sensorCode,
-        @RequestParam String range
+        @RequestParam String range,
+        @RequestParam(required = false) String zoneId
     ) {
         deviceAccessService.requireOwnedDevice(deviceId, currentUserId);
-        return ResponseEntity.ok(telemetryQueryService.getDeviceSensorChart(deviceId, sensorCode, parseRange(range)));
+        return ResponseEntity.ok(telemetryQueryService.getDeviceSensorChart(deviceId, sensorCode, parseRange(range), zoneId));
     }
 
     @GetMapping("/farm-zones/{zoneId}/charts")

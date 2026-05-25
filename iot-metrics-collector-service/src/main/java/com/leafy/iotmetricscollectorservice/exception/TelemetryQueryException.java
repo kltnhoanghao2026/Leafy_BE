@@ -423,4 +423,23 @@ public class TelemetryQueryException extends RuntimeException {
             "IOT_DEVICE_UID_CONFLICT: Device identifier conflicts with another device: " + deviceUid
         );
     }
+
+    public static TelemetryQueryException deviceZoneRequired(UUID deviceId) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4652,
+            "IOT_DEVICE_ZONE_REQUIRED: Device is not assigned to a zone: " + deviceId
+        );
+    }
+
+    public static TelemetryQueryException deviceZoneMismatch(UUID deviceId, String zoneId) {
+        return new TelemetryQueryException(
+            HttpStatus.BAD_REQUEST,
+            4653,
+            "IOT_DEVICE_ZONE_MISMATCH: Requested zone is not the current zone of device "
+                + deviceId
+                + ": "
+                + zoneId
+        );
+    }
 }

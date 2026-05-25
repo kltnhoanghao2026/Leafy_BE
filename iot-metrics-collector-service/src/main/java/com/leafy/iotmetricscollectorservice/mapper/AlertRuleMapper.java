@@ -15,6 +15,9 @@ public class AlertRuleMapper {
         AlertRuleResponse response = new AlertRuleResponse();
         response.setId(alertRule.getId());
         response.setSensorTypeId(alertRule.getSensorType() != null ? alertRule.getSensorType().getId() : null);
+        response.setSensorTypeCode(alertRule.getSensorType() != null ? alertRule.getSensorType().getCode() : null);
+        response.setSensorTypeName(alertRule.getSensorType() != null ? alertRule.getSensorType().getName() : null);
+        response.setSensorTypeUnit(alertRule.getSensorType() != null ? alertRule.getSensorType().getUnit() : null);
         response.setDeviceId(alertRule.getDevice() != null ? alertRule.getDevice().getId() : null);
         response.setZoneId(alertRule.getZone() != null ? alertRule.getZone().getId() : null);
         response.setFarmPlotId(alertRule.getFarmPlot() != null ? alertRule.getFarmPlot().getId() : null);

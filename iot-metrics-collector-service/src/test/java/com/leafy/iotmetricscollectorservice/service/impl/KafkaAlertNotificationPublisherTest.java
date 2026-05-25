@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import com.leafy.common.event.notification.AlertTriggeredEvent;
 import com.leafy.iotmetricscollectorservice.model.AlertEvent;
 import com.leafy.iotmetricscollectorservice.model.AlertRule;
+import com.leafy.iotmetricscollectorservice.model.DeviceMediaAnalysis;
+import com.leafy.iotmetricscollectorservice.model.DeviceMediaEvent;
 import com.leafy.iotmetricscollectorservice.model.IoTDevice;
 import com.leafy.iotmetricscollectorservice.model.SensorType;
 import com.leafy.iotmetricscollectorservice.model.enums.AlertSeverity;
@@ -90,6 +92,61 @@ class KafkaAlertNotificationPublisherTest {
         assertDoesNotThrow(() -> publisher.publishAlertTriggered(alertEvent));
     }
 
+    @Test
+    void publishAlertTriggered_diseaseAlertWithoutRulePublishesWithExplicitPolicy() {
+        AlertEvent alertEvent = createDiseaseAlertEvent();
+        when(kafkaTemplate.send(eq("iot.alert.triggered"), any(String.class), any(AlertTriggeredEvent.class)))
+            .thenReturn(CompletableFuture.completedFuture(null));
+
+        publisher.publishAlertTriggered(alertEvent, true, true);
+
+        ArgumentCaptor<AlertTriggeredEvent> eventCaptor = ArgumentCaptor.forClass(AlertTriggeredEvent.class);
+        verify(kafkaTemplate).send(eq("iot.alert.triggered"), any(String.class), eventCaptor.capture());
+        AlertTriggeredEvent event = eventCaptor.getValue();
+        org.junit.jupiter.api.Assertions.assertEquals(alertEvent.getId().toString(), event.getAlertEventId());
+        org.junit.jupiter.api.Assertions.assertEquals(alertEvent.getId().toString(), event.getReferenceId());
+        org.junit.jupiter.api.Assertions.assertEquals("ALERT_EVENT", event.getReferenceType());
+        org.junit.jupiter.api.Assertions.assertEquals("CAMERA_DISEASE_DETECTION", event.getSensorTypeCode());
+        org.junit.jupiter.api.Assertions.assertEquals("DISEASE_DETECTED", event.getAlertType());
+        org.junit.jupiter.api.Assertions.assertEquals("HIGH", event.getSeverity());
+        org.junit.jupiter.api.Assertions.assertEquals(Boolean.TRUE, event.getNotifyWeb());
+        org.junit.jupiter.api.Assertions.assertEquals(Boolean.TRUE, event.getNotifyMobile());
+        org.junit.jupiter.api.Assertions.assertEquals("Disease detected from camera image", event.getTitle());
+        org.junit.jupiter.api.Assertions.assertEquals(
+            "/dashboard/alerts?alertId=" + alertEvent.getId(),
+            event.getUrl()
+        );
+    }
+
+    @Test
+    void publishAlertTriggered_diseaseAlertWithDisabledPolicySkipsKafkaPublish() {
+        AlertEvent alertEvent = createDiseaseAlertEvent();
+
+        publisher.publishAlertTriggered(alertEvent, false, false);
+
+        verify(kafkaTemplate, never()).send(any(), any(), any());
+    }
+
+    @Test
+    void publishDiseaseAlertTriggered_addsOptionalDiseaseMetadata() {
+        AlertEvent alertEvent = createDiseaseAlertEvent();
+        DeviceMediaAnalysis analysis = createDiseaseAnalysis();
+        when(kafkaTemplate.send(eq("iot.alert.triggered"), any(String.class), any(AlertTriggeredEvent.class)))
+            .thenReturn(CompletableFuture.completedFuture(null));
+
+        publisher.publishDiseaseAlertTriggered(alertEvent, analysis, true, true);
+
+        ArgumentCaptor<AlertTriggeredEvent> eventCaptor = ArgumentCaptor.forClass(AlertTriggeredEvent.class);
+        verify(kafkaTemplate).send(eq("iot.alert.triggered"), any(String.class), eventCaptor.capture());
+        AlertTriggeredEvent event = eventCaptor.getValue();
+        org.junit.jupiter.api.Assertions.assertEquals(analysis.getMediaEvent().getId().toString(), event.getMediaEventId());
+        org.junit.jupiter.api.Assertions.assertEquals(analysis.getId().toString(), event.getAnalysisId());
+        org.junit.jupiter.api.Assertions.assertEquals("leaf rust", event.getDiseaseName());
+        org.junit.jupiter.api.Assertions.assertEquals("0.86", event.getConfidence());
+        org.junit.jupiter.api.Assertions.assertEquals(alertEvent.getId().toString(), event.getReferenceId());
+        org.junit.jupiter.api.Assertions.assertEquals(Boolean.TRUE, event.getNotifyMobile());
+    }
+
     private AlertEvent createAlertEvent() {
         UserRef ownerUser = new UserRef();
         ownerUser.setId("owner-1");
@@ -126,5 +183,33 @@ class KafkaAlertNotificationPublisherTest {
         alertRule.setNotifyMobile(false);
         alertEvent.setAlertRule(alertRule);
         return alertEvent;
+    }
+
+    private AlertEvent createDiseaseAlertEvent() {
+        AlertEvent alertEvent = createAlertEvent();
+        SensorType sensorType = new SensorType();
+        sensorType.setId(UUID.randomUUID());
+        sensorType.setCode("CAMERA_DISEASE_DETECTION");
+        alertEvent.setSensorType(sensorType);
+        alertEvent.setAlertRule(null);
+        alertEvent.setAlertType("DISEASE_DETECTED");
+        alertEvent.setSeverity(AlertSeverity.HIGH);
+        alertEvent.setTriggerValue(0.86d);
+        alertEvent.setThresholdMax(null);
+        alertEvent.setMessage("Detected rust with 86% confidence from camera image.");
+        return alertEvent;
+    }
+
+    private DeviceMediaAnalysis createDiseaseAnalysis() {
+        DeviceMediaEvent mediaEvent = new DeviceMediaEvent();
+        mediaEvent.setId(UUID.randomUUID());
+
+        DeviceMediaAnalysis analysis = new DeviceMediaAnalysis();
+        analysis.setId(UUID.randomUUID());
+        analysis.setMediaEvent(mediaEvent);
+        analysis.setDiseaseName("leaf rust");
+        analysis.setDiseaseType("leaf rust");
+        analysis.setConfidence(0.86d);
+        return analysis;
     }
 }

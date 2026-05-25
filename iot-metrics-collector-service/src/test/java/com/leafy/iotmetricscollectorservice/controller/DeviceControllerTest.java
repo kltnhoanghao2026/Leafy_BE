@@ -12,6 +12,7 @@ import com.leafy.iotmetricscollectorservice.dto.device.DeviceConfigResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.DeviceResponse;
 import com.leafy.iotmetricscollectorservice.dto.device.GenerateClaimCodeResponse;
 import com.leafy.iotmetricscollectorservice.dto.common.PagedResponse;
+import com.leafy.iotmetricscollectorservice.dto.media.DeviceMediaEventResponse;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryExceptionHandler;
 import com.leafy.iotmetricscollectorservice.model.enums.DeviceStatus;
@@ -573,6 +574,28 @@ class DeviceControllerTest {
             .andExpect(jsonPath("$.deviceId").value(deviceId.toString()))
             .andExpect(jsonPath("$.configVersion").value(4))
             .andExpect(jsonPath("$.samplingIntervalSec").value(60));
+    }
+
+    @Test
+    void getDeviceMedia_passesOptionalZoneId() throws Exception {
+        UUID deviceId = UUID.randomUUID();
+        String zoneId = "zone-current";
+        DeviceMediaEventResponse response = new DeviceMediaEventResponse();
+        response.setId(UUID.randomUUID());
+        response.setDeviceId(deviceId);
+        response.setZoneId(zoneId);
+        response.setRequestId("request-1");
+
+        when(deviceMediaService.listDeviceMedia(deviceId, zoneId)).thenReturn(java.util.List.of(response));
+
+        mockMvc.perform(
+                get("/iot/devices/{deviceId}/media", deviceId)
+                    .header(DeviceController.USER_ID_HEADER, "user-1")
+                    .param("zoneId", zoneId)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].zoneId").value(zoneId))
+            .andExpect(jsonPath("$[0].requestId").value("request-1"));
     }
 
     @Test

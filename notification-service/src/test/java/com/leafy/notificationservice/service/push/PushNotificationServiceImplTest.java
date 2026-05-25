@@ -67,6 +67,26 @@ class PushNotificationServiceImplTest {
     }
 
     @Test
+    void handleAlertTriggered_carriesDiseaseMetadataInPayload() {
+        AlertTriggeredEvent event = createEvent();
+        event.setNotifyWeb(false);
+        event.setNotifyMobile(true);
+        event.setMediaEventId("media-1");
+        event.setAnalysisId("analysis-1");
+        event.setDiseaseName("leaf rust");
+        event.setConfidence("0.86");
+        when(notificationUserRepository.findByUserId("auth-user-1")).thenReturn(Optional.empty());
+
+        service.handleAlertTriggered(event);
+
+        BatchedNotificationEvent batched = captureBatchedEvent();
+        assertEquals("media-1", batched.getMergedPayload().get("mediaEventId"));
+        assertEquals("analysis-1", batched.getMergedPayload().get("analysisId"));
+        assertEquals("leaf rust", batched.getMergedPayload().get("diseaseName"));
+        assertEquals("0.86", batched.getMergedPayload().get("confidence"));
+    }
+
+    @Test
     void handleAlertTriggered_notifyMobileCreatesFcmChannel() {
         AlertTriggeredEvent event = createEvent();
         event.setNotifyWeb(false);

@@ -163,9 +163,10 @@ public class DeviceController {
     @GetMapping("/{deviceId}/media")
     public ResponseEntity<List<DeviceMediaEventResponse>> getDeviceMedia(
         @RequestHeader(USER_ID_HEADER) String currentUserId,
-        @PathVariable UUID deviceId
+        @PathVariable UUID deviceId,
+        @RequestParam(required = false) String zoneId
     ) {
         deviceAccessService.requireOwnedDevice(deviceId, currentUserId);
-        return ResponseEntity.ok(deviceMediaService.listDeviceMedia(deviceId));
+        return ResponseEntity.ok(deviceMediaService.listDeviceMedia(deviceId, zoneId));
     }
 }

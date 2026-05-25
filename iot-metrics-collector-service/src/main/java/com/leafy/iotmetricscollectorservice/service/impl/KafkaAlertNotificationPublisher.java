@@ -2,6 +2,7 @@ package com.leafy.iotmetricscollectorservice.service.impl;
 
 import com.leafy.common.event.notification.AlertTriggeredEvent;
 import com.leafy.iotmetricscollectorservice.model.AlertEvent;
+import com.leafy.iotmetricscollectorservice.model.DeviceMediaAnalysis;
 import com.leafy.iotmetricscollectorservice.service.AlertNotificationPublisher;
 import java.time.Instant;
 import java.util.UUID;
@@ -27,7 +28,28 @@ public class KafkaAlertNotificationPublisher implements AlertNotificationPublish
 
     @Override
     public void publishAlertTriggered(AlertEvent alertEvent) {
-        AlertTriggeredEvent event = toEvent(alertEvent);
+        publishAlertTriggered(alertEvent, null, null);
+    }
+
+    @Override
+    public void publishAlertTriggered(AlertEvent alertEvent, Boolean notifyWeb, Boolean notifyMobile) {
+        AlertTriggeredEvent event = toEvent(alertEvent, notifyWeb, notifyMobile);
+        publishEvent(event);
+    }
+
+    @Override
+    public void publishDiseaseAlertTriggered(
+        AlertEvent alertEvent,
+        DeviceMediaAnalysis analysis,
+        Boolean notifyWeb,
+        Boolean notifyMobile
+    ) {
+        AlertTriggeredEvent event = toEvent(alertEvent, notifyWeb, notifyMobile);
+        applyDiseaseMetadata(event, analysis);
+        publishEvent(event);
+    }
+
+    private void publishEvent(AlertTriggeredEvent event) {
         if (!hasRequiredNotificationFields(event)) {
             log.warn(
                 "Skipping alert push event publish because required fields are missing: alertEventId={}, ownerUserId={}, deviceId={}, zoneId={}, sensorTypeCode={}",
@@ -72,7 +94,36 @@ public class KafkaAlertNotificationPublisher implements AlertNotificationPublish
         }
     }
 
-    private AlertTriggeredEvent toEvent(AlertEvent alertEvent) {
+    private void applyDiseaseMetadata(AlertTriggeredEvent event, DeviceMediaAnalysis analysis) {
+        if (analysis == null) {
+            return;
+        }
+        if (analysis.getMediaEvent() != null && analysis.getMediaEvent().getId() != null) {
+            event.setMediaEventId(analysis.getMediaEvent().getId().toString());
+        }
+        if (analysis.getId() != null) {
+            event.setAnalysisId(analysis.getId().toString());
+        }
+        String diseaseName = firstNonBlank(analysis.getDiseaseName(), analysis.getDiseaseType());
+        if (diseaseName != null) {
+            event.setDiseaseName(diseaseName);
+        }
+        if (analysis.getConfidence() != null) {
+            event.setConfidence(String.valueOf(analysis.getConfidence()));
+        }
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        if (second != null && !second.isBlank()) {
+            return second;
+        }
+        return null;
+    }
+
+    private AlertTriggeredEvent toEvent(AlertEvent alertEvent, Boolean notifyWebOverride, Boolean notifyMobileOverride) {
         AlertTriggeredEvent event = new AlertTriggeredEvent();
         event.setEventId(UUID.randomUUID().toString());
         event.setEventType(EVENT_TYPE);
@@ -95,12 +146,30 @@ public class KafkaAlertNotificationPublisher implements AlertNotificationPublish
         event.setThresholdMax(alertEvent.getThresholdMax());
         event.setTitle(buildTitle(alertEvent));
         event.setMessage(alertEvent.getMessage());
-        event.setNotifyWeb(alertEvent.getAlertRule() != null ? Boolean.TRUE.equals(alertEvent.getAlertRule().getNotifyWeb()) : null);
-        event.setNotifyMobile(alertEvent.getAlertRule() != null ? Boolean.TRUE.equals(alertEvent.getAlertRule().getNotifyMobile()) : null);
+        event.setNotifyWeb(resolveNotifyWeb(alertEvent, notifyWebOverride));
+        event.setNotifyMobile(resolveNotifyMobile(alertEvent, notifyMobileOverride));
         event.setReferenceType(REFERENCE_TYPE);
         event.setReferenceId(event.getAlertEventId());
         event.setUrl(event.getAlertEventId() != null ? ALERT_URL_PREFIX + event.getAlertEventId() : null);
         return event;
+    }
+
+    private Boolean resolveNotifyWeb(AlertEvent alertEvent, Boolean override) {
+        if (override != null) {
+            return override;
+        }
+        return alertEvent.getAlertRule() != null
+            ? Boolean.TRUE.equals(alertEvent.getAlertRule().getNotifyWeb())
+            : null;
+    }
+
+    private Boolean resolveNotifyMobile(AlertEvent alertEvent, Boolean override) {
+        if (override != null) {
+            return override;
+        }
+        return alertEvent.getAlertRule() != null
+            ? Boolean.TRUE.equals(alertEvent.getAlertRule().getNotifyMobile())
+            : null;
     }
 
     private Instant resolveOccurredAt(AlertEvent alertEvent) {
@@ -114,6 +183,9 @@ public class KafkaAlertNotificationPublisher implements AlertNotificationPublish
     }
 
     private String buildTitle(AlertEvent alertEvent) {
+        if ("DISEASE_DETECTED".equalsIgnoreCase(alertEvent.getAlertType())) {
+            return "Disease detected from camera image";
+        }
         String severity = alertEvent.getSeverity() != null ? alertEvent.getSeverity().name() : "ALERT";
         String sensorCode = alertEvent.getSensorType() != null ? alertEvent.getSensorType().getCode() : "sensor";
         return severity + " " + sensorCode + " alert";
@@ -131,6 +203,8 @@ public class KafkaAlertNotificationPublisher implements AlertNotificationPublish
             && hasText(event.getTitle())
             && hasText(event.getMessage())
             && (Boolean.TRUE.equals(event.getNotifyWeb()) || Boolean.TRUE.equals(event.getNotifyMobile()))
+            && hasText(event.getReferenceType())
+            && hasText(event.getReferenceId())
             && hasText(event.getUrl());
     }
 

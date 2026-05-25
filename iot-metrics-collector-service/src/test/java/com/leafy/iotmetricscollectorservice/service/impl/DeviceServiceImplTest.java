@@ -34,6 +34,7 @@ import com.leafy.iotmetricscollectorservice.repository.DeviceCameraScheduleRepos
 import com.leafy.iotmetricscollectorservice.repository.FarmPlotRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmZoneRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
+import com.leafy.iotmetricscollectorservice.repository.SensorLatestReadingRepository;
 import com.leafy.iotmetricscollectorservice.repository.UserRefRepository;
 import java.time.Instant;
 import java.util.List;
@@ -72,6 +73,9 @@ class DeviceServiceImplTest {
 
     @Mock
     private FarmZoneRefRepository farmZoneRefRepository;
+
+    @Mock
+    private SensorLatestReadingRepository sensorLatestReadingRepository;
 
     @Spy
     private DashboardQueryMapper dashboardQueryMapper;
@@ -412,6 +416,42 @@ class DeviceServiceImplTest {
         assertEquals(Boolean.FALSE, response.getIsActive());
         assertEquals(ownerUserId, response.getOwnerUserId());
         assertEquals("CLAIMED", response.getProvisioningStatus());
+        verify(sensorLatestReadingRepository).deleteByDeviceId(device.getId());
+    }
+
+    @Test
+    void updateDevice_nameOnlyRetainsLatestReadings() {
+        String ownerUserId = UUID.randomUUID().toString();
+        IoTDevice device = createClaimedDevice(ownerUserId);
+        UpdateDeviceRequest request = new UpdateDeviceRequest();
+        request.setDeviceName("  Renamed Camera  ");
+
+        when(ioTDeviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
+        when(ioTDeviceRepository.save(device)).thenReturn(device);
+
+        DeviceResponse response = deviceService.updateDevice(ownerUserId, device.getId(), request);
+
+        assertEquals("Renamed Camera", response.getDeviceName());
+        verify(sensorLatestReadingRepository, never()).deleteByDeviceId(device.getId());
+    }
+
+    @Test
+    void updateDevice_zoneChangeClearsLatestReadings() {
+        String ownerUserId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+        IoTDevice device = createClaimedDevice(ownerUserId);
+        UpdateDeviceRequest request = new UpdateDeviceRequest();
+        request.setZoneId(zoneId);
+
+        when(ioTDeviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
+        when(farmZoneRefRepository.findById(zoneId)).thenReturn(Optional.empty());
+        when(farmZoneRefRepository.save(any(FarmZoneRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(ioTDeviceRepository.save(device)).thenReturn(device);
+
+        DeviceResponse response = deviceService.updateDevice(ownerUserId, device.getId(), request);
+
+        assertEquals(zoneId, response.getZoneId());
+        verify(sensorLatestReadingRepository).deleteByDeviceId(device.getId());
     }
 
     @Test
@@ -425,6 +465,7 @@ class DeviceServiceImplTest {
 
         assertThrows(TelemetryQueryException.class, () -> deviceService.updateDevice("user-b", device.getId(), request));
         verify(ioTDeviceRepository, never()).save(any(IoTDevice.class));
+        verify(sensorLatestReadingRepository, never()).deleteByDeviceId(device.getId());
     }
 
     @Test
@@ -478,6 +519,7 @@ class DeviceServiceImplTest {
         assertEquals(ClaimStatus.REVOKED.name(), pendingClaim.getStatus());
         assertFalse(schedule.isEnabled());
         assertNull(schedule.getNextRunAt());
+        verify(sensorLatestReadingRepository).deleteByDeviceId(device.getId());
     }
 
     @Test
@@ -491,6 +533,7 @@ class DeviceServiceImplTest {
         assertEquals(ownerUserId, device.getOwnerUser().getId());
         verify(ioTDeviceRepository, never()).save(any(IoTDevice.class));
         verify(deviceClaimRepository, never()).findAllByDeviceIdAndStatus(any(UUID.class), anyString());
+        verify(sensorLatestReadingRepository, never()).deleteByDeviceId(device.getId());
     }
 
     @Test
@@ -525,6 +568,7 @@ class DeviceServiceImplTest {
         assertEquals(farmPlotId, response.getFarmPlotId());
         assertEquals(zoneId, response.getZoneId());
         assertEquals("CLAIMED", response.getProvisioningStatus());
+        verify(sensorLatestReadingRepository).deleteByDeviceId(device.getId());
     }
 
     @Test
@@ -748,6 +792,7 @@ class DeviceServiceImplTest {
         assertEquals(ClaimStatus.CLAIMED.name(), newClaim.getStatus());
         assertEquals(userB, response.getOwnerUserId());
         assertEquals("CLAIMED", response.getProvisioningStatus());
+        verify(sensorLatestReadingRepository).deleteByDeviceId(device.getId());
     }
 
     @Test

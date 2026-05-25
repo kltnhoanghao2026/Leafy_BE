@@ -35,6 +35,24 @@ public interface SensorReadingAgg5mRepository extends JpaRepository<SensorReadin
     @Query("""
         select aggregateReading
         from SensorReadingAgg5m aggregateReading
+        where aggregateReading.device.id = :deviceId
+          and aggregateReading.zone.id = :zoneId
+          and aggregateReading.sensorType.id = :sensorTypeId
+          and aggregateReading.bucketStart >= :from
+          and aggregateReading.bucketStart < :to
+        order by aggregateReading.bucketStart asc
+        """)
+    List<SensorReadingAgg5m> findAllByDeviceIdAndZoneIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
+        @Param("deviceId") UUID deviceId,
+        @Param("zoneId") String zoneId,
+        @Param("sensorTypeId") UUID sensorTypeId,
+        @Param("from") Instant from,
+        @Param("to") Instant to
+    );
+
+    @Query("""
+        select aggregateReading
+        from SensorReadingAgg5m aggregateReading
         where aggregateReading.zone.id = :zoneId
           and aggregateReading.sensorType.id = :sensorTypeId
           and aggregateReading.bucketStart >= :from

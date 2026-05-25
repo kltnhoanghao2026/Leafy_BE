@@ -74,7 +74,7 @@ class TelemetryQueryServiceImplTest {
         SensorLatestReading humidity = createLatestReading(deviceId, "humidity", "Humidity", "%", 64.2d, "2026-04-10T02:10:00Z");
         SensorLatestReading temperature = createLatestReading(deviceId, "soilTemp", "Soil Temperature", "C", 28.4d, "2026-04-10T02:11:00Z");
 
-        when(ioTDeviceRepository.existsById(deviceId)).thenReturn(true);
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(createDevice(deviceId, "zone-1")));
         when(sensorLatestReadingRepository.findAllByDeviceId(deviceId)).thenReturn(List.of(temperature, humidity));
 
         List<LatestReadingItemResponse> response = telemetryQueryService.getLatestReadingsByDevice(deviceId);
@@ -94,7 +94,7 @@ class TelemetryQueryServiceImplTest {
         SensorType sensorType = createSensorType("soilTemp", "Soil Temperature", "C");
         SensorReadingAgg5m aggregate = create5mAggregate(deviceId, sensorType, "2026-04-10T01:00:00Z", 26.5d, 25d, 28d, 4);
 
-        when(ioTDeviceRepository.existsById(deviceId)).thenReturn(true);
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(createDevice(deviceId, "zone-1")));
         when(sensorTypeRepository.findByCode("soilTemp")).thenReturn(Optional.of(sensorType));
         when(sensorReadingAgg5mRepository
             .findAllByDeviceIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
@@ -144,7 +144,7 @@ class TelemetryQueryServiceImplTest {
         UUID deviceId = UUID.randomUUID();
         SensorType sensorType = createSensorType("soilTemp", "Soil Temperature", "C");
 
-        when(ioTDeviceRepository.existsById(deviceId)).thenReturn(true);
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(createDevice(deviceId, "zone-1")));
         when(sensorTypeRepository.findByCode("soilTemp")).thenReturn(Optional.of(sensorType));
         when(sensorReadingAgg1hRepository
             .findAllByDeviceIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
@@ -215,7 +215,7 @@ class TelemetryQueryServiceImplTest {
         UUID deviceId = UUID.randomUUID();
         SensorType sensorType = createSensorType("soilTemp", "Soil Temperature", "C");
 
-        when(ioTDeviceRepository.existsById(deviceId)).thenReturn(true);
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(createDevice(deviceId, "zone-1")));
         when(sensorTypeRepository.findByCode("soilTemp")).thenReturn(Optional.of(sensorType));
         when(sensorReadingAgg5mRepository
             .findAllByDeviceIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
@@ -234,7 +234,7 @@ class TelemetryQueryServiceImplTest {
     @Test
     void getDeviceSensorChart_rejectsUnknownSensorCode() {
         UUID deviceId = UUID.randomUUID();
-        when(ioTDeviceRepository.existsById(deviceId)).thenReturn(true);
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(createDevice(deviceId, "zone-1")));
         when(sensorTypeRepository.findByCode(anyString())).thenReturn(Optional.empty());
 
         assertThrows(
@@ -246,9 +246,79 @@ class TelemetryQueryServiceImplTest {
     @Test
     void getLatestReadingsByDevice_rejectsUnknownDevice() {
         UUID deviceId = UUID.randomUUID();
-        when(ioTDeviceRepository.existsById(deviceId)).thenReturn(false);
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.empty());
 
         assertThrows(TelemetryQueryException.class, () -> telemetryQueryService.getLatestReadingsByDevice(deviceId));
+    }
+
+    @Test
+    void getLatestReadingsByDevice_withZoneIdUsesDeviceAndZoneFilter() {
+        UUID deviceId = UUID.randomUUID();
+        String zoneId = "zone-current";
+        SensorLatestReading temperature = createLatestReading(deviceId, "soilTemp", "Soil Temperature", "C", 28.4d, "2026-04-10T02:11:00Z");
+
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(createDevice(deviceId, zoneId)));
+        when(sensorLatestReadingRepository.findAllByDeviceIdAndZoneId(deviceId, zoneId)).thenReturn(List.of(temperature));
+
+        List<LatestReadingItemResponse> response = telemetryQueryService.getLatestReadingsByDevice(deviceId, zoneId);
+
+        assertEquals(1, response.size());
+        assertEquals("soilTemp", response.getFirst().getSensorCode());
+        verify(sensorLatestReadingRepository, never()).findAllByDeviceId(deviceId);
+    }
+
+    @Test
+    void getLatestReadingsByDevice_rejectsMismatchedZoneId() {
+        UUID deviceId = UUID.randomUUID();
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(createDevice(deviceId, "zone-current")));
+
+        assertThrows(
+            TelemetryQueryException.class,
+            () -> telemetryQueryService.getLatestReadingsByDevice(deviceId, "zone-old")
+        );
+
+        verify(sensorLatestReadingRepository, never()).findAllByDeviceIdAndZoneId(any(UUID.class), anyString());
+    }
+
+    @Test
+    void getDeviceSensorChart_withZoneIdUsesDeviceAndZone5mAggregates() {
+        UUID deviceId = UUID.randomUUID();
+        String zoneId = "zone-current";
+        SensorType sensorType = createSensorType("soilTemp", "Soil Temperature", "C");
+        SensorReadingAgg5m aggregate = create5mAggregate(deviceId, sensorType, "2026-04-10T01:00:00Z", 26.5d, 25d, 28d, 4);
+
+        when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(createDevice(deviceId, zoneId)));
+        when(sensorTypeRepository.findByCode("soilTemp")).thenReturn(Optional.of(sensorType));
+        when(sensorReadingAgg5mRepository
+            .findAllByDeviceIdAndZoneIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
+                any(UUID.class),
+                anyString(),
+                any(UUID.class),
+                any(Instant.class),
+                any(Instant.class)
+            ))
+            .thenReturn(List.of(aggregate));
+
+        SensorChartResponse response = telemetryQueryService.getDeviceSensorChart(deviceId, "soilTemp", ChartRangeType.H24, zoneId);
+
+        verify(sensorReadingAgg5mRepository)
+            .findAllByDeviceIdAndZoneIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
+                any(UUID.class),
+                anyString(),
+                any(UUID.class),
+                any(Instant.class),
+                any(Instant.class)
+            );
+        verify(sensorReadingAgg5mRepository, never())
+            .findAllByDeviceIdAndSensorTypeIdAndBucketStartGreaterThanEqualAndBucketStartLessThanOrderByBucketStartAsc(
+                any(UUID.class),
+                any(UUID.class),
+                any(Instant.class),
+                any(Instant.class)
+            );
+        assertEquals(deviceId, response.getDeviceId());
+        assertEquals(zoneId, response.getZoneId());
+        assertEquals(1, response.getPoints().size());
     }
 
     private void assertWindow(
@@ -282,6 +352,17 @@ class TelemetryQueryServiceImplTest {
         latestReading.setReadingTime(Instant.parse(readingTime));
         latestReading.setQualityStatus(ReadingQualityStatus.GOOD);
         return latestReading;
+    }
+
+    private IoTDevice createDevice(UUID deviceId, String zoneId) {
+        IoTDevice device = new IoTDevice();
+        device.setId(deviceId);
+        if (zoneId != null) {
+            FarmZoneRef zone = new FarmZoneRef();
+            zone.setId(zoneId);
+            device.setZone(zone);
+        }
+        return device;
     }
 
     private SensorType createSensorType(String sensorCode, String sensorName, String unit) {

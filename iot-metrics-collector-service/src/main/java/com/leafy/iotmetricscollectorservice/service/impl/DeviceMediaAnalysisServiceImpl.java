@@ -368,7 +368,7 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         analysis.setError(null);
 
         if (detection.isDiseaseDetected() && analysis.getAlertEvent() == null) {
-            AlertEvent alertEvent = imageDiseaseAlertService.createDiseaseAlert(mediaEvent, detection);
+            AlertEvent alertEvent = imageDiseaseAlertService.createDiseaseAlert(mediaEvent, detection, analysis);
             analysis.setAlertEvent(alertEvent);
         }
     }
