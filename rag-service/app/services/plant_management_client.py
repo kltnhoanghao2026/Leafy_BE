@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from app.config.settings import settings
+from app.services.eureka_discovery import resolve_service_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,13 @@ class PlantManagementClient:
 
     @property
     def _base_url(self) -> str:
+        # Resolve via Eureka if possible (preferred when running in k8s and you
+        # want discovery-server based routing).
+        discovered = resolve_service_base_url("plant-management-service")
+        if discovered:
+            return discovered.rstrip("/")
+
+        # Fallback to configured gateway URL
         return settings.api_gateway_url.rstrip("/")
 
     def create_plan(
@@ -56,7 +64,10 @@ class PlantManagementClient:
             web_search_results=web_search_results,
         )
 
-        url = f"{self._base_url}/api/plans"
+        # When calling through API gateway the path is /api/plans.
+        # When calling plant-management-service directly the path is /plans.
+        base = self._base_url
+        url = f"{base}/plans" if "/api" not in base else f"{base}/api/plans"
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",

@@ -48,6 +48,7 @@ from app.controllers.chat_controller import router as chat_router
 from app.controllers.ingestion_controller import router as ingestion_router
 from app.controllers.conversation_controller import router as conversation_router
 from app.controllers.plan_generation_controller import router as plan_generation_router
+from app.controllers.plan_controller import router as plan_router
 from app.controllers.chunks_controller import router as chunks_router
 import app.agents.rag_agent as rag_agent_module
 import app.agents.plan_agent as plan_agent_module
@@ -226,6 +227,7 @@ app.include_router(ingestion_router, prefix="/rag/v1", tags=["Ingestion"])
 app.include_router(chat_router, prefix="/rag/v1", tags=["Chat"])
 app.include_router(chunks_router, prefix="/rag/v1", tags=["Chunks"])
 app.include_router(plan_generation_router, prefix="/rag/v2/plans", tags=["Treatment Plans"])
+app.include_router(plan_router, prefix="/rag/v2/plans", tags=["Treatment Plans"])
 app.include_router(conversation_router, prefix="/rag/v1/conversations", tags=["Conversations"])
 
 
