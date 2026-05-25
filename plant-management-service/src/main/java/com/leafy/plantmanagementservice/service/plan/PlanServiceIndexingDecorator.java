@@ -4,6 +4,7 @@ import com.leafy.common.event.plan.PlanDeletedEvent;
 import com.leafy.common.event.plan.PlanUpsertEvent;
 import com.leafy.common.model.kafka.EventType;
 import com.leafy.common.publisher.OutboxEventPublisher;
+import com.leafy.plantmanagementservice.dto.request.plan.ApplyToAllFarmsRequest;
 import com.leafy.plantmanagementservice.dto.request.plan.PlanApplyItemRequest;
 import com.leafy.plantmanagementservice.dto.request.plan.PlanApplyRequest;
 import com.leafy.plantmanagementservice.dto.request.plan.PlanCreateRequest;
@@ -28,8 +29,7 @@ import java.util.Optional;
 /**
  * Decorator around {@link PlanServiceImpl} that publishes Kafka indexing events
  * after every Plan mutation. Follows the same pattern as
- * {@link com.leafy.communityfeedservice.service.post.PostServiceIndexingDecorator}.
- */
+  */
 @Service
 @Primary
 @Slf4j
@@ -162,6 +162,11 @@ public class PlanServiceIndexingDecorator implements PlanService {
     @Override
     public PlanApplyResponse completeApply(String applyId, Boolean success) {
         return delegate.completeApply(applyId, success);
+    }
+
+    @Override
+    public PlanApplyResponse applyPlanToAllFarms(String planId, ApplyToAllFarmsRequest request) {
+        return delegate.applyPlanToAllFarms(planId, request);
     }
 
     // ── Kafka event helpers ──────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 package com.leafy.plantmanagementservice.service.plan;
 
+import com.leafy.plantmanagementservice.dto.request.plan.ApplyToAllFarmsRequest;
 import com.leafy.plantmanagementservice.dto.request.plan.PlanApplyItemRequest;
 import com.leafy.plantmanagementservice.dto.request.plan.PlanApplyRequest;
 import com.leafy.plantmanagementservice.dto.request.plan.PlanCreateRequest;
