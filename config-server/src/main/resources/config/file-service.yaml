@@ -1,6 +1,11 @@
 server:
   port: ${SERVER_PORT_FILE}
 
+leafy:
+  security:
+    public-endpoints:
+      - /files/upload
+
 spring:
   data:
     mongodb:

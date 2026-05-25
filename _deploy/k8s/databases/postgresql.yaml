@@ -31,6 +31,10 @@ spec:
                 secretKeyRef:
                   name: leafy-db-secrets
                   key: POSTGRES_DB
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: "scram-sha-256"
+            - name: POSTGRES_INITDB_ARGS
+              value: "-A scram-sha-256"
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:

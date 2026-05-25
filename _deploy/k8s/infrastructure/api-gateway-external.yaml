@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: leafy-api-gateway-external
+  namespace: leafy
+  labels:
+    app: leafy-api-gateway
+spec:
+  type: ExternalName
+  externalName: a426709037bd540f2846541c8c2aeffb-1672644930.ap-southeast-1.elb.amazonaws.com

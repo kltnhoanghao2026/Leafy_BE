@@ -25,6 +25,9 @@ public class PublicEndpointsConfig {
             "/api/internal/**",
             "**/internal/**",
 
+            // File upload endpoint (publicly accessible)
+            "/api/files/upload",
+
             // Actuator endpoints
             "/actuator/**",
 

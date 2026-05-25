@@ -16,8 +16,6 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
-      nodeSelector:
-        node-type: messaging
       terminationGracePeriodSeconds: 60
       containers:
         - name: kafka
@@ -110,7 +108,7 @@ spec:
               cpu: 500m
             limits:
               memory: 2048Mi
-              cpu: 2000m
+              cpu: 1000m
           readinessProbe:
             tcpSocket:
               port: 9092
