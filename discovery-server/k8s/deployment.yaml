@@ -17,10 +17,7 @@ spec:
         node-type: app
       containers:
         - name: discovery-server
-          image: ${ECR_REGISTRY}/leafy-discovery-server:${IMAGE_TAG}
-          env:
-            - name: IMAGE_TAG
-              value: latest
+          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/discovery-server:latest
           ports:
             - containerPort: 8761
           resources:

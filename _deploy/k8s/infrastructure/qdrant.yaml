@@ -15,7 +15,7 @@ spec:
         app: qdrant
     spec:
       nodeSelector:
-        node-type: search-ai
+        node-type: data
       terminationGracePeriodSeconds: 30
       containers:
         - name: qdrant

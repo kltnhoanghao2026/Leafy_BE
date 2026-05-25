@@ -20,7 +20,7 @@ spec:
         app: kafka-ui
     spec:
       nodeSelector:
-        node-type: app
+        node-type: data
       securityContext:
         fsGroup: 1000
       containers:

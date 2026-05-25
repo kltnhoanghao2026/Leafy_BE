@@ -596,17 +596,17 @@ public class AuthServiceImpl implements AuthService {
     private String resolveRefreshToken(HttpServletRequest request,
                                        RefreshTokenRequest refreshTokenRequest,
                                        DeviceType deviceType) {
-        if (deviceType == DeviceType.WEB) {
-            String refreshToken = extractRefreshTokenFromCookie(request);
-            if (refreshToken == null) {
-                throw new AppException(ErrorCode.REFRESH_TOKEN_NOT_FOUND);
-            }
+        // Try request body first (works for both mobile and web)
+        if (refreshTokenRequest != null && refreshTokenRequest.getRefreshToken() != null) {
+            return refreshTokenRequest.getRefreshToken();
+        }
+
+        // Fall back to cookie (for web clients that store token in cookie)
+        String refreshToken = extractRefreshTokenFromCookie(request);
+        if (refreshToken != null) {
             return refreshToken;
         }
 
-        if (refreshTokenRequest == null || refreshTokenRequest.getRefreshToken() == null) {
-            throw new AppException(ErrorCode.REFRESH_TOKEN_NOT_FOUND);
-        }
-        return refreshTokenRequest.getRefreshToken();
+        throw new AppException(ErrorCode.REFRESH_TOKEN_NOT_FOUND);
     }
 }

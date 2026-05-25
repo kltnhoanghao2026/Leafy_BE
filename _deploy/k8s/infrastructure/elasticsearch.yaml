@@ -17,7 +17,7 @@ spec:
       securityContext:
         fsGroup: 1000
       nodeSelector:
-        node-type: search-ai
+        node-type: data
       terminationGracePeriodSeconds: 30
       initContainers:
         - name: install-plugins
