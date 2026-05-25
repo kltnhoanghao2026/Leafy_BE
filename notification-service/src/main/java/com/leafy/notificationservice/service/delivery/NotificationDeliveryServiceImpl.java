@@ -2,6 +2,7 @@ package com.leafy.notificationservice.service.delivery;
 
 import com.leafy.common.event.notification.BatchedNotificationEvent;
 import com.leafy.notificationservice.enums.NotificationChannel;
+import com.leafy.notificationservice.enums.Platform;
 import com.leafy.notificationservice.event.ReadyToDeliverEvent;
 import com.leafy.notificationservice.model.NotificationTemplate;
 import com.leafy.notificationservice.model.UserNotification;
@@ -113,8 +114,10 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
         // Resolve channels from template using recipient's locale; fall back to IN_APP
         String locale = resolveLocale(batched.getRecipientId());
         NotificationTemplate template = templateService.find(batched.getType(), locale);
-        Set<NotificationChannel> channels;
-        if (template != null
+        Set<NotificationChannel> channels = resolveChannelOverride(batched);
+        if (channels != null && !channels.isEmpty()) {
+            channels = new HashSet<>(channels);
+        } else if (template != null
                 && template.getChannels() != null
                 && !template.getChannels().isEmpty()) {
             channels = new HashSet<>(template.getChannels());
@@ -128,7 +131,9 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
         }
 
         // Resolve profileId → auth userId from the local notification_users buffer
-        String recipientUserId = notificationUserRepository.findById(batched.getRecipientId())
+        String recipientUserId = hasText(batched.getRecipientUserId())
+                ? batched.getRecipientUserId()
+                : notificationUserRepository.findById(batched.getRecipientId())
                 .map(u -> u.getUserId())
                 .orElse(null);
         if (recipientUserId == null) {
@@ -155,6 +160,7 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
                 .payload(persisted.getPayload())
                 .occurredAt(persisted.getOccurredAt())
                 .channels(channels)
+                .fcmPlatforms(resolveFcmPlatformOverride(batched))
                 .build();
     }
 
@@ -166,7 +172,67 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
         data.put("actorCount", String.valueOf(persisted.getActorCount()));
         data.put("othersCount", String.valueOf(persisted.getOthersCount()));
         data.put("totalEventCount", String.valueOf(persisted.getTotalEventCount()));
+        Map<String, Object> payload = persisted.getPayload();
+        copyPayloadValue(payload, data, "url");
+        copyPayloadValue(payload, data, "alertEventId");
+        copyPayloadValue(payload, data, "referenceType");
+        copyPayloadValue(payload, data, "severity");
+        copyPayloadValue(payload, data, "deviceId");
+        copyPayloadValue(payload, data, "deviceUid");
+        copyPayloadValue(payload, data, "zoneId");
+        copyPayloadValue(payload, data, "farmPlotId");
+        copyPayloadValue(payload, data, "sensorTypeCode");
         return data;
+    }
+
+    private Set<NotificationChannel> resolveChannelOverride(BatchedNotificationEvent batched) {
+        if (batched.getChannels() == null || batched.getChannels().isEmpty()) {
+            return null;
+        }
+        Set<NotificationChannel> channels = EnumSet.noneOf(NotificationChannel.class);
+        for (String channelName : batched.getChannels()) {
+            if (channelName == null || channelName.isBlank()) {
+                continue;
+            }
+            try {
+                channels.add(NotificationChannel.valueOf(channelName));
+            } catch (IllegalArgumentException ignored) {
+                log.warn("[Delivery] Ignoring unknown channel override '{}' for type={}",
+                        channelName, batched.getType());
+            }
+        }
+        return channels;
+    }
+
+    private Set<Platform> resolveFcmPlatformOverride(BatchedNotificationEvent batched) {
+        if (batched.getFcmPlatforms() == null || batched.getFcmPlatforms().isEmpty()) {
+            return null;
+        }
+        Set<Platform> platforms = EnumSet.noneOf(Platform.class);
+        for (String platformName : batched.getFcmPlatforms()) {
+            if (platformName == null || platformName.isBlank()) {
+                continue;
+            }
+            try {
+                platforms.add(Platform.valueOf(platformName));
+            } catch (IllegalArgumentException ignored) {
+                log.warn("[Delivery] Ignoring unknown FCM platform override '{}' for type={}",
+                        platformName, batched.getType());
+            }
+        }
+        return platforms;
+    }
+
+    private void copyPayloadValue(Map<String, Object> payload, Map<String, String> data, String key) {
+        if (payload == null || !payload.containsKey(key)) {
+            return;
+        }
+        Object value = payload.get(key);
+        data.put(key, value != null ? String.valueOf(value) : "");
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     /** Resolves the preferred notification locale for a given recipient profile ID. */

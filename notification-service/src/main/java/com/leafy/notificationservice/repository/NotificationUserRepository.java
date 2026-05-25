@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface NotificationUserRepository extends MongoRepository<NotificationUser, String> {
     // _id is profileId — findById(profileId) is the only query needed
+    java.util.Optional<NotificationUser> findByUserId(String userId);
 }

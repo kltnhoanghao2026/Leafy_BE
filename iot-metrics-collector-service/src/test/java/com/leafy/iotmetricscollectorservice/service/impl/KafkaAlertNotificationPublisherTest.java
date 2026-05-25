@@ -9,9 +9,11 @@ import static org.mockito.Mockito.when;
 
 import com.leafy.common.event.notification.AlertTriggeredEvent;
 import com.leafy.iotmetricscollectorservice.model.AlertEvent;
+import com.leafy.iotmetricscollectorservice.model.AlertRule;
 import com.leafy.iotmetricscollectorservice.model.IoTDevice;
 import com.leafy.iotmetricscollectorservice.model.SensorType;
 import com.leafy.iotmetricscollectorservice.model.enums.AlertSeverity;
+import com.leafy.iotmetricscollectorservice.model.ref.FarmPlotRef;
 import com.leafy.iotmetricscollectorservice.model.ref.FarmZoneRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import java.time.Instant;
@@ -56,14 +58,23 @@ class KafkaAlertNotificationPublisherTest {
         org.junit.jupiter.api.Assertions.assertEquals("owner-1", event.getOwnerUserId());
         org.junit.jupiter.api.Assertions.assertEquals("device-001", event.getDeviceUid());
         org.junit.jupiter.api.Assertions.assertEquals("zone-1", event.getZoneId());
+        org.junit.jupiter.api.Assertions.assertEquals("farm-1", event.getFarmPlotId());
         org.junit.jupiter.api.Assertions.assertEquals("AIR_TEMP", event.getSensorTypeCode());
         org.junit.jupiter.api.Assertions.assertEquals("CRITICAL", event.getSeverity());
+        org.junit.jupiter.api.Assertions.assertEquals(Boolean.TRUE, event.getNotifyWeb());
+        org.junit.jupiter.api.Assertions.assertEquals(Boolean.FALSE, event.getNotifyMobile());
+        org.junit.jupiter.api.Assertions.assertEquals("ALERT_EVENT", event.getReferenceType());
+        org.junit.jupiter.api.Assertions.assertEquals(alertEvent.getId().toString(), event.getReferenceId());
+        org.junit.jupiter.api.Assertions.assertEquals(
+            "/dashboard/alerts?alertId=" + alertEvent.getId(),
+            event.getUrl()
+        );
     }
 
     @Test
     void publishAlertTriggered_missingRequiredFieldSkipsKafkaPublish() {
         AlertEvent alertEvent = createAlertEvent();
-        alertEvent.setZone(null);
+        alertEvent.setOwnerUser(null);
 
         publisher.publishAlertTriggered(alertEvent);
 
@@ -86,6 +97,9 @@ class KafkaAlertNotificationPublisherTest {
         IoTDevice device = new IoTDevice();
         device.setId(UUID.randomUUID());
         device.setDeviceUid("device-001");
+        FarmPlotRef farmPlot = new FarmPlotRef();
+        farmPlot.setId("farm-1");
+        device.setFarmPlot(farmPlot);
 
         FarmZoneRef zone = new FarmZoneRef();
         zone.setId("zone-1");
@@ -107,6 +121,10 @@ class KafkaAlertNotificationPublisherTest {
         alertEvent.setTriggerValue(38.5d);
         alertEvent.setThresholdMax(35.0d);
         alertEvent.setMessage("AIR_TEMP exceeded max threshold: 38.5 > 35.0");
+        AlertRule alertRule = new AlertRule();
+        alertRule.setNotifyWeb(true);
+        alertRule.setNotifyMobile(false);
+        alertEvent.setAlertRule(alertRule);
         return alertEvent;
     }
 }
