@@ -22,15 +22,19 @@ import com.leafy.iotmetricscollectorservice.repository.DeviceCameraScheduleRepos
 import com.leafy.iotmetricscollectorservice.repository.FarmPlotRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmZoneRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
+import com.leafy.iotmetricscollectorservice.repository.SensorLatestReadingRepository;
 import com.leafy.iotmetricscollectorservice.repository.UserRefRepository;
 import com.leafy.iotmetricscollectorservice.service.DeviceService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -41,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DeviceServiceImpl implements DeviceService {
 
     private static final long CLAIM_CODE_TTL_SECONDS = 15 * 60;
@@ -49,7 +54,11 @@ public class DeviceServiceImpl implements DeviceService {
     private static final int MAX_SIZE = 100;
     private static final String DEFAULT_SORT_BY = "createdAt";
     private static final String DEFAULT_SORT_DIR = "desc";
+    private static final String DEFAULT_DEVICE_TYPE = "ESP32_CAM_SENSOR";
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("createdAt", "lastSeenAt", "deviceName", "status");
+    private static final Pattern DEVICE_IDENTITY_PATTERN = Pattern.compile("^[A-Za-z0-9._:-]{3,100}$");
+    private static final Pattern DEVICE_TYPE_PATTERN = Pattern.compile("^[A-Za-z0-9._:-]{1,100}$");
+    private static final Pattern CLAIM_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9._:-]{3,100}$");
     private static final int DEVICE_NAME_MAX_LENGTH = 255;
 
     private final IoTDeviceRepository ioTDeviceRepository;
@@ -59,22 +68,24 @@ public class DeviceServiceImpl implements DeviceService {
     private final FarmPlotRefRepository farmPlotRefRepository;
     private final FarmZoneRefRepository farmZoneRefRepository;
     private final DashboardQueryMapper dashboardQueryMapper;
+    private final SensorLatestReadingRepository sensorLatestReadingRepository;
 
     @Override
     @Transactional
     public DeviceResponse provisionDevice(ProvisionDeviceRequest request) {
-        return dashboardQueryMapper.toDeviceResponse(provisionForConnect(request));
+        ProvisionDeviceRequest normalizedRequest = normalizeProvisionRequest(request);
+        return dashboardQueryMapper.toDeviceResponse(provisionForConnect(normalizedRequest));
     }
 
     private IoTDevice provisionForConnect(ProvisionDeviceRequest request) {
-        String deviceUid = normalizeRequired(request.getDeviceUid());
-        String deviceCode = normalizeRequired(request.getDeviceCode());
+        String deviceUid = request.getDeviceUid();
+        String deviceCode = request.getDeviceCode();
 
         Optional<IoTDevice> existingByUid = ioTDeviceRepository.findByDeviceUid(deviceUid);
         if (existingByUid.isPresent()) {
             IoTDevice existing = existingByUid.get();
             if (!deviceCode.equals(existing.getDeviceCode())) {
-                throw TelemetryQueryException.duplicateDeviceUid(deviceUid);
+                throw TelemetryQueryException.deviceCodeConflict(deviceCode);
             }
             applyProvisionDefaults(existing, request);
             return ioTDeviceRepository.save(existing);
@@ -99,6 +110,60 @@ public class DeviceServiceImpl implements DeviceService {
     @Override
     @Transactional
     public DeviceResponse connectDevice(String currentUserId, ConnectDeviceRequest request) {
+        ConnectDeviceRequest normalizedRequest = normalizeConnectRequest(request);
+
+        IoTDevice device = resolveDeviceForConnect(normalizedRequest);
+        if (ProvisioningStatus.CLAIMED.equals(device.getProvisioningStatus()) && device.getOwnerUser() != null) {
+            ClaimDeviceRequest claimRequest = new ClaimDeviceRequest();
+            claimRequest.setDeviceUid(device.getDeviceUid());
+            claimRequest.setFarmPlotId(normalizedRequest.getFarmPlotId());
+            claimRequest.setZoneId(normalizedRequest.getZoneId());
+            return handleIdempotentClaim(device, currentUserId, claimRequest);
+        }
+
+        UserRef ownerUser = ensureUserRef(currentUserId);
+        String oldFarmPlotId = idOf(device.getFarmPlot());
+        String oldZoneId = idOf(device.getZone());
+        device.setOwnerUser(ownerUser);
+        device.setFarmPlot(ensureFarmPlotRef(normalizedRequest.getFarmPlotId()));
+        device.setZone(ensureFarmZoneRef(normalizedRequest.getZoneId()));
+        device.setProvisioningStatus(ProvisioningStatus.CLAIMED);
+
+        IoTDevice savedDevice = ioTDeviceRepository.save(device);
+        clearLatestReadingsIfAssignmentChanged(savedDevice, oldFarmPlotId, oldZoneId, "connect");
+        return dashboardQueryMapper.toDeviceResponse(savedDevice);
+    }
+
+    private IoTDevice resolveDeviceForConnect(ConnectDeviceRequest request) {
+        Optional<IoTDevice> existingByUid = ioTDeviceRepository.findByDeviceUid(request.getDeviceUid());
+        if (existingByUid.isPresent()) {
+            IoTDevice existing = existingByUid.get();
+            if (!request.getDeviceCode().equals(existing.getDeviceCode())) {
+                throw TelemetryQueryException.deviceCodeConflict(request.getDeviceCode());
+            }
+            if (ProvisioningStatus.CLAIMED.equals(existing.getProvisioningStatus()) && existing.getOwnerUser() != null) {
+                return existing;
+            }
+            applyProvisionDefaults(existing, toProvisionRequest(request));
+            return existing;
+        }
+
+        Optional<IoTDevice> existingByCode = ioTDeviceRepository.findByDeviceCode(request.getDeviceCode());
+        if (existingByCode.isPresent()) {
+            throw TelemetryQueryException.duplicateDeviceCode(request.getDeviceCode());
+        }
+
+        IoTDevice device = new IoTDevice();
+        device.setDeviceUid(request.getDeviceUid());
+        device.setDeviceCode(request.getDeviceCode());
+        applyProvisionDefaults(device, toProvisionRequest(request));
+        device.setProvisioningStatus(ProvisioningStatus.PROVISIONED);
+        device.setStatus(DeviceStatus.OFFLINE);
+        device.setIsActive(true);
+        return device;
+    }
+
+    private ProvisionDeviceRequest toProvisionRequest(ConnectDeviceRequest request) {
         ProvisionDeviceRequest provisionRequest = new ProvisionDeviceRequest();
         provisionRequest.setDeviceUid(request.getDeviceUid());
         provisionRequest.setDeviceCode(request.getDeviceCode());
@@ -106,23 +171,7 @@ public class DeviceServiceImpl implements DeviceService {
         provisionRequest.setDeviceType(request.getDeviceType());
         provisionRequest.setFarmPlotId(request.getFarmPlotId());
         provisionRequest.setZoneId(request.getZoneId());
-
-        IoTDevice device = provisionForConnect(provisionRequest);
-        if (ProvisioningStatus.CLAIMED.equals(device.getProvisioningStatus()) && device.getOwnerUser() != null) {
-            ClaimDeviceRequest claimRequest = new ClaimDeviceRequest();
-            claimRequest.setDeviceUid(device.getDeviceUid());
-            claimRequest.setFarmPlotId(request.getFarmPlotId());
-            claimRequest.setZoneId(request.getZoneId());
-            return handleIdempotentClaim(device, currentUserId, claimRequest);
-        }
-
-        UserRef ownerUser = ensureUserRef(currentUserId);
-        device.setOwnerUser(ownerUser);
-        device.setFarmPlot(ensureFarmPlotRef(request.getFarmPlotId()));
-        device.setZone(ensureFarmZoneRef(request.getZoneId()));
-        device.setProvisioningStatus(ProvisioningStatus.CLAIMED);
-
-        return dashboardQueryMapper.toDeviceResponse(ioTDeviceRepository.save(device));
+        return provisionRequest;
     }
 
     @Override
@@ -179,32 +228,35 @@ public class DeviceServiceImpl implements DeviceService {
     @Override
     @Transactional
     public DeviceResponse claimDevice(String currentUserId, ClaimDeviceRequest request) {
-        IoTDevice device = ioTDeviceRepository.findByDeviceUid(request.getDeviceUid())
-            .orElseThrow(() -> TelemetryQueryException.deviceNotFoundByUid(request.getDeviceUid()));
+        ClaimDeviceRequest normalizedRequest = normalizeClaimRequest(request);
+        IoTDevice device = ioTDeviceRepository.findByDeviceUid(normalizedRequest.getDeviceUid())
+            .orElseThrow(() -> TelemetryQueryException.deviceNotFoundByUid(normalizedRequest.getDeviceUid()));
 
         if (ProvisioningStatus.CLAIMED.equals(device.getProvisioningStatus()) && device.getOwnerUser() != null) {
-            return handleIdempotentClaim(device, currentUserId, request);
+            return handleIdempotentClaim(device, currentUserId, normalizedRequest);
         }
 
         validateClaimableDevice(device);
 
         DeviceClaim deviceClaim = deviceClaimRepository.findTopByDeviceIdAndClaimCodeOrderByCreatedAtDesc(
                 device.getId(),
-                request.getClaimCode()
+                normalizedRequest.getClaimCode()
             )
-            .orElseThrow(() -> TelemetryQueryException.invalidClaimCode(request.getDeviceUid()));
+            .orElseThrow(() -> TelemetryQueryException.invalidClaimCode(normalizedRequest.getDeviceUid()));
 
         if (!ClaimStatus.PENDING.name().equals(deviceClaim.getStatus())) {
             throw TelemetryQueryException.invalidClaimState(device.getId(), deviceClaim.getStatus());
         }
         if (deviceClaim.getExpiresAt() == null || !deviceClaim.getExpiresAt().isAfter(Instant.now())) {
-            throw TelemetryQueryException.expiredClaimCode(request.getDeviceUid());
+            throw TelemetryQueryException.expiredClaimCode(normalizedRequest.getDeviceUid());
         }
 
         UserRef ownerUser = ensureUserRef(currentUserId);
+        String oldFarmPlotId = idOf(device.getFarmPlot());
+        String oldZoneId = idOf(device.getZone());
         device.setOwnerUser(ownerUser);
-        device.setFarmPlot(ensureFarmPlotRef(request.getFarmPlotId()));
-        device.setZone(ensureFarmZoneRef(request.getZoneId()));
+        device.setFarmPlot(ensureFarmPlotRef(normalizedRequest.getFarmPlotId()));
+        device.setZone(ensureFarmZoneRef(normalizedRequest.getZoneId()));
         device.setProvisioningStatus(ProvisioningStatus.CLAIMED);
 
         Instant claimedAt = Instant.now();
@@ -213,6 +265,7 @@ public class DeviceServiceImpl implements DeviceService {
         deviceClaim.setStatus(ClaimStatus.CLAIMED.name());
 
         ioTDeviceRepository.save(device);
+        clearLatestReadingsIfAssignmentChanged(device, oldFarmPlotId, oldZoneId, "claim");
         deviceClaimRepository.save(deviceClaim);
         return dashboardQueryMapper.toDeviceResponse(device);
     }
@@ -222,6 +275,8 @@ public class DeviceServiceImpl implements DeviceService {
     public DeviceResponse updateDevice(String currentUserId, UUID deviceId, UpdateDeviceRequest request) {
         IoTDevice device = requireOwnedDevice(deviceId, currentUserId);
         UpdateDeviceRequest updateRequest = request != null ? request : new UpdateDeviceRequest();
+        String oldFarmPlotId = idOf(device.getFarmPlot());
+        String oldZoneId = idOf(device.getZone());
 
         if (updateRequest.getDeviceName() != null) {
             device.setDeviceName(normalizeDeviceName(updateRequest.getDeviceName()));
@@ -236,7 +291,9 @@ public class DeviceServiceImpl implements DeviceService {
             device.setIsActive(updateRequest.getActive());
         }
 
-        return dashboardQueryMapper.toDeviceResponse(ioTDeviceRepository.save(device));
+        IoTDevice savedDevice = ioTDeviceRepository.save(device);
+        clearLatestReadingsIfAssignmentChanged(savedDevice, oldFarmPlotId, oldZoneId, "update");
+        return dashboardQueryMapper.toDeviceResponse(savedDevice);
     }
 
     @Override
@@ -253,6 +310,7 @@ public class DeviceServiceImpl implements DeviceService {
 
         revokePendingClaimCodes(deviceId);
         disableCameraSchedules(deviceUid);
+        clearLatestReadingsForDevice(device, "release");
 
         return dashboardQueryMapper.toDeviceResponse(ioTDeviceRepository.save(device));
     }
@@ -315,10 +373,10 @@ public class DeviceServiceImpl implements DeviceService {
     private String normalizeDeviceName(String deviceName) {
         String normalized = normalizeOptional(deviceName);
         if (normalized == null) {
-            throw TelemetryQueryException.invalidDeviceUpdate("deviceName must not be blank");
+            throw TelemetryQueryException.invalidDeviceName("Device name must not be blank.");
         }
         if (normalized.length() > DEVICE_NAME_MAX_LENGTH) {
-            throw TelemetryQueryException.invalidDeviceUpdate("deviceName must be at most " + DEVICE_NAME_MAX_LENGTH + " characters");
+            throw TelemetryQueryException.invalidDeviceName("Device name must be at most " + DEVICE_NAME_MAX_LENGTH + " characters.");
         }
         return normalized;
     }
@@ -348,8 +406,41 @@ public class DeviceServiceImpl implements DeviceService {
         deviceCameraScheduleRepository.saveAll(schedules);
     }
 
+    private void clearLatestReadingsIfAssignmentChanged(
+        IoTDevice device,
+        String oldFarmPlotId,
+        String oldZoneId,
+        String reason
+    ) {
+        if (!Objects.equals(oldFarmPlotId, idOf(device.getFarmPlot())) || !Objects.equals(oldZoneId, idOf(device.getZone()))) {
+            clearLatestReadingsForDevice(device, reason);
+        }
+    }
+
+    private void clearLatestReadingsForDevice(IoTDevice device, String reason) {
+        if (device == null || device.getId() == null) {
+            return;
+        }
+        sensorLatestReadingRepository.deleteByDeviceId(device.getId());
+        log.info(
+            "Cleared sensor latest readings for device assignment change. deviceId={}, deviceUid={}, reason={}",
+            device.getId(),
+            device.getDeviceUid(),
+            reason
+        );
+    }
+
+    private String idOf(FarmPlotRef farmPlot) {
+        return farmPlot != null ? farmPlot.getId() : null;
+    }
+
+    private String idOf(FarmZoneRef zone) {
+        return zone != null ? zone.getId() : null;
+    }
+
     private DeviceResponse handleIdempotentClaim(IoTDevice device, String currentUserId, ClaimDeviceRequest request) {
-        boolean sameOwner = device.getOwnerUser() != null && currentUserId.equals(device.getOwnerUser().getId());
+        String normalizedUserId = normalizeOptional(currentUserId);
+        boolean sameOwner = device.getOwnerUser() != null && normalizedUserId != null && normalizedUserId.equals(device.getOwnerUser().getId());
         boolean sameFarmPlot = sameId(device.getFarmPlot(), request.getFarmPlotId());
         boolean sameZone = sameId(device.getZone(), request.getZoneId());
         if (sameOwner && sameFarmPlot && sameZone) {
@@ -373,14 +464,12 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     private void applyProvisionDefaults(IoTDevice device, ProvisionDeviceRequest request) {
-        String deviceName = normalizeOptional(request.getDeviceName());
-        String deviceType = normalizeOptional(request.getDeviceType());
+        String deviceName = normalizeOptionalDeviceName(request.getDeviceName());
+        String deviceType = normalizeDeviceType(request.getDeviceType());
         if (deviceName != null) {
             device.setDeviceName(deviceName);
         }
-        if (deviceType != null) {
-            device.setDeviceType(deviceType);
-        }
+        device.setDeviceType(deviceType);
         if (device.getIsActive() == null) {
             device.setIsActive(true);
         }
@@ -401,8 +490,126 @@ public class DeviceServiceImpl implements DeviceService {
         }
     }
 
-    private String normalizeRequired(String value) {
-        return value == null ? "" : value.trim();
+    private ProvisionDeviceRequest normalizeProvisionRequest(ProvisionDeviceRequest request) {
+        ProvisionDeviceRequest source = request != null ? request : new ProvisionDeviceRequest();
+        ProvisionDeviceRequest normalized = new ProvisionDeviceRequest();
+        normalized.setDeviceUid(requireDeviceUid(source.getDeviceUid()));
+        normalized.setDeviceCode(requireDeviceCode(source.getDeviceCode()));
+        normalized.setDeviceType(normalizeDeviceType(source.getDeviceType()));
+        normalized.setDeviceName(normalizeOptionalDeviceName(source.getDeviceName()));
+        normalized.setFarmPlotId(normalizeOptionalUuid(source.getFarmPlotId(), true));
+        normalized.setZoneId(normalizeOptionalUuid(source.getZoneId(), false));
+        return normalized;
+    }
+
+    private ConnectDeviceRequest normalizeConnectRequest(ConnectDeviceRequest request) {
+        ConnectDeviceRequest source = request != null ? request : new ConnectDeviceRequest();
+        ConnectDeviceRequest normalized = new ConnectDeviceRequest();
+        normalized.setDeviceUid(requireDeviceUid(source.getDeviceUid()));
+        normalized.setDeviceCode(requireDeviceCode(source.getDeviceCode()));
+        normalized.setDeviceType(normalizeDeviceType(source.getDeviceType()));
+        normalized.setDeviceName(normalizeOptionalDeviceName(source.getDeviceName()));
+        normalized.setFarmPlotId(requireFarmPlotId(source.getFarmPlotId()));
+        normalized.setZoneId(requireZoneId(source.getZoneId()));
+        return normalized;
+    }
+
+    private ClaimDeviceRequest normalizeClaimRequest(ClaimDeviceRequest request) {
+        ClaimDeviceRequest source = request != null ? request : new ClaimDeviceRequest();
+        ClaimDeviceRequest normalized = new ClaimDeviceRequest();
+        normalized.setDeviceUid(requireDeviceUid(source.getDeviceUid()));
+        normalized.setClaimCode(requireClaimCode(source.getClaimCode()));
+        normalized.setFarmPlotId(requireFarmPlotId(source.getFarmPlotId()));
+        normalized.setZoneId(requireZoneId(source.getZoneId()));
+        return normalized;
+    }
+
+    private String requireDeviceUid(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null) {
+            throw TelemetryQueryException.deviceUidRequired();
+        }
+        if (!DEVICE_IDENTITY_PATTERN.matcher(normalized).matches()) {
+            throw TelemetryQueryException.invalidDeviceUid(normalized);
+        }
+        return normalized;
+    }
+
+    private String requireDeviceCode(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null) {
+            throw TelemetryQueryException.deviceCodeRequired();
+        }
+        if (!DEVICE_IDENTITY_PATTERN.matcher(normalized).matches()) {
+            throw TelemetryQueryException.invalidDeviceCode(normalized);
+        }
+        return normalized;
+    }
+
+    private String normalizeDeviceType(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null) {
+            return DEFAULT_DEVICE_TYPE;
+        }
+        if (!DEVICE_TYPE_PATTERN.matcher(normalized).matches()) {
+            throw TelemetryQueryException.invalidDeviceType(normalized);
+        }
+        return normalized;
+    }
+
+    private String normalizeOptionalDeviceName(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized != null && normalized.length() > DEVICE_NAME_MAX_LENGTH) {
+            throw TelemetryQueryException.invalidDeviceName("Device name must be at most " + DEVICE_NAME_MAX_LENGTH + " characters.");
+        }
+        return normalized;
+    }
+
+    private String requireFarmPlotId(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null) {
+            throw TelemetryQueryException.farmPlotRequired();
+        }
+        return validateUuid(normalized, true);
+    }
+
+    private String requireZoneId(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null) {
+            throw TelemetryQueryException.farmZoneRequired();
+        }
+        return validateUuid(normalized, false);
+    }
+
+    private String normalizeOptionalUuid(String value, boolean farmPlot) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null) {
+            return null;
+        }
+        return validateUuid(normalized, farmPlot);
+    }
+
+    private String validateUuid(String value, boolean farmPlot) {
+        try {
+            UUID.fromString(value);
+            return value;
+        } catch (IllegalArgumentException ex) {
+            if (farmPlot) {
+                throw TelemetryQueryException.invalidFarmPlot(value);
+            }
+            throw TelemetryQueryException.invalidFarmZone(value);
+        }
+    }
+
+    private String requireClaimCode(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null) {
+            throw TelemetryQueryException.claimCodeRequired();
+        }
+        if (!CLAIM_CODE_PATTERN.matcher(normalized).matches()) {
+            throw TelemetryQueryException.invalidClaimCodeFormat(normalized);
+        }
+        return normalized.toUpperCase(Locale.ROOT);
     }
 
     private String normalizeOptional(String value) {

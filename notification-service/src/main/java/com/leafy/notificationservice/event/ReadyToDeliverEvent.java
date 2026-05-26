@@ -2,6 +2,7 @@ package com.leafy.notificationservice.event;
 
 import com.leafy.common.enums.NotificationType;
 import com.leafy.notificationservice.enums.NotificationChannel;
+import com.leafy.notificationservice.enums.Platform;
 import com.leafy.notificationservice.service.delivery.channel.ChannelDeliveryStrategy;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -124,4 +125,10 @@ public class ReadyToDeliverEvent {
      * compatibility with events produced before this field was added.
      */
     Set<NotificationChannel> channels;
+
+    /**
+     * Optional FCM platform filter. When present, FCM delivery only targets
+     * active push tokens whose platform is in this set.
+     */
+    Set<Platform> fcmPlatforms;
 }

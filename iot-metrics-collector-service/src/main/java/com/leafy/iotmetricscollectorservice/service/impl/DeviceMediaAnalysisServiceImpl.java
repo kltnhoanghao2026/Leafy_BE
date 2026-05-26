@@ -62,11 +62,11 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         String deviceUid = resolveDeviceUid(mediaEvent, request);
 
         DeviceMediaAnalysis analysis = analysisRepository.findByMediaEventId(mediaEvent.getId())
-            .orElseGet(() -> newAnalysis(mediaEvent, fileId, deviceUid));
+                .orElseGet(() -> newAnalysis(mediaEvent, fileId, deviceUid));
 
         if (!request.isForce()
-            && (analysis.getStatus() == DeviceMediaAnalysisStatus.PROCESSED
-            || analysis.getStatus() == DeviceMediaAnalysisStatus.DISEASE_DETECTED)) {
+                && (analysis.getStatus() == DeviceMediaAnalysisStatus.PROCESSED
+                || analysis.getStatus() == DeviceMediaAnalysisStatus.DISEASE_DETECTED)) {
             return toResponse(analysis);
         }
 
@@ -82,15 +82,15 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         processJob(job);
         DeviceMediaAnalysis fallbackAnalysis = analysis;
         return analysisRepository.findByMediaEventId(mediaEvent.getId())
-            .map(this::toResponse)
-            .orElseGet(() -> toResponse(fallbackAnalysis));
+                .map(this::toResponse)
+                .orElseGet(() -> toResponse(fallbackAnalysis));
     }
 
     @Override
     @Transactional
     public ImageAnalysisJob createPendingJob(UUID mediaEventId) {
         DeviceMediaEvent mediaEvent = mediaEventRepository.findById(mediaEventId)
-            .orElseThrow(() -> TelemetryQueryException.mediaEventNotFound(mediaEventId));
+                .orElseThrow(() -> TelemetryQueryException.mediaEventNotFound(mediaEventId));
         if (!DeviceMediaEventStatus.UPLOADED.name().equals(mediaEvent.getStatus())) {
             log.info("Skipping image analysis job because media is not uploaded. mediaEventId={}, status={}", mediaEventId, mediaEvent.getStatus());
             return null;
@@ -99,13 +99,13 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         String fileId = resolveFileId(mediaEvent, new DiseaseDetectRequest());
         String deviceUid = resolveDeviceUid(mediaEvent, new DiseaseDetectRequest());
         DeviceMediaAnalysis analysis = analysisRepository.findByMediaEventId(mediaEventId)
-            .orElseGet(() -> newAnalysis(mediaEvent, fileId, deviceUid));
+                .orElseGet(() -> newAnalysis(mediaEvent, fileId, deviceUid));
 
         if (analysis.getId() != null
-            && (analysis.getStatus() == DeviceMediaAnalysisStatus.PENDING
-            || analysis.getStatus() == DeviceMediaAnalysisStatus.PROCESSING
-            || analysis.getStatus() == DeviceMediaAnalysisStatus.PROCESSED
-            || analysis.getStatus() == DeviceMediaAnalysisStatus.DISEASE_DETECTED)) {
+                && (analysis.getStatus() == DeviceMediaAnalysisStatus.PENDING
+                || analysis.getStatus() == DeviceMediaAnalysisStatus.PROCESSING
+                || analysis.getStatus() == DeviceMediaAnalysisStatus.PROCESSED
+                || analysis.getStatus() == DeviceMediaAnalysisStatus.DISEASE_DETECTED)) {
             return null;
         }
 
@@ -119,10 +119,10 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
                 markAnalysisFailed(analysis, "INVALID_PRESIGNED_URL");
                 analysisRepository.save(analysis);
                 log.warn(
-                    "Image analysis job skipped because internal download URL is invalid. mediaEventId={}, fileId={}, url={}",
-                    mediaEventId,
-                    fileId,
-                    sanitizeUrlForLog(rawFileUrl)
+                        "Image analysis job skipped because internal download URL is invalid. mediaEventId={}, fileId={}, url={}",
+                        mediaEventId,
+                        fileId,
+                        sanitizeUrlForLog(rawFileUrl)
                 );
                 return null;
             }
@@ -144,9 +144,9 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         }
 
         DeviceMediaEvent mediaEvent = mediaEventRepository.findById(job.getMediaEventId())
-            .orElseThrow(() -> TelemetryQueryException.mediaEventNotFound(job.getMediaEventId()));
+                .orElseThrow(() -> TelemetryQueryException.mediaEventNotFound(job.getMediaEventId()));
         DeviceMediaAnalysis analysis = analysisRepository.findByMediaEventId(job.getMediaEventId())
-            .orElseGet(() -> newAnalysis(mediaEvent, job.getFileId(), job.getDeviceUid()));
+                .orElseGet(() -> newAnalysis(mediaEvent, job.getFileId(), job.getDeviceUid()));
 
         analysis.setStatus(DeviceMediaAnalysisStatus.PROCESSING);
         analysis.setError(null);
@@ -171,8 +171,8 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
                 }
 
                 String contentType = imageResponse.getHeaders().getContentType() != null
-                    ? imageResponse.getHeaders().getContentType().toString()
-                    : MediaType.IMAGE_JPEG_VALUE;
+                        ? imageResponse.getHeaders().getContentType().toString()
+                        : MediaType.IMAGE_JPEG_VALUE;
 
                 MultipartFile imageFile = buildMultipartFile(imageBytes, fileId, contentType);
                 JsonNode payload = diseaseDetectionFeignClient.predict(imageFile);
@@ -182,34 +182,34 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
                 applyDetectionResult(analysis, mediaEvent, detection);
                 analysisRepository.save(analysis);
                 log.info(
-                    "Disease detection completed. mediaEventId={}, requestId={}, triggerType={}, detected={}, confidence={}",
-                    mediaEvent.getId(),
-                    job.getRequestId(),
-                    job.getTriggerType(),
-                    detection.isDiseaseDetected(),
-                    detection.getConfidence()
+                        "Disease detection completed. mediaEventId={}, requestId={}, triggerType={}, detected={}, confidence={}",
+                        mediaEvent.getId(),
+                        job.getRequestId(),
+                        job.getTriggerType(),
+                        detection.isDiseaseDetected(),
+                        detection.getConfidence()
                 );
                 return;
             } catch (RuntimeException exception) {
                 lastFailure = exception;
                 if (isInvalidPresignedUrlFailure(exception)) {
                     log.warn(
-                        "Disease detection skipped because presigned URL is invalid. mediaEventId={}, requestId={}, attempt={}/{}, reason={}",
-                        mediaEvent.getId(),
-                        job.getRequestId(),
-                        attempt,
-                        attempts,
-                        exception.getMessage()
+                            "Disease detection skipped because presigned URL is invalid. mediaEventId={}, requestId={}, attempt={}/{}, reason={}",
+                            mediaEvent.getId(),
+                            job.getRequestId(),
+                            attempt,
+                            attempts,
+                            exception.getMessage()
                     );
                     break;
                 } else {
                     log.warn(
-                        "Disease detection attempt failed. mediaEventId={}, requestId={}, attempt={}/{}",
-                        mediaEvent.getId(),
-                        job.getRequestId(),
-                        attempt,
-                        attempts,
-                        exception
+                            "Disease detection attempt failed. mediaEventId={}, requestId={}, attempt={}/{}",
+                            mediaEvent.getId(),
+                            job.getRequestId(),
+                            attempt,
+                            attempts,
+                            exception
                     );
                 }
             }
@@ -237,17 +237,17 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         result.setConfidence(confidence);
         result.setDiseaseDetected(!healthy && confidence >= confidenceThreshold);
         result.setNotes(result.isDiseaseDetected()
-            ? "Disease prediction exceeded confidence threshold"
-            : "No disease prediction exceeded confidence threshold");
+                ? "Disease prediction exceeded confidence threshold"
+                : "No disease prediction exceeded confidence threshold");
         return result;
     }
 
     private MultipartFile buildMultipartFile(byte[] imageBytes, String fileId, String contentType) {
         return new InMemoryMultipartFile(
-            "file",
-            fileId + extensionForContentType(contentType),
-            contentType,
-            imageBytes
+                "file",
+                fileId + extensionForContentType(contentType),
+                contentType,
+                imageBytes
         );
     }
 
@@ -270,10 +270,10 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
     }
 
     private record InMemoryMultipartFile(
-        String name,
-        String originalFilename,
-        String contentType,
-        byte[] bytes
+            String name,
+            String originalFilename,
+            String contentType,
+            byte[] bytes
     ) implements MultipartFile {
 
         @Override public String getName() { return name; }
@@ -309,22 +309,22 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
             String fileUrl = normalizeUsablePresignedUrl(rawFileUrl);
             if (fileUrl == null) {
                 log.warn(
-                    "Skipping image analysis because file-service returned invalid internal download URL. mediaEventId={}, requestId={}, fileId={}, url={}",
-                    mediaEventId,
-                    requestId,
-                    fileId,
-                    sanitizeUrlForLog(rawFileUrl)
+                        "Skipping image analysis because file-service returned invalid internal download URL. mediaEventId={}, requestId={}, fileId={}, url={}",
+                        mediaEventId,
+                        requestId,
+                        fileId,
+                        sanitizeUrlForLog(rawFileUrl)
                 );
                 return null;
             }
             return fileUrl;
         } catch (RuntimeException exception) {
             log.warn(
-                "Skipping image analysis because internal download URL could not be resolved. mediaEventId={}, requestId={}, fileId={}",
-                mediaEventId,
-                requestId,
-                fileId,
-                exception
+                    "Skipping image analysis because internal download URL could not be resolved. mediaEventId={}, requestId={}, fileId={}",
+                    mediaEventId,
+                    requestId,
+                    fileId,
+                    exception
             );
             return null;
         }
@@ -344,14 +344,14 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
 
     private ImageAnalysisJob toJob(DeviceMediaAnalysis analysis, DeviceMediaEvent mediaEvent) {
         return ImageAnalysisJob.builder()
-            .mediaEventId(mediaEvent.getId())
-            .deviceUid(analysis.getDeviceUid())
-            .requestId(mediaEvent.getRequestId())
-            .triggerType(mediaEvent.getTriggerType())
-            .timestamp(mediaEvent.getUploadedAt() != null ? mediaEvent.getUploadedAt() : mediaEvent.getCapturedAt())
-            .fileId(analysis.getFileId())
-            .s3Url(analysis.getFileUrl())
-            .build();
+                .mediaEventId(mediaEvent.getId())
+                .deviceUid(analysis.getDeviceUid())
+                .requestId(mediaEvent.getRequestId())
+                .triggerType(mediaEvent.getTriggerType())
+                .timestamp(mediaEvent.getUploadedAt() != null ? mediaEvent.getUploadedAt() : mediaEvent.getCapturedAt())
+                .fileId(analysis.getFileId())
+                .s3Url(analysis.getFileUrl())
+                .build();
     }
 
     private void applyDetectionResult(DeviceMediaAnalysis analysis, DeviceMediaEvent mediaEvent, DiseaseDetectResponse detection) {
@@ -363,12 +363,12 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         analysis.setNotes(detection.getNotes());
         analysis.setAnalyzedAt(Instant.now());
         analysis.setStatus(detection.isDiseaseDetected()
-            ? DeviceMediaAnalysisStatus.DISEASE_DETECTED
-            : DeviceMediaAnalysisStatus.PROCESSED);
+                ? DeviceMediaAnalysisStatus.DISEASE_DETECTED
+                : DeviceMediaAnalysisStatus.PROCESSED);
         analysis.setError(null);
 
         if (detection.isDiseaseDetected() && analysis.getAlertEvent() == null) {
-            AlertEvent alertEvent = imageDiseaseAlertService.createDiseaseAlert(mediaEvent, detection);
+            AlertEvent alertEvent = imageDiseaseAlertService.createDiseaseAlert(mediaEvent, detection, analysis);
             analysis.setAlertEvent(alertEvent);
         }
     }
@@ -391,7 +391,7 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
             throw new IllegalArgumentException("mediaEventId is required");
         }
         return mediaEventRepository.findById(request.getMediaEventId())
-            .orElseThrow(() -> TelemetryQueryException.mediaEventNotFound(request.getMediaEventId()));
+                .orElseThrow(() -> TelemetryQueryException.mediaEventNotFound(request.getMediaEventId()));
     }
 
     private String resolveFileId(DeviceMediaEvent mediaEvent, DiseaseDetectRequest request) {
@@ -470,10 +470,10 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
             }
             String normalizedHost = host.toLowerCase(Locale.ROOT);
             if ("localhost".equals(normalizedHost)
-                || normalizedHost.startsWith("127.")
-                || "0.0.0.0".equals(normalizedHost)
-                || "::1".equals(normalizedHost)
-                || "[::1]".equals(normalizedHost)) {
+                    || normalizedHost.startsWith("127.")
+                    || "0.0.0.0".equals(normalizedHost)
+                    || "::1".equals(normalizedHost)
+                    || "[::1]".equals(normalizedHost)) {
                 return null;
             }
             if (isAmazonS3Host(normalizedHost) && !hasValidS3PresignedQuery(uri)) {
@@ -503,8 +503,8 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         }
         String decodedCredential = credential.replace("%2F", "/").replace("%2f", "/");
         return AWS_CREDENTIAL_SCOPE.matcher(decodedCredential).matches()
-            && !signature.isBlank()
-            && date.matches("\\d{8}T\\d{6}Z");
+                && !signature.isBlank()
+                && date.matches("\\d{8}T\\d{6}Z");
     }
 
     private String findQueryValue(String rawQuery, String name) {
@@ -524,13 +524,13 @@ public class DeviceMediaAnalysisServiceImpl implements DeviceMediaAnalysisServic
         try {
             URI uri = new URI(rawUrl.trim());
             URI sanitized = new URI(
-                uri.getScheme(),
-                null,
-                uri.getHost(),
-                uri.getPort(),
-                uri.getPath(),
-                null,
-                null
+                    uri.getScheme(),
+                    null,
+                    uri.getHost(),
+                    uri.getPort(),
+                    uri.getPath(),
+                    null,
+                    null
             );
             return sanitized.toString();
         } catch (URISyntaxException exception) {

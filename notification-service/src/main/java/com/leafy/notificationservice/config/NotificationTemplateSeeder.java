@@ -96,6 +96,12 @@ public class NotificationTemplateSeeder implements CommandLineRunner {
                 "Kế hoạch{{#planName}} \"{{planName}}\"{{/planName}} đã được áp dụng thành công với {{eventCount}} sự kiện."
             ),
             new SeedEntry(
+                NotificationType.IOT_ALERT,
+                PUSH_AND_IN_APP,
+                "Cảnh báo IoT",
+                "{{message}}"
+            ),
+            new SeedEntry(
                 NotificationType.SYSTEM,
                 PUSH_AND_IN_APP,
                 "Thông báo hệ thống",
@@ -159,6 +165,12 @@ public class NotificationTemplateSeeder implements CommandLineRunner {
                 PUSH_AND_IN_APP,
                 "Plan applied successfully",
                 "Plan{{#planName}} \"{{planName}}\"{{/planName}} has been applied successfully with {{eventCount}} events."
+            ),
+            new SeedEntry(
+                NotificationType.IOT_ALERT,
+                PUSH_AND_IN_APP,
+                "IoT alert",
+                "{{message}}"
             ),
             new SeedEntry(
                 NotificationType.SYSTEM,

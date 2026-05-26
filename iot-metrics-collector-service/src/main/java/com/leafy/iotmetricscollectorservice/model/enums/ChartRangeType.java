@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Set;
 
 public enum ChartRangeType {
+    H1(Duration.ofHours(1), AggregateSource.AGG_5M, Set.of("H1", "1H")),
     H24(Duration.ofHours(24), AggregateSource.AGG_5M, Set.of("H24", "24H")),
     D3(Duration.ofDays(3), AggregateSource.AGG_5M, Set.of("D3", "3D")),
     D7(Duration.ofDays(7), AggregateSource.AGG_1H, Set.of("D7", "7D")),

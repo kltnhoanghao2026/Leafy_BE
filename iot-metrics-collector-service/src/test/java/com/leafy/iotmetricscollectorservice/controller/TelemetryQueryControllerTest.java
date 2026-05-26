@@ -1,6 +1,7 @@
 package com.leafy.iotmetricscollectorservice.controller;
 
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,12 +47,29 @@ class TelemetryQueryControllerTest {
         item.setSensorName("Soil Temperature");
         item.setUnit("C");
 
-        when(telemetryQueryService.getLatestReadingsByDevice(deviceId)).thenReturn(List.of(item));
+        when(telemetryQueryService.getLatestReadingsByDevice(deviceId, null)).thenReturn(List.of(item));
 
         mockMvc.perform(get("/iot/devices/{deviceId}/latest-readings", deviceId).header(DeviceController.USER_ID_HEADER, "user-1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].sensorCode").value("soilTemp"))
             .andExpect(jsonPath("$[0].sensorName").value("Soil Temperature"));
+    }
+
+    @Test
+    void getLatestReadingsByDevice_passesOptionalZoneId() throws Exception {
+        UUID deviceId = UUID.randomUUID();
+        String zoneId = "zone-current";
+        when(telemetryQueryService.getLatestReadingsByDevice(deviceId, zoneId)).thenReturn(List.of());
+
+        mockMvc.perform(
+            get("/iot/devices/{deviceId}/latest-readings", deviceId)
+                .header(DeviceController.USER_ID_HEADER, "user-1")
+                .param("zoneId", zoneId)
+        )
+            .andExpect(status().isOk());
+
+        verify(deviceAccessService).requireOwnedDevice(deviceId, "user-1");
+        verify(telemetryQueryService).getLatestReadingsByDevice(deviceId, zoneId);
     }
 
     @Test

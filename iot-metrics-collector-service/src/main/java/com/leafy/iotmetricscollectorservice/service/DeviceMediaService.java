@@ -15,6 +15,8 @@ public interface DeviceMediaService {
 
     List<DeviceMediaEventResponse> listDeviceMedia(UUID deviceId);
 
+    List<DeviceMediaEventResponse> listDeviceMedia(UUID deviceId, String zoneId);
+
     DeviceMediaEventResponse getMediaEvent(UUID mediaEventId);
 
     void handleImageMeta(String deviceUid, ImageMetaPayload payload);

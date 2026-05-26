@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -31,7 +32,25 @@ public interface SensorLatestReadingRepository extends JpaRepository<SensorLates
     @Query("""
         select latestReading
         from SensorLatestReading latestReading
+        where latestReading.device.id = :deviceId
+          and latestReading.zone.id = :zoneId
+        """)
+    List<SensorLatestReading> findAllByDeviceIdAndZoneId(
+        @Param("deviceId") UUID deviceId,
+        @Param("zoneId") String zoneId
+    );
+
+    @Query("""
+        select latestReading
+        from SensorLatestReading latestReading
         where latestReading.zone.id = :zoneId
         """)
     List<SensorLatestReading> findAllByZoneId(@Param("zoneId") String zoneId);
+
+    @Modifying
+    @Query("""
+        delete from SensorLatestReading latestReading
+        where latestReading.device.id = :deviceId
+        """)
+    void deleteByDeviceId(@Param("deviceId") UUID deviceId);
 }

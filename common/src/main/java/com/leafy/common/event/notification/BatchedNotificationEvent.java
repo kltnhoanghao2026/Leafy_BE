@@ -45,6 +45,9 @@ public class BatchedNotificationEvent {
     /** Profile ID of the notification recipient. */
     String recipientId;
 
+    /** Optional auth-service user ID of the recipient for socket/FCM routing. */
+    String recipientUserId;
+
     /** Optional recipient e-mail (carried through from the raw events). */
     String recipientEmail;
 
@@ -99,4 +102,10 @@ public class BatchedNotificationEvent {
 
     /** Timestamp when the batching layer flushed this batch. */
     LocalDateTime batchedAt;
+
+    /** Optional delivery channel override, e.g. ["IN_APP", "FCM"]. */
+    List<String> channels;
+
+    /** Optional FCM platform target override, e.g. ["WEB"] or ["ANDROID", "IOS"]. */
+    List<String> fcmPlatforms;
 }

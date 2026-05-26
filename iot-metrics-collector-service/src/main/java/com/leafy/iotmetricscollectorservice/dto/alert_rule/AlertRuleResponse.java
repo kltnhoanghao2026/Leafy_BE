@@ -11,6 +11,9 @@ public class AlertRuleResponse {
 
     private UUID id;
     private UUID sensorTypeId;
+    private String sensorTypeCode;
+    private String sensorTypeName;
+    private String sensorTypeUnit;
     private UUID deviceId;
     private String zoneId;
     private String farmPlotId;

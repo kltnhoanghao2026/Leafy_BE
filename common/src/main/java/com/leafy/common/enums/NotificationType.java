@@ -26,6 +26,9 @@ public enum NotificationType {
     // ── Messaging ──────────────────────────────────────────
     DIRECT_MESSAGE,     // Someone sent you a direct/group chat message (FCM push only)
 
+    // ── IoT ─────────────────────────────────────────────────
+    IOT_ALERT,           // An IoT alert event was opened for a claimed device
+
     // ── System ─────────────────────────────────────────────
     SYSTEM              // Generic system notification (admin broadcast, etc.)
 }

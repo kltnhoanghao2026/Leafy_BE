@@ -16,6 +16,7 @@ public class AlertTriggeredEvent {
     private String deviceId;
     private String deviceUid;
     private String zoneId;
+    private String farmPlotId;
     private String sensorTypeCode;
 
     private String alertType;
@@ -26,4 +27,14 @@ public class AlertTriggeredEvent {
 
     private String title;
     private String message;
+    private Boolean notifyWeb;
+    private Boolean notifyMobile;
+    private String referenceType;
+    private String referenceId;
+    private String url;
+
+    private String mediaEventId;
+    private String analysisId;
+    private String diseaseName;
+    private String confidence;
 }

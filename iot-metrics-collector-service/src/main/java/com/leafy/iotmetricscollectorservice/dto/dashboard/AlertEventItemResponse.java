@@ -10,8 +10,14 @@ import lombok.Setter;
 public class AlertEventItemResponse {
     private UUID id;
     private UUID deviceId;
+    private String deviceName;
+    private String deviceCode;
     private String zoneId;
+    private String farmPlotId;
     private UUID sensorTypeId;
+    private String sensorCode;
+    private String sensorName;
+    private String unit;
     private UUID alertRuleId;
     private String alertType;
     private String message;
