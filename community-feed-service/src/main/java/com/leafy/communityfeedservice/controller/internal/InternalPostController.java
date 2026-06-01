@@ -1,4 +1,4 @@
-package com.leafy.communityfeedservice.controller;
+package com.leafy.communityfeedservice.controller.internal;
 
 import com.leafy.common.dto.ApiResponse;
 import com.leafy.communityfeedservice.dto.response.PostResponse;

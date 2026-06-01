@@ -110,8 +110,8 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public Page<PostResponse> getPostsByUserId(String userId, Pageable pageable) {
-        Page<Post> postPage = postRepository.findByAuthorId(userId, pageable);
+    public Page<PostResponse> getPostsByUserId(String profileId, Pageable pageable) {
+        Page<Post> postPage = postRepository.findByAuthorId(profileId, pageable);
         List<PostResponse> responses = postPage.getContent().stream()
                 .map(postMapper::toResponse)
                 .collect(Collectors.toList());
@@ -285,19 +285,19 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public Page<PostResponse> getPersonalizedFeed(String userId, Pageable pageable) {
-        if (userId == null || userId.isBlank()) {
+    public Page<PostResponse> getPersonalizedFeed(String profileId, Pageable pageable) {
+        if (profileId == null || profileId.isBlank()) {
             return getRandomUnviewedPosts(pageable);
         }
 
         // Get viewed post IDs to exclude
-        List<String> viewedPostIds = viewedPostRepository.findPostIdsByUserId(userId);
+        List<String> viewedPostIds = viewedPostRepository.findPostIdsByUserId(profileId);
 
         // Get followed users + consulting relationships
-        Set<String> relevantAuthorIds = getRelevantAuthorIds(userId);
+        Set<String> relevantAuthorIds = getRelevantAuthorIds(profileId);
 
         // Get followers for FOLLOWER visibility check
-        Set<String> followerIds = getFollowerIds(userId);
+        Set<String> followerIds = getFollowerIds(profileId);
 
         // Query personalized posts with visibility filtering
         Page<Post> personalizedPage;
@@ -315,7 +315,7 @@ public class PostServiceImpl implements PostService {
         }
 
         List<PostResponse> personalizedPosts = filterByVisibility(
-                personalizedPage.getContent(), userId, relevantAuthorIds, followerIds).stream()
+                personalizedPage.getContent(), profileId, relevantAuthorIds, followerIds).stream()
                 .map(postMapper::toResponse)
                 .collect(Collectors.toList());
         enrichPostResponses(personalizedPosts);
@@ -356,14 +356,14 @@ public class PostServiceImpl implements PostService {
      */
     private List<Post> filterByVisibility(
             List<Post> posts,
-            String currentUserId,
+            String currentProfileId,
             Set<String> relevantAuthorIds,
             Set<String> followerIds) {
         return posts.stream()
                 .filter(post -> {
                     Visibility visibility = post.getVisibility();
                     if (visibility == null) {
-                        return true; // Default to visible
+                        return true;
                     }
                     String authorId = post.getAuthorId();
 
@@ -371,11 +371,9 @@ public class PostServiceImpl implements PostService {
                         case ALL:
                             return true;
                         case FOLLOWER:
-                            // Check if current user follows the author
-                            return followerIds.contains(currentUserId) || authorId.equals(currentUserId);
+                            return followerIds.contains(currentProfileId) || authorId.equals(currentProfileId);
                         case ONLY_ME:
-                            // Only the author can see this post
-                            return authorId.equals(currentUserId);
+                            return authorId.equals(currentProfileId);
                         default:
                             return true;
                     }
@@ -383,47 +381,47 @@ public class PostServiceImpl implements PostService {
                 .collect(Collectors.toList());
     }
 
-    private Set<String> getRelevantAuthorIds(String userId) {
+    private Set<String> getRelevantAuthorIds(String profileId) {
         Set<String> authorIds = new HashSet<>();
 
         // 1. Get users the current user follows
         try {
             ExternalApiResponse<List<String>> followingResponse =
-                    profileServiceClient.getFollowingUserIds(userId);
+                    profileServiceClient.getFollowingProfileIds(profileId);
             if (followingResponse != null && followingResponse.getData() != null) {
                 authorIds.addAll(followingResponse.getData());
             }
         } catch (Exception e) {
-            log.warn("Failed to get following users for userId={}: {}", userId, e.getMessage());
+            log.warn("Failed to get following users for profileId={}: {}", profileId, e.getMessage());
         }
 
         // 2. Get farmers being consulted (if user is an expert)
         try {
             ExternalApiResponse<List<String>> consultingResponse =
-                    profileServiceClient.getConsultingFarmers(userId);
+                    profileServiceClient.getConsultingFarmers(profileId);
             if (consultingResponse != null && consultingResponse.getData() != null) {
                 authorIds.addAll(consultingResponse.getData());
             }
         } catch (Exception e) {
-            log.warn("Failed to get consulting farmers for userId={}: {}", userId, e.getMessage());
+            log.warn("Failed to get consulting farmers for profileId={}: {}", profileId, e.getMessage());
         }
 
         // 3. Also include the user themselves (to see own posts)
-        authorIds.add(userId);
+        authorIds.add(profileId);
 
         return authorIds;
     }
 
-    private Set<String> getFollowerIds(String userId) {
+    private Set<String> getFollowerIds(String profileId) {
         Set<String> followerIds = new HashSet<>();
         try {
             ExternalApiResponse<List<String>> followersResponse =
-                    profileServiceClient.getFollowerUserIds(userId);
+                    profileServiceClient.getFollowerProfileIds(profileId);
             if (followersResponse != null && followersResponse.getData() != null) {
                 followerIds.addAll(followersResponse.getData());
             }
         } catch (Exception e) {
-            log.warn("Failed to get follower IDs for userId={}: {}", userId, e.getMessage());
+            log.warn("Failed to get follower IDs for profileId={}: {}", profileId, e.getMessage());
         }
         return followerIds;
     }
@@ -458,31 +456,19 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public void markPostsAsViewed(String userId, List<String> postIds) {
-        if (userId == null || postIds == null || postIds.isEmpty()) {
+    public void markPostAsViewed(String profileId, String postId) {
+        if (profileId == null || postId == null || postId.isBlank()) {
             return;
         }
-        LocalDateTime now = LocalDateTime.now();
-        List<ViewedPost> viewedPosts = postIds.stream()
-                .filter(postId -> !viewedPostRepository.existsByUserIdAndPostId(userId, postId))
-                .map(postId -> ViewedPost.builder()
-                        .userId(userId)
-                        .postId(postId)
-                        .viewedAt(now)
-                        .build())
-                .toList();
-        if (!viewedPosts.isEmpty()) {
-            viewedPostRepository.saveAll(viewedPosts);
-        }
-    }
-
-    @Override
-    @Transactional
-    public void unmarkPostsAsViewed(String userId, List<String> postIds) {
-        if (userId == null || postIds == null || postIds.isEmpty()) {
+        if (viewedPostRepository.existsByUserIdAndPostId(profileId, postId)) {
             return;
         }
-        viewedPostRepository.deleteAllByUserIdAndPostIdIn(userId, postIds);
+        ViewedPost viewedPost = ViewedPost.builder()
+                .userId(profileId)
+                .postId(postId)
+                .viewedAt(LocalDateTime.now())
+                .build();
+        viewedPostRepository.save(viewedPost);
     }
 }
 

@@ -29,4 +29,11 @@ public class PlantResponse {
     String farmPlotId;
     String farmZoneId;
     String ownerProfileId;
+
+    // BaseModel audit fields
+    LocalDateTime createdAt;
+    LocalDateTime lastModifiedAt;
+    String createdBy;
+    String lastModifiedBy;
+    boolean active;
 }

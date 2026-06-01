@@ -3,15 +3,15 @@ from enum import Enum
 
 class ErrorCode(Enum):
     """
-    Error codes following the same pattern as auth-service / disease-detection-service.
+    Error codes following the same namespace as the common module.
 
     Tuple: (internal_code, message_key, http_status)
     """
 
     # ── Generic ────────────────────────────────────────────────────────────────
-    UNAUTHENTICATED = (4001, "error.auth.unauthenticated", 401)
-    UNAUTHORIZED = (4003, "error.auth.unauthorized", 403)
-    INTERNAL_ERROR = (5000, "error.sys.uncategorized", 500)
+    UNAUTHENTICATED = (1001, "error.auth.unauthenticated", 401)
+    UNAUTHORIZED = (1002, "error.auth.unauthorized", 403)
+    INTERNAL_ERROR = (9999, "error.sys.uncategorized", 500)
 
     # ── File / Ingestion ───────────────────────────────────────────────────────
     FILE_TOO_LARGE = (4101, "error.file.too.large", 413)

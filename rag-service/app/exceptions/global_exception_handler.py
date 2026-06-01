@@ -28,7 +28,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             content={
                 "code": exc.error_code.code,
                 "message": message,
-                "result": None,
+                "data": None,
             },
         )
 
@@ -36,12 +36,17 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         locale = resolve_locale(request)
         logger.warning("Validation error on %s %s: %s", request.method, request.url.path, exc.errors())
+        errors = {
+            ".".join(str(loc) for loc in err["loc"]): err["msg"]
+            for err in exc.errors()
+        }
         return JSONResponse(
             status_code=422,
             content={
-                "code": 4220,
+                "code": 2200,
                 "message": get_message("error.validation.error", locale),
-                "result": exc.errors(),
+                "data": None,
+                "errors": errors,
             },
         )
 
@@ -63,8 +68,8 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=500,
             content={
-                "code": 5000,
+                "code": 9999,
                 "message": get_message("error.sys.uncategorized", locale),
-                "result": None,
+                "data": None,
             },
         )

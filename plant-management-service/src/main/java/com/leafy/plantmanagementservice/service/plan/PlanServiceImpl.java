@@ -246,6 +246,9 @@ public class PlanServiceImpl implements PlanService {
         if (request.getSafetyWarnings() != null)     plan.setSafetyWarnings(request.getSafetyWarnings());
         if (request.getSuccessIndicators() != null)  plan.setSuccessIndicators(request.getSuccessIndicators());
         if (request.getEstimatedCost() != null)      plan.setEstimatedCost(request.getEstimatedCost());
+        if (!CollectionUtils.isEmpty(request.getSchedule())) {
+            plan.setEvents(planMapper.toEmbeddedEventList(request.getSchedule()));
+        }
 
         Plan saved = planRepository.save(plan);
         log.info("Plan id={} updated by profileId={}", planId, profileId);

@@ -7,8 +7,6 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 /**
  * Internal REST Controller for feed operations.
  * Handles service-to-service operations for tracking viewed posts.
@@ -22,32 +20,17 @@ public class InternalFeedController {
     PostService postService;
 
     /**
-     * Mark multiple posts as viewed by a user.
+     * Mark a single post as viewed by a user (internal service-to-service).
      *
-     * @param userId  the profile ID of the user
-     * @param postIds list of post IDs to mark as viewed
+     * @param postId the ID of the post to mark as viewed
+     * @param userId the profile ID of the user
      * @return success response
      */
-    @PostMapping("/posts/viewed")
-    public ResponseEntity<ApiResponse<Void>> markPostsViewed(
-            @RequestParam String userId,
-            @RequestBody List<String> postIds) {
-        postService.markPostsAsViewed(userId, postIds);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
-
-    /**
-     * Unmark (remove) posts from the viewed list for a user.
-     *
-     * @param userId  the profile ID of the user
-     * @param postIds list of post IDs to unmark
-     * @return success response
-     */
-    @DeleteMapping("/posts/viewed")
-    public ResponseEntity<ApiResponse<Void>> unmarkPostsViewed(
-            @RequestParam String userId,
-            @RequestBody List<String> postIds) {
-        postService.unmarkPostsAsViewed(userId, postIds);
+    @PostMapping("/posts/{postId}/viewed")
+    public ResponseEntity<ApiResponse<Void>> markPostViewed(
+            @PathVariable String postId,
+            @RequestParam String profileId) {
+        postService.markPostAsViewed(profileId, postId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

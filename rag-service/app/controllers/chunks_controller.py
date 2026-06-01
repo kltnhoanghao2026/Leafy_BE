@@ -73,4 +73,4 @@ async def get_chunks_by_point_ids(
         len(chunk_details),
         len(point_ids),
     )
-    return ApiResponse.success(result=chunk_details)
+    return ApiResponse.success(data=chunk_details)

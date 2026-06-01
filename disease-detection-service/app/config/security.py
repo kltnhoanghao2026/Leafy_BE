@@ -81,7 +81,7 @@ class SecurityContextMiddleware(BaseHTTPMiddleware):
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content=ApiResponse.error(
                         code=ErrorCode.UNAUTHENTICATED.code,
-                        message=ErrorCode.UNAUTHENTICATED.message,
+                        message=ErrorCode.UNAUTHENTICATED.message_key,
                         errors={"detail": "Authentication required. Missing user context headers."}
                     ).model_dump()
                 )

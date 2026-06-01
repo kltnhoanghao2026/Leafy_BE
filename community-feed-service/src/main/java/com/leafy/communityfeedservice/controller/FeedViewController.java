@@ -8,8 +8,6 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 /**
  * REST Controller for community feed view tracking.
  * Exposed to frontend clients via API Gateway.
@@ -23,34 +21,17 @@ public class FeedViewController {
     PostService postService;
 
     /**
-     * Mark multiple posts as viewed by the current user.
-     * Called by frontend when posts become visible via IntersectionObserver.
+     * Mark a single post as viewed by the current user.
      *
-     * @param postIds list of post IDs to mark as viewed
+     * @param postId the ID of the post to mark as viewed
      * @return success response
      */
-    @PostMapping("/viewed")
-    public ResponseEntity<ApiResponse<Void>> markPostsViewed(
-            @RequestBody List<String> postIds) {
+    @PostMapping("/posts/{postId}/viewed")
+    public ResponseEntity<ApiResponse<Void>> markPostViewed(
+            @PathVariable String postId) {
         String currentProfileId = ServiceSecurityUtils.getCurrentProfileId();
         if (currentProfileId != null) {
-            postService.markPostsAsViewed(currentProfileId, postIds);
-        }
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
-
-    /**
-     * Unmark (remove) posts from the viewed list for the current user.
-     *
-     * @param postIds list of post IDs to unmark
-     * @return success response
-     */
-    @DeleteMapping("/viewed")
-    public ResponseEntity<ApiResponse<Void>> unmarkPostsViewed(
-            @RequestBody List<String> postIds) {
-        String currentProfileId = ServiceSecurityUtils.getCurrentProfileId();
-        if (currentProfileId != null) {
-            postService.unmarkPostsAsViewed(currentProfileId, postIds);
+            postService.markPostAsViewed(currentProfileId, postId);
         }
         return ResponseEntity.ok(ApiResponse.success(null));
     }

@@ -2,6 +2,8 @@ package com.leafy.plantmanagementservice.repository;
 
 import com.leafy.plantmanagementservice.model.FarmZone;
 import com.leafy.plantmanagementservice.repository.custom.FarmZoneRepositoryCustom;
+
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -19,4 +21,6 @@ public interface FarmZoneRepository extends MongoRepository<FarmZone, String>, F
     Optional<FarmZone> findByIdAndActiveTrue(String id);
 
     boolean existsByFarmPlotIdAndZoneNameAndActiveTrue(String farmPlotId, String zoneName);
+
+    List<FarmZone> findByOwnerProfileIdAndActiveTrue(String profileId);
 }

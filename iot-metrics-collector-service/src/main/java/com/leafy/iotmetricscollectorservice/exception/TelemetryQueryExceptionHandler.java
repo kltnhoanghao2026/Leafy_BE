@@ -1,6 +1,6 @@
 package com.leafy.iotmetricscollectorservice.exception;
 
-import java.util.Map;
+import com.leafy.common.dto.ApiResponse;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class TelemetryQueryExceptionHandler {
 
     @ExceptionHandler(TelemetryQueryException.class)
-    public ResponseEntity<Map<String, Object>> handleTelemetryQueryException(TelemetryQueryException exception) {
+    public ResponseEntity<ApiResponse<Void>> handleTelemetryQueryException(TelemetryQueryException exception) {
         return ResponseEntity
             .status(exception.getHttpStatus())
-            .body(Map.of("code", exception.getCode(), "message", exception.getMessage()));
+            .body(ApiResponse.error(exception.getCode(), exception.getMessage(), null));
     }
 }
