@@ -88,6 +88,12 @@ public class FallbackController {
         return Mono.just(createFallbackResponse("Messages service is temporarily unavailable"));
     }
 
+    @RequestMapping("/iot-metrics-collector-service")
+    public Mono<ResponseEntity<Map<String, Object>>> iotMetricsCollectorServiceFallback() {
+        log.warn("IoT Metrics Collector service is unavailable - Circuit breaker activated");
+        return Mono.just(createFallbackResponse("IoT Metrics Collector service is temporarily unavailable"));
+    }
+
     @RequestMapping("/socket-service")
     public Mono<ResponseEntity<Map<String, Object>>> socketServiceFallback() {
         log.warn("Socket service is unavailable - Circuit breaker activated");

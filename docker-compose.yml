@@ -157,6 +157,7 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
+
   qdrant:
     image: qdrant/qdrant:latest
     container_name: leafy-qdrant

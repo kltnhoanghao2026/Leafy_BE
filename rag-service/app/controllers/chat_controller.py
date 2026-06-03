@@ -45,7 +45,7 @@ async def chat(
         current_user,
         auth_header=raw_request.headers.get("Authorization"),
     )
-    return ApiResponse.success(result=result)
+    return ApiResponse.success(data=result)
 
 
 @router.post(

@@ -94,6 +94,7 @@ public class PlantEventController {
         return ResponseEntity.ok(ApiResponse.success(plantEventService.toggleTask(eventId, taskIndex)));
     }
 
+
     // ── Read ──────────────────────────────────────────────────────────────────
 
     @GetMapping("/{eventId}")

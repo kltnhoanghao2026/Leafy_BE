@@ -1,4 +1,4 @@
-from typing import Generic, Optional, TypeVar
+from typing import Dict, Generic, Optional, TypeVar
 from pydantic import BaseModel
 
 from app.i18n import get_message
@@ -9,22 +9,23 @@ T = TypeVar("T")
 class ApiResponse(BaseModel, Generic[T]):
     """
     Standard response envelope used by all controllers.
-    Mirrors the auth-service / disease-detection-service pattern.
+    Matches the common module's ApiResponse: { code, message, data, errors }.
     """
 
-    code: int = 200
+    code: int = 1000
     message: str = get_message("response.success", "en")
-    result: Optional[T] = None
+    data: Optional[T] = None
+    errors: Optional[Dict[str, str]] = None
 
     @classmethod
     def success(
         cls,
-        result: T = None,
+        data: T = None,
         message: Optional[str] = None,
         locale: str = "en",
     ) -> "ApiResponse[T]":
-        return cls(code=200, message=message or get_message("response.success", locale), result=result)
+        return cls(code=1000, message=message or get_message("response.success", locale), data=data)
 
     @classmethod
-    def error(cls, code: int, message: str) -> "ApiResponse[None]":
-        return cls(code=code, message=message, result=None)
+    def error(cls, code: int, message: str, errors: Optional[Dict[str, str]] = None) -> "ApiResponse[None]":
+        return cls(code=code, message=message, data=None, errors=errors)

@@ -209,6 +209,18 @@ spring:
                     name: plantManagementServiceCircuitBreaker
                     fallbackUri: forward:/fallback/plant-management-service
 
+            # Sync Routes (Plant Management)
+            - id: plant-management-sync
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/plant-management/sync/**
+              filters:
+                - RewritePath=/api/plant-management/sync/(?<segment>.*), /sync/${segment}
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
             # Treatment Plan Routes (Plant Management)
             - id: plans-service
               uri: lb://plant-management-service
@@ -378,7 +390,7 @@ spring:
             - id: community-feed-service
               uri: lb://community-feed-service
               predicates:
-                - Path=/api/posts/**, /api/comments/**, /api/votes/**
+                - Path=/api/posts/**, /api/comments/**, /api/votes/**, /api/feed/**
               filters:
                 - StripPrefix=1
                 - name: CircuitBreaker

@@ -32,7 +32,6 @@ public class EmbeddedPlanEventRequest {
     /** Intended scope of this template event when the plan is applied. */
     TargetType targetType;
 
-    @NotBlank(message = "note is required")
     String note;
 
     String description;

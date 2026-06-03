@@ -116,7 +116,7 @@ async def ingest_document(
             message=get_message("response.document.exists", locale),
             file_id=file_hash,
         )
-        return ApiResponse.success(result=result, message=get_message("response.document.exists", locale), locale=locale)
+        return ApiResponse.success(data=result, message=get_message("response.document.exists", locale), locale=locale)
 
     # 4. Prepare Metadata (user_id from auth context)
     metadata = {
@@ -140,7 +140,7 @@ async def ingest_document(
         message=get_message("response.document.accepted", locale),
         file_id=file_hash,
     )
-    return ApiResponse.success(result=result, message=get_message("response.document.accepted", locale), locale=locale)
+    return ApiResponse.success(data=result, message=get_message("response.document.accepted", locale), locale=locale)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -203,7 +203,7 @@ async def preview_document_endpoint(
             sections=sections,
             chunks=chunk_previews,
         )
-        return ApiResponse.success(result=result)
+        return ApiResponse.success(data=result)
 
     finally:
         # Always clean up
@@ -241,7 +241,7 @@ async def list_tasks(
     locale = resolve_locale(request)
     task_manager = get_task_manager()
     tasks = [_to_task_schema(task, locale) for task in task_manager.list_tasks()]
-    return ApiResponse.success(result=tasks, locale=locale)
+    return ApiResponse.success(data=tasks, locale=locale)
 
 
 @router.get(
@@ -264,7 +264,7 @@ async def get_task_status(
     if not task:
         raise AppException(ErrorCode.TASK_NOT_FOUND)
     locale = resolve_locale(request)
-    return ApiResponse.success(result=_to_task_schema(task, locale), locale=locale)
+    return ApiResponse.success(data=_to_task_schema(task, locale), locale=locale)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -286,7 +286,7 @@ async def list_documents(
     doc_repo = get_document_repository()
     docs = doc_repo.find_all(skip=skip, limit=limit)
     summaries = [DocumentSummary(**d) for d in docs]
-    return ApiResponse.success(result=summaries)
+    return ApiResponse.success(data=summaries)
 
 
 @router.get(
@@ -325,7 +325,7 @@ async def get_document_detail(
         **doc,
         chunks=chunk_previews,
     )
-    return ApiResponse.success(result=detail)
+    return ApiResponse.success(data=detail)
 
 
 @router.delete(
