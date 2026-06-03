@@ -24,6 +24,7 @@ import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.AlertEventRepository;
 import com.leafy.iotmetricscollectorservice.repository.AlertRuleRepository;
 import com.leafy.iotmetricscollectorservice.service.AlertNotificationPublisher;
+import com.leafy.iotmetricscollectorservice.service.AlertPlantEventIntegrationService;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -45,6 +46,9 @@ class AlertEvaluationServiceImplTest {
 
     @Mock
     private AlertNotificationPublisher alertNotificationPublisher;
+
+    @Mock
+    private AlertPlantEventIntegrationService alertPlantEventIntegrationService;
 
     @InjectMocks
     private AlertEvaluationServiceImpl alertEvaluationService;

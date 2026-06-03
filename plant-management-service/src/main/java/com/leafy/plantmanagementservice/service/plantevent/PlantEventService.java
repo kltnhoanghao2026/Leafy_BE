@@ -1,7 +1,9 @@
 package com.leafy.plantmanagementservice.service.plantevent;
 
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventCreateRequest;
+import com.leafy.plantmanagementservice.dto.request.plantevent.InternalAlertPlantEventCreateRequest;
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventUpdateRequest;
+import com.leafy.plantmanagementservice.dto.response.plantevent.InternalAlertPlantEventResponse;
 import com.leafy.plantmanagementservice.dto.response.plantevent.PlantEventResponse;
 import com.leafy.plantmanagementservice.model.enums.EventType;
 import com.leafy.plantmanagementservice.model.enums.TargetType;
@@ -14,6 +16,8 @@ import java.util.List;
 public interface PlantEventService {
 
     PlantEventResponse createEvent(PlantEventCreateRequest request);
+
+    InternalAlertPlantEventResponse createAlertPlantEvent(InternalAlertPlantEventCreateRequest request);
 
     /** Bulk-create multiple events from a RAG treatment plan. */
     List<PlantEventResponse> createEvents(List<PlantEventCreateRequest> requests);

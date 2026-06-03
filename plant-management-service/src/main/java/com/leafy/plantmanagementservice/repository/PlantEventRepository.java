@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PlantEventRepository extends MongoRepository<PlantEvent, String>, PlantEventRepositoryCustom {
@@ -30,6 +31,8 @@ public interface PlantEventRepository extends MongoRepository<PlantEvent, String
     Page<PlantEvent> findByFarmZoneId(String farmZoneId, Pageable pageable);
 
     Page<PlantEvent> findByEventType(EventType eventType, Pageable pageable);
+
+    Optional<PlantEvent> findBySourceTypeAndSourceId(String sourceType, String sourceId);
 
     List<PlantEvent> findByFarmPlotIdAndCalculatedStartDateLessThanEqualAndCalculatedEndDateGreaterThanEqual(
             String farmPlotId, LocalDate rangeEnd, LocalDate rangeStart);

@@ -25,6 +25,7 @@ import com.leafy.iotmetricscollectorservice.repository.DeviceConfigRepository;
 import com.leafy.iotmetricscollectorservice.repository.DeviceMediaAnalysisRepository;
 import com.leafy.iotmetricscollectorservice.repository.SensorTypeRepository;
 import com.leafy.iotmetricscollectorservice.service.AlertNotificationPublisher;
+import com.leafy.iotmetricscollectorservice.service.AlertPlantEventIntegrationService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -55,6 +56,9 @@ class ImageDiseaseAlertServiceImplTest {
     @Mock
     private AlertNotificationPublisher alertNotificationPublisher;
 
+    @Mock
+    private AlertPlantEventIntegrationService alertPlantEventIntegrationService;
+
     private ImageDiseaseAlertServiceImpl service;
 
     @BeforeEach
@@ -64,7 +68,8 @@ class ImageDiseaseAlertServiceImplTest {
             sensorTypeRepository,
             deviceConfigRepository,
             deviceMediaAnalysisRepository,
-            alertNotificationPublisher
+            alertNotificationPublisher,
+            alertPlantEventIntegrationService
         );
         lenient().when(sensorTypeRepository.findByCode("CAMERA_DISEASE_DETECTION"))
             .thenReturn(Optional.of(cameraDiseaseSensorType()));
