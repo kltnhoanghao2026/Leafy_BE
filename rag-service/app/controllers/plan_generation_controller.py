@@ -175,7 +175,7 @@ async def generate_treatment_plan(
 
     locale = resolve_locale(request)
     response = _build_response(result, saved_plan_id, rag_plan_id)
-    return ApiResponse.success(result=response, locale=locale)
+    return ApiResponse.success(data=response, locale=locale)
 
 
 async def _stream_plan_events(

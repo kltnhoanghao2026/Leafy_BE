@@ -26,16 +26,16 @@ public interface ProfileServiceClient {
             @RequestParam("sortDir") String sortDir);
 
     /**
-     * Get list of profile IDs that the given user is following.
+     * Get list of profile IDs that the given profile is following.
      */
-    @GetMapping("/profiles/internal/following")
-    ExternalApiResponse<List<String>> getFollowingUserIds(@RequestParam String profileId);
+    @GetMapping("/internal/profiles/following")
+    ExternalApiResponse<List<String>> getFollowingProfileIds(@RequestParam String profileId);
 
     /**
-     * Get list of profile IDs who follow the given user.
+     * Get list of profile IDs who follow the given profile.
      */
-    @GetMapping("/profiles/internal/followers")
-    ExternalApiResponse<List<String>> getFollowerUserIds(@RequestParam String profileId);
+    @GetMapping("/internal/profiles/followers")
+    ExternalApiResponse<List<String>> getFollowerProfileIds(@RequestParam String profileId);
 
     /**
      * Get list of farmer profile IDs that the given expert is actively consulting.

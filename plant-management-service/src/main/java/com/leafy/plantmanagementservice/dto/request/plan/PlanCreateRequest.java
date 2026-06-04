@@ -1,12 +1,11 @@
 package com.leafy.plantmanagementservice.dto.request.plan;
 
 import com.leafy.plantmanagementservice.dto.request.plan.EmbeddedPlanEventRequest;
+import com.leafy.plantmanagementservice.model.SourceDocument;
+import com.leafy.plantmanagementservice.model.WebSearchResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-
-import com.leafy.plantmanagementservice.model.SourceDocument;
-import com.leafy.plantmanagementservice.model.WebSearchResult;
 import com.leafy.plantmanagementservice.model.enums.PlanSourceType;
 import com.leafy.plantmanagementservice.model.enums.SeverityLevel;
 import lombok.*;
@@ -33,15 +32,8 @@ public class PlanCreateRequest {
     List<SourceDocument> sourceDocuments;
     List<WebSearchResult> webSearchResults;
 
-    // ── Plant / Farm scope ────────────────────────────────────────────────────
-
-    String plantId;
-    String farmPlotId;
-    String farmZoneId;
-
     // ── Diagnosis ─────────────────────────────────────────────────────────────
 
-    @NotBlank(message = "diseaseName is required")
     String diseaseName;
 
     Double confidenceScore;

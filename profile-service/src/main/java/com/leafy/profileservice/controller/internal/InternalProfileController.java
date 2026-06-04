@@ -6,6 +6,7 @@ import com.leafy.profileservice.dto.response.profile.InternalProfileResponse;
 import com.leafy.profileservice.dto.response.profile.ProfileResponse;
 import com.leafy.profileservice.dto.response.profile.UserSyncResponse;
 import com.leafy.profileservice.model.Profile;
+import com.leafy.profileservice.service.connection.UserConnectionService;
 import com.leafy.profileservice.service.profile.ProfileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,9 +27,6 @@ import java.util.List;
  * Internal REST Controller for Profile management
  * Handles service-to-service profile operations, not exposed through the API gateway
  */
-import com.leafy.profileservice.service.connection.UserConnectionService;
-import com.leafy.profileservice.service.profile.ProfileService;
-
 @RestController
 @RequestMapping("/internal/profiles")
 @RequiredArgsConstructor
@@ -43,20 +41,20 @@ public class InternalProfileController {
      * Create a minimal profile for a newly registered user
      * Called internally by auth-service after successful user registration
      *
-     * @param request the internal create profile request containing the user ID
+     * @param request the internal create profile request containing the auth user ID
      * @return the created profile response
      */
     @PostMapping
     public ResponseEntity<ApiResponse<ProfileResponse>> createProfile(
             @Valid @RequestBody InternalCreateProfileRequest request) {
-        log.info("POST /internal/profiles - Creating profile for user: {}", request.getUserId());
+        log.info("POST /internal/profiles - Creating profile for authUserId: {}", request.getUserId());
         ProfileResponse response = profileService.createProfileInternal(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response));
     }
 
     @GetMapping("/batch")
-    public ResponseEntity<ApiResponse<List<UserSyncResponse>>> getUsersBatch(
+    public ResponseEntity<ApiResponse<List<UserSyncResponse>>> getProfilesBatch(
             @RequestParam(required = false) String lastId,
             @RequestParam(defaultValue = "500") int size) {
         return ResponseEntity.ok(ApiResponse.success(profileService.getUsersBatch(lastId, size)));
@@ -101,8 +99,8 @@ public class InternalProfileController {
      * Get list of profile IDs that the given profile is following.
      * Takes profileId directly (not userId).
      */
-    @GetMapping("/internal/following")
-    public ResponseEntity<ApiResponse<List<String>>> getFollowingUserIds(@RequestParam String profileId) {
+    @GetMapping("/following")
+    public ResponseEntity<ApiResponse<List<String>>> getFollowingProfileIds(@RequestParam String profileId) {
         return ResponseEntity.ok(ApiResponse.success(
                 userConnectionService.getFollowingUsers(profileId)
         ));
@@ -112,8 +110,8 @@ public class InternalProfileController {
      * Get list of profile IDs who follow the given profile.
      * Takes profileId directly (not userId).
      */
-    @GetMapping("/internal/followers")
-    public ResponseEntity<ApiResponse<List<String>>> getFollowerUserIds(@RequestParam String profileId) {
+    @GetMapping("/followers")
+    public ResponseEntity<ApiResponse<List<String>>> getFollowerProfileIds(@RequestParam String profileId) {
         return ResponseEntity.ok(ApiResponse.success(
                 userConnectionService.getUserFollowers(profileId)
         ));

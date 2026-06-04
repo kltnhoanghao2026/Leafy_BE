@@ -17,7 +17,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -50,13 +49,13 @@ public class PostServiceIndexingDecorator implements PostService {
     }
 
     @Override
-    public Page<PostResponse> getPostsByUserId(String userId, Pageable pageable) {
-        return delegate.getPostsByUserId(userId, pageable);
+    public Page<PostResponse> getPostsByUserId(String profileId, Pageable pageable) {
+        return delegate.getPostsByUserId(profileId, pageable);
     }
 
     @Override
-    public Page<PostResponse> getPersonalizedFeed(String userId, Pageable pageable) {
-        return delegate.getPersonalizedFeed(userId, pageable);
+    public Page<PostResponse> getPersonalizedFeed(String profileId, Pageable pageable) {
+        return delegate.getPersonalizedFeed(profileId, pageable);
     }
 
 
@@ -76,13 +75,8 @@ public class PostServiceIndexingDecorator implements PostService {
     }
 
     @Override
-    public void markPostsAsViewed(String userId, List<String> postIds) {
-        delegate.markPostsAsViewed(userId, postIds);
-    }
-
-    @Override
-    public void unmarkPostsAsViewed(String userId, List<String> postIds) {
-        delegate.unmarkPostsAsViewed(userId, postIds);
+    public void markPostAsViewed(String profileId, String postId) {
+        delegate.markPostAsViewed(profileId, postId);
     }
 
     private boolean isSearchIndexable(PostType postType) {

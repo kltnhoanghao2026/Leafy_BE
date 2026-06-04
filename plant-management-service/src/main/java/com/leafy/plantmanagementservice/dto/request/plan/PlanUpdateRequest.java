@@ -1,6 +1,7 @@
 package com.leafy.plantmanagementservice.dto.request.plan;
 
 import com.leafy.plantmanagementservice.model.enums.SeverityLevel;
+import jakarta.validation.Valid;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -33,4 +34,13 @@ public class PlanUpdateRequest {
     String successIndicators;
 
     String estimatedCost;
+
+    // ── Schedule ──────────────────────────────────────────────────────────────
+
+    /**
+     * Replaces the entire embedded event schedule when provided.
+     * Omit (null) to leave the existing schedule unchanged.
+     */
+    @Valid
+    List<EmbeddedPlanEventRequest> schedule;
 }

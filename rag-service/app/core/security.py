@@ -89,7 +89,7 @@ class SecurityContextMiddleware(BaseHTTPMiddleware):
                     content={
                         "code": ErrorCode.UNAUTHENTICATED.code,
                         "message": get_message(ErrorCode.UNAUTHENTICATED.message_key, locale),
-                        "result": None,
+                        "data": None,
                     },
                 )
 

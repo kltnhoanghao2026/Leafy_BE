@@ -3,7 +3,7 @@ server:
 
 spring:
   elasticsearch:
-    uris: ${ELASTICSEARCH_URIS:localhost:${ELASTICSEARCH_PORT:9200}}
+    uris: ${ELASTICSEARCH_URIS:http://localhost:${ELASTICSEARCH_PORT:9200}}
 
   data:
     mongodb:

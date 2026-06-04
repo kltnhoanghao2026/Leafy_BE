@@ -1,37 +1,25 @@
 """
-Custom exception handlers for the API
-Follows Spring Boot error response structure
+Exception helper functions that raise AppException with the appropriate ErrorCode.
 """
-from fastapi import HTTPException, status
+from app.exceptions.app_exception import AppException
+from app.exceptions.error_code import ErrorCode
 
 
-def bad_request(msg: str = "Bad request") -> HTTPException:
+def bad_request(detail: str = None) -> AppException:
     """HTTP 400 Bad Request"""
-    return HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=msg
-    )
+    return AppException(ErrorCode.BAD_REQUEST, detail)
 
 
-def internal_server_error(msg: str = "Internal server error") -> HTTPException:
+def internal_server_error(detail: str = None) -> AppException:
     """HTTP 500 Internal Server Error"""
-    return HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=msg
-    )
+    return AppException(ErrorCode.UNCATEGORIZED_EXCEPTION, detail)
 
 
-def service_unavailable(msg: str = "Service unavailable") -> HTTPException:
+def service_unavailable(detail: str = None) -> AppException:
     """HTTP 503 Service Unavailable"""
-    return HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail=msg
-    )
+    return AppException(ErrorCode.MODEL_NOT_LOADED, detail)
 
 
-def unprocessable_entity(msg: str = "Unprocessable entity") -> HTTPException:
+def unprocessable_entity(detail: str = None) -> AppException:
     """HTTP 422 Unprocessable Entity"""
-    return HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        detail=msg
-    )
+    return AppException(ErrorCode.BAD_REQUEST, detail)

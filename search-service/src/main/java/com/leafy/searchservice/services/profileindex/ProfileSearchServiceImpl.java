@@ -67,6 +67,19 @@ public class ProfileSearchServiceImpl implements ProfileSearchService {
                                         .boost(1.5f)
                         ));
 
+                        // Allow keyword search to match expert specialty & bio as well
+                        b.should(s -> s.match(m ->
+                                m.field("specialty")
+                                        .query(searchQuery)
+                                        .boost(1.0f)
+                        ));
+
+                        b.should(s -> s.match(m ->
+                                m.field("bio")
+                                        .query(searchQuery)
+                                        .boost(0.6f)
+                        ));
+
                         b.minimumShouldMatch("1");
                     }
 

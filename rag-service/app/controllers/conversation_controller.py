@@ -53,7 +53,7 @@ async def list_conversations(
         len(conversations),
     )
     locale = resolve_locale(request)
-    return ApiResponse.success(result=conversations, locale=locale)
+    return ApiResponse.success(data=conversations, locale=locale)
 
 
 @router.get(
@@ -88,7 +88,7 @@ async def get_conversation(
         current_user.id,
     )
     locale = resolve_locale(request)
-    return ApiResponse.success(result=conversation, locale=locale)
+    return ApiResponse.success(data=conversation, locale=locale)
 
 
 @router.patch(
@@ -139,7 +139,7 @@ async def rename_conversation(
         body.title,
     )
     locale = resolve_locale(request)
-    return ApiResponse.success(result=refreshed or {}, locale=locale)
+    return ApiResponse.success(data=refreshed or {}, locale=locale)
 
 
 @router.delete(

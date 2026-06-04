@@ -24,6 +24,7 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -36,6 +37,63 @@ public class PostSearchServiceImpl implements PostSearchService {
     ElasticSearchProperties elasProps;
     ProfileIndexSearchRepository profileIndexSearchRepository;
 
+    private void debugLog(String runId, String hypothesisId, String location, String message, Map<String, Object> data) {
+        // #region agent log
+        try {
+            String sessionId = "ccdb9f";
+            String id = "log_" + System.currentTimeMillis() + "_" + UUID.randomUUID();
+
+            String safeData = data == null ? "{}" : data.entrySet().stream()
+                    .map(e -> "\"" + String.valueOf(e.getKey()).replace("\\", "\\\\").replace("\"", "\\\"") + "\":" + toJsonValue(e.getValue()))
+                    .collect(Collectors.joining(",", "{", "}"));
+
+            String payload = "{"
+                    + "\"sessionId\":\"" + sessionId + "\""
+                    + ",\"id\":\"" + id + "\""
+                    + ",\"timestamp\":" + System.currentTimeMillis()
+                    + ",\"location\":\"" + escapeJson(location) + "\""
+                    + ",\"message\":\"" + escapeJson(message) + "\""
+                    + ",\"runId\":\"" + escapeJson(runId) + "\""
+                    + ",\"hypothesisId\":\"" + escapeJson(hypothesisId) + "\""
+                    + ",\"data\":" + safeData
+                    + "}";
+
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create("http://127.0.0.1:7297/ingest/cce84058-e304-43cb-b8b9-fcbb2a10791f"))
+                    .timeout(java.time.Duration.ofSeconds(2))
+                    .header("Content-Type", "application/json")
+                    .header("X-Debug-Session-Id", sessionId)
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+
+            java.net.http.HttpClient.newHttpClient().sendAsync(req, java.net.http.HttpResponse.BodyHandlers.discarding());
+        } catch (Throwable ignored) {
+        }
+        // #endregion
+    }
+
+    private static String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
+    }
+
+    private static String toJsonValue(Object v) {
+        if (v == null) {
+            return "null";
+        }
+        if (v instanceof Number || v instanceof Boolean) {
+            return String.valueOf(v);
+        }
+        return "\"" + escapeJson(String.valueOf(v)) + "\"";
+    }
+
     @Override
     public Page<PostSearchResponse> searchPosts(
             String keyword,
@@ -43,6 +101,24 @@ public class PostSearchServiceImpl implements PostSearchService {
             String authorId,
             Pageable pageable
     ) {
+        // #region agent log
+        debugLog(
+                "pre-fix",
+                "H1",
+                "PostSearchServiceImpl.java:searchPosts:entry",
+                "searchPosts called",
+                Map.of(
+                        "hasKeyword", keyword != null && !keyword.trim().isEmpty(),
+                        "keywordLength", keyword != null ? keyword.length() : 0,
+                        "postTypeProvided", postType != null && !postType.trim().isEmpty(),
+                        "authorIdProvided", authorId != null && !authorId.trim().isEmpty(),
+                        "page", pageable != null ? pageable.getPageNumber() : null,
+                        "size", pageable != null ? pageable.getPageSize() : null,
+                        "indexAlias", elasProps != null ? elasProps.getPostAlias() : null
+                )
+        );
+        // #endregion
+
         if (!StringUtils.hasText(keyword)) {
             return Page.empty(pageable);
         }
@@ -109,11 +185,38 @@ public class PostSearchServiceImpl implements PostSearchService {
                 .withPageable(pageable)
                 .build();
 
-        SearchHits<PostIndex> searchHits = elasOps.search(
-                nativeQuery,
-                PostIndex.class,
-                IndexCoordinates.of(elasProps.getPostAlias())
-        );
+        SearchHits<PostIndex> searchHits;
+        try {
+            searchHits = elasOps.search(
+                    nativeQuery,
+                    PostIndex.class,
+                    IndexCoordinates.of(elasProps.getPostAlias())
+            );
+            // #region agent log
+            debugLog(
+                    "pre-fix",
+                    "H2",
+                    "PostSearchServiceImpl.java:searchPosts:afterSearch",
+                    "Elasticsearch search succeeded",
+                    Map.of("totalHits", searchHits.getTotalHits())
+            );
+            // #endregion
+        } catch (Exception e) {
+            // #region agent log
+            debugLog(
+                    "pre-fix",
+                    "H3",
+                    "PostSearchServiceImpl.java:searchPosts:searchException",
+                    "Elasticsearch search failed",
+                    Map.of(
+                            "exceptionClass", e.getClass().getName(),
+                            "exceptionMessage", String.valueOf(e.getMessage()),
+                            "indexAlias", elasProps != null ? elasProps.getPostAlias() : null
+                    )
+            );
+            // #endregion
+            throw e;
+        }
 
         List<PostIndex> posts = searchHits.stream()
                 .map(hit -> hit.getContent())
