@@ -1,0 +1,49 @@
+package com.leafy.plantmanagementservice.dto.request.plantevent;
+
+import jakarta.validation.constraints.NotBlank;
+import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
+
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public class InternalAlertPlantEventCreateRequest {
+
+    @NotBlank(message = "sourceType is required")
+    String sourceType;
+
+    @NotBlank(message = "sourceId is required")
+    String sourceId;
+
+    String alertType;
+    String severity;
+    String note;
+    String description;
+
+    String plantId;
+    String farmPlotId;
+    String farmZoneId;
+
+    String deviceId;
+    String deviceUid;
+    String sensorTypeCode;
+    Double triggerValue;
+    Double thresholdMin;
+    Double thresholdMax;
+
+    String diseaseName;
+    String confidence;
+    String mediaEventId;
+    String analysisId;
+
+    Instant occurredAt;
+}

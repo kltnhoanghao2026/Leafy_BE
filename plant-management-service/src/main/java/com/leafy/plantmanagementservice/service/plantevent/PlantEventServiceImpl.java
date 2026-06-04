@@ -2,8 +2,10 @@ package com.leafy.plantmanagementservice.service.plantevent;
 
 import com.leafy.common.exception.AppException;
 import com.leafy.common.exception.ErrorCode;
+import com.leafy.plantmanagementservice.dto.request.plantevent.InternalAlertPlantEventCreateRequest;
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventCreateRequest;
 import com.leafy.plantmanagementservice.dto.request.plantevent.PlantEventUpdateRequest;
+import com.leafy.plantmanagementservice.dto.response.plantevent.InternalAlertPlantEventResponse;
 import com.leafy.plantmanagementservice.dto.response.farmplot.FarmPlotResponse;
 import com.leafy.plantmanagementservice.dto.response.farmzone.FarmZoneResponse;
 import com.leafy.plantmanagementservice.dto.response.plan.PlanApplyResponse;
@@ -30,12 +32,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -65,6 +70,34 @@ public class PlantEventServiceImpl implements PlantEventService {
         PlantEventResponse response = plantEventMapper.toResponse(saved);
         populateRelatedEntities(response);
         return response;
+    }
+
+    @Override
+    @Transactional
+    public InternalAlertPlantEventResponse createAlertPlantEvent(InternalAlertPlantEventCreateRequest request) {
+        String sourceType = normalizeRequired(request.getSourceType());
+        String sourceId = normalizeRequired(request.getSourceId());
+
+        PlantEvent existing = plantEventRepository.findBySourceTypeAndSourceId(sourceType, sourceId).orElse(null);
+        if (existing != null) {
+            log.info("Idempotent alert PlantEvent hit: sourceType={}, sourceId={}, plantEventId={}",
+                    sourceType, sourceId, existing.getId());
+            return toInternalAlertResponse(existing, false, sourceType, sourceId);
+        }
+
+        PlantEvent event = buildAlertPlantEvent(request, sourceType, sourceId);
+        try {
+            PlantEvent saved = plantEventRepository.save(event);
+            log.info("Created alert PlantEvent: sourceType={}, sourceId={}, plantEventId={}",
+                    sourceType, sourceId, saved.getId());
+            return toInternalAlertResponse(saved, true, sourceType, sourceId);
+        } catch (DuplicateKeyException duplicate) {
+            PlantEvent duplicateExisting = plantEventRepository.findBySourceTypeAndSourceId(sourceType, sourceId)
+                    .orElseThrow(() -> duplicate);
+            log.info("Idempotent alert PlantEvent duplicate-key hit: sourceType={}, sourceId={}, plantEventId={}",
+                    sourceType, sourceId, duplicateExisting.getId());
+            return toInternalAlertResponse(duplicateExisting, false, sourceType, sourceId);
+        }
     }
 
     @Override
@@ -395,6 +428,120 @@ public class PlantEventServiceImpl implements PlantEventService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private PlantEvent buildAlertPlantEvent(
+            InternalAlertPlantEventCreateRequest request,
+            String sourceType,
+            String sourceId
+    ) {
+        PlantEvent event = new PlantEvent();
+        event.setSourceType(sourceType);
+        event.setSourceId(sourceId);
+        event.setEventType(EventType.ALERT_TRIGGERED);
+        event.setNote(resolveAlertNote(request));
+        event.setDescription(resolveAlertDescription(request));
+        event.setPlanned(false);
+        event.setCalculatedStartDate(resolveAlertDate(request));
+        event.setCalculatedEndDate(null);
+        event.setCompleted(false);
+        applyAlertTarget(event, request);
+        return event;
+    }
+
+    private void applyAlertTarget(PlantEvent event, InternalAlertPlantEventCreateRequest request) {
+        String plantId = normalizeOptional(request.getPlantId());
+        String farmZoneId = normalizeOptional(request.getFarmZoneId());
+        String farmPlotId = normalizeOptional(request.getFarmPlotId());
+
+        if (StringUtils.hasText(plantId)) {
+            if (!ObjectId.isValid(plantId) || !plantRepository.existsById(plantId)) {
+                throw new AppException(ErrorCode.INVALID_EVENT_TARGET);
+            }
+            event.setPlantId(plantId);
+            event.setFarmZoneId(farmZoneId);
+            event.setFarmPlotId(farmPlotId);
+            event.setTargetType(TargetType.PLANT);
+            return;
+        }
+
+        if (StringUtils.hasText(farmZoneId)) {
+            event.setFarmZoneId(farmZoneId);
+            event.setFarmPlotId(farmPlotId);
+            event.setTargetType(TargetType.FARM_ZONE);
+            return;
+        }
+
+        if (StringUtils.hasText(farmPlotId)) {
+            event.setFarmPlotId(farmPlotId);
+            event.setTargetType(TargetType.FARM);
+            return;
+        }
+
+        throw new AppException(ErrorCode.INVALID_EVENT_TARGET);
+    }
+
+    private InternalAlertPlantEventResponse toInternalAlertResponse(
+            PlantEvent event,
+            boolean created,
+            String sourceType,
+            String sourceId
+    ) {
+        PlantEventResponse response = plantEventMapper.toResponse(event);
+        populateRelatedEntities(response);
+        return InternalAlertPlantEventResponse.builder()
+                .created(created)
+                .sourceType(sourceType)
+                .sourceId(sourceId)
+                .plantEvent(response)
+                .build();
+    }
+
+    private String resolveAlertNote(InternalAlertPlantEventCreateRequest request) {
+        String note = normalizeOptional(request.getNote());
+        if (StringUtils.hasText(note) && !looksLikeRawAlertNote(note)) {
+            return note;
+        }
+        if (StringUtils.hasText(request.getDiseaseName())) {
+            return "Disease detected: " + request.getDiseaseName();
+        }
+        if (StringUtils.hasText(request.getSensorTypeCode())) {
+            return "Sensor alert";
+        }
+        return "IoT alert triggered";
+    }
+
+    private boolean looksLikeRawAlertNote(String note) {
+        String normalized = note.trim().toUpperCase(Locale.ROOT);
+        return normalized.contains(" OUTSIDE THRESHOLD")
+                || normalized.matches("^(LOW|MEDIUM|HIGH|CRITICAL|ALERT)\\s+[A-Z0-9_\\-]+:.*");
+    }
+
+    private String resolveAlertDescription(InternalAlertPlantEventCreateRequest request) {
+        String description = normalizeOptional(request.getDescription());
+        if (StringUtils.hasText(description)) {
+            return description;
+        }
+        return "IoT alert sourceId=" + request.getSourceId();
+    }
+
+    private LocalDate resolveAlertDate(InternalAlertPlantEventCreateRequest request) {
+        if (request.getOccurredAt() == null) {
+            return LocalDate.now();
+        }
+        return request.getOccurredAt().atZone(ZoneId.systemDefault()).toLocalDate();
+    }
+
+    private String normalizeRequired(String value) {
+        String normalized = normalizeOptional(value);
+        if (!StringUtils.hasText(normalized)) {
+            throw new AppException(ErrorCode.INVALID_EVENT_TARGET);
+        }
+        return normalized;
+    }
+
+    private String normalizeOptional(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
 
     @Override
     public Page<PlantEventResponse> getAllEvents(EventType eventType, Boolean planned, String farmPlotId, String farmZoneId, Pageable pageable) {

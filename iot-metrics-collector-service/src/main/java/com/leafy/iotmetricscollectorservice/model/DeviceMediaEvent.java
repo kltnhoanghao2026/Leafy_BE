@@ -43,4 +43,6 @@ public class DeviceMediaEvent extends BaseAuditEntity {
     private Instant commandSentAt;
     private Instant uploadedAt;
     private Instant capturedAt;
+    private Instant deletedAt;
+    private String deletedBy;
 }

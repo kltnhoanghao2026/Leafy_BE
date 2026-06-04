@@ -6,6 +6,7 @@ import com.leafy.plantmanagementservice.model.enums.TargetType;
 import com.leafy.plantmanagementservice.model.enums.TrackingGranularity;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.FieldType;
@@ -20,6 +21,12 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 @Document(collection = "plant_events")
+@CompoundIndex(
+    name = "uk_plant_event_source",
+    def = "{'sourceType': 1, 'sourceId': 1}",
+    unique = true,
+    partialFilter = "{'sourceType': {'$type': 'string'}, 'sourceId': {'$type': 'string'}}"
+)
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PlantEvent extends BaseModel {
 
@@ -84,6 +91,12 @@ public class PlantEvent extends BaseModel {
     String estimatedCost;
 
     // ── Source Tracking ───────────────────────────────────────────────────────
+    /** External source type that generated this event, e.g. IOT_ALERT. */
+    String sourceType;
+
+    /** External source ID for idempotent creation, e.g. the AlertEvent UUID. */
+    String sourceId;
+
     /** ID of the PlanApply instance that generated this event, if any. */
     @Indexed
     String planApplyId;

@@ -10,17 +10,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface DeviceMediaEventRepository extends JpaRepository<DeviceMediaEvent, UUID> {
 
-    Optional<DeviceMediaEvent> findTopByZoneIdOrderByCapturedAtDesc(String zoneId);
+    Optional<DeviceMediaEvent> findTopByZoneIdAndDeletedAtIsNullOrderByCapturedAtDesc(String zoneId);
 
-    Optional<DeviceMediaEvent> findTopByDeviceIdOrderByCapturedAtDesc(UUID deviceId);
+    Optional<DeviceMediaEvent> findTopByDeviceIdAndDeletedAtIsNullOrderByCapturedAtDesc(UUID deviceId);
 
-    Optional<DeviceMediaEvent> findByRequestId(String requestId);
+    Optional<DeviceMediaEvent> findByIdAndDeletedAtIsNull(UUID id);
 
-    List<DeviceMediaEvent> findTop20ByDeviceIdOrderByRequestedAtDesc(UUID deviceId);
+    Optional<DeviceMediaEvent> findByRequestIdAndDeletedAtIsNull(String requestId);
 
-    List<DeviceMediaEvent> findTop20ByDeviceIdAndZoneIdOrderByRequestedAtDesc(UUID deviceId, String zoneId);
+    List<DeviceMediaEvent> findTop20ByDeviceIdAndDeletedAtIsNullOrderByRequestedAtDesc(UUID deviceId);
 
-    List<DeviceMediaEvent> findAllByStatusInAndRequestedAtBefore(Collection<String> statuses, Instant requestedAt);
+    List<DeviceMediaEvent> findTop20ByDeviceIdAndZoneIdAndDeletedAtIsNullOrderByRequestedAtDesc(UUID deviceId, String zoneId);
 
-    boolean existsByDeviceIdAndTriggerTypeAndStatusIn(UUID deviceId, String triggerType, Collection<String> statuses);
+    List<DeviceMediaEvent> findAllByStatusInAndRequestedAtBeforeAndDeletedAtIsNull(Collection<String> statuses, Instant requestedAt);
+
+    boolean existsByDeviceIdAndTriggerTypeAndStatusInAndDeletedAtIsNull(UUID deviceId, String triggerType, Collection<String> statuses);
 }

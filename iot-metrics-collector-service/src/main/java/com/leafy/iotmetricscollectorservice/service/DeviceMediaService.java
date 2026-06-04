@@ -19,6 +19,8 @@ public interface DeviceMediaService {
 
     DeviceMediaEventResponse getMediaEvent(UUID mediaEventId);
 
+    void deleteMediaEvent(UUID mediaEventId, String deletedBy);
+
     void handleImageMeta(String deviceUid, ImageMetaPayload payload);
 
     void markTimedOutEvents();
