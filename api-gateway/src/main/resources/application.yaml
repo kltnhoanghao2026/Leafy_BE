@@ -21,7 +21,7 @@ spring:
     enabled: false
 
 cors:
-  allowed-origins: http://localhost:3000,http://localhost:5173,http://192.168.100.55:5173,http://192.168.100.55:3000,https://leafy-fe.vercel.app,https://leafy-fe.vercel.app/login,http://lehao.io.vn,https://lehao.io.vn
+  allowed-origins: http://localhost:3000,http://localhost:5173,http://192.168.100.55:5173,http://192.168.100.55:3000,https://leafy-fe.vercel.app,https://leafy-fe.vercel.app/login,http://lehao.io.vn,https://lehao.io.vn,http://www.lehao.io.vn,https://www.lehao.io.vn
 
 app:
   services:

@@ -10,10 +10,10 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 import java.util.List;
 
-@Configuration
+// @Configuration
 public class CorsConfig {
 
-    @Value("${cors.allowed-origins:http://localhost:3000,http://localhost:5173,https://leafy-fe.vercel.app,https://leafy-fe.vercel.app/login,http://lehao.io.vn,https://lehao.io.vn}")
+    @Value("${cors.allowed-origins:http://localhost:3000,http://localhost:5173,https://leafy-fe.vercel.app,https://leafy-fe.vercel.app/login,http://lehao.io.vn,https://lehao.io.vn,http://www.lehao.io.vn,https://www.lehao.io.vn}")
     private List<String> allowedOrigins;
 
     @Bean
