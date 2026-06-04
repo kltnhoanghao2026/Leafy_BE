@@ -533,8 +533,8 @@ public class DeviceServiceImpl implements DeviceService {
         normalized.setDeviceCode(requireDeviceCode(source.getDeviceCode()));
         normalized.setDeviceType(normalizeDeviceType(source.getDeviceType()));
         normalized.setDeviceName(normalizeOptionalDeviceName(source.getDeviceName()));
-        normalized.setFarmPlotId(normalizeOptionalUuid(source.getFarmPlotId(), true));
-        normalized.setZoneId(normalizeOptionalUuid(source.getZoneId(), false));
+        normalized.setFarmPlotId(normalizeOptionalScopedId(source.getFarmPlotId()));
+        normalized.setZoneId(normalizeOptionalScopedId(source.getZoneId()));
         return normalized;
     }
 
@@ -606,7 +606,7 @@ public class DeviceServiceImpl implements DeviceService {
         if (normalized == null) {
             throw TelemetryQueryException.farmPlotRequired();
         }
-        return validateUuid(normalized, true);
+        return normalized;
     }
 
     private String requireZoneId(String value) {
@@ -614,27 +614,11 @@ public class DeviceServiceImpl implements DeviceService {
         if (normalized == null) {
             throw TelemetryQueryException.farmZoneRequired();
         }
-        return validateUuid(normalized, false);
+        return normalized;
     }
 
-    private String normalizeOptionalUuid(String value, boolean farmPlot) {
-        String normalized = normalizeOptional(value);
-        if (normalized == null) {
-            return null;
-        }
-        return validateUuid(normalized, farmPlot);
-    }
-
-    private String validateUuid(String value, boolean farmPlot) {
-        try {
-            UUID.fromString(value);
-            return value;
-        } catch (IllegalArgumentException ex) {
-            if (farmPlot) {
-                throw TelemetryQueryException.invalidFarmPlot(value);
-            }
-            throw TelemetryQueryException.invalidFarmZone(value);
-        }
+    private String normalizeOptionalScopedId(String value) {
+        return normalizeOptional(value);
     }
 
     private String requireClaimCode(String value) {
