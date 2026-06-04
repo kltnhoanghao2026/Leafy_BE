@@ -4,6 +4,14 @@ metadata:
   name: leafy-api
   region: ap-southeast-1
 
+iam:
+  withOIDC: true
+
+addons:
+  - name: aws-ebs-csi-driver
+    wellKnownPolicies:
+      ebsCSIController: true
+
 vpc:
   id: "vpc-07c752791c9077097"
   subnets:
@@ -15,11 +23,11 @@ vpc:
       ap-southeast-1b: { id: "subnet-0aed5dbd6838865cf" }
 
 managedNodeGroups:
-  - name: ng-0-messaging
-    instanceType: c7i-flex.large
+  - name: ng-0-infra
+    instanceType: m7i-flex.large
     desiredCapacity: 1
     privateNetworking: true
-    labels: { node-type: messaging }
+    labels: { node-type: infra }
 
   - name: ng-1-data
     instanceType: m7i-flex.large

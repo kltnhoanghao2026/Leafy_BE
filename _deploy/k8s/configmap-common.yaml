@@ -127,7 +127,7 @@ data:
   # AWS S3
   # ============================================================
   AWS_REGION: "ap-southeast-1"
-  AWS_S3_BUCKET: "leafy-meida-storage"
+  AWS_S3_BUCKET: "leafy-media-storage"
 
   # ============================================================
   # FILE STORAGE

@@ -14,7 +14,7 @@ spec:
         app: iot-metrics-collector-service
     spec:
       nodeSelector:
-        node-type: messaging
+        node-type: infra
       initContainers:
         - name: wait-for-infra
           image: busybox
