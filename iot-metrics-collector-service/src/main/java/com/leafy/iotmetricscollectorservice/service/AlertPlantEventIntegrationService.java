@@ -140,10 +140,7 @@ public class AlertPlantEventIntegrationService {
             String confidenceLabel = confidence != null ? " (" + formatPercent(confidence) + ")" : "";
             return "Disease detected: " + name + confidenceLabel;
         }
-        String severity = alertEvent.getSeverity() != null ? alertEvent.getSeverity().name() : "ALERT";
-        String sensor = alertEvent.getSensorType() != null ? alertEvent.getSensorType().getCode() : "sensor";
-        String value = alertEvent.getTriggerValue() != null ? String.valueOf(alertEvent.getTriggerValue()) : "unknown";
-        return severity + " " + sensor + ": " + value + " outside threshold";
+        return "Sensor alert";
     }
 
     private String buildDescription(

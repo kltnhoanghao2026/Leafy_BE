@@ -40,6 +40,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -497,16 +498,22 @@ public class PlantEventServiceImpl implements PlantEventService {
 
     private String resolveAlertNote(InternalAlertPlantEventCreateRequest request) {
         String note = normalizeOptional(request.getNote());
-        if (StringUtils.hasText(note)) {
+        if (StringUtils.hasText(note) && !looksLikeRawAlertNote(note)) {
             return note;
         }
         if (StringUtils.hasText(request.getDiseaseName())) {
             return "Disease detected: " + request.getDiseaseName();
         }
         if (StringUtils.hasText(request.getSensorTypeCode())) {
-            return "Alert triggered: " + request.getSensorTypeCode();
+            return "Sensor alert";
         }
         return "IoT alert triggered";
+    }
+
+    private boolean looksLikeRawAlertNote(String note) {
+        String normalized = note.trim().toUpperCase(Locale.ROOT);
+        return normalized.contains(" OUTSIDE THRESHOLD")
+                || normalized.matches("^(LOW|MEDIUM|HIGH|CRITICAL|ALERT)\\s+[A-Z0-9_\\-]+:.*");
     }
 
     private String resolveAlertDescription(InternalAlertPlantEventCreateRequest request) {

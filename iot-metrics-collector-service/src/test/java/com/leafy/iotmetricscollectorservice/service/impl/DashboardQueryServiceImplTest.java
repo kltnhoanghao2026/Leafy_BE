@@ -80,7 +80,7 @@ class DashboardQueryServiceImplTest {
             .thenReturn(1L);
         when(alertEventRepository.findMaxOpenedAtByZoneIdAndStatus(zoneId, AlertStatus.OPEN))
             .thenReturn(Instant.parse("2026-04-10T05:30:00Z"));
-        when(deviceMediaEventRepository.findTopByZoneIdOrderByCapturedAtDesc(zoneId)).thenReturn(Optional.of(mediaEvent));
+        when(deviceMediaEventRepository.findTopByZoneIdAndDeletedAtIsNullOrderByCapturedAtDesc(zoneId)).thenReturn(Optional.of(mediaEvent));
 
         ZoneOverviewResponse response = dashboardQueryService.getZoneOverview(zoneId);
 
@@ -108,7 +108,7 @@ class DashboardQueryServiceImplTest {
         when(alertEventRepository.countByZoneIdAndStatusAndSeverity(zoneId, AlertStatus.OPEN, AlertSeverity.CRITICAL))
             .thenReturn(0L);
         when(alertEventRepository.findMaxOpenedAtByZoneIdAndStatus(zoneId, AlertStatus.OPEN)).thenReturn(null);
-        when(deviceMediaEventRepository.findTopByZoneIdOrderByCapturedAtDesc(zoneId)).thenReturn(Optional.empty());
+        when(deviceMediaEventRepository.findTopByZoneIdAndDeletedAtIsNullOrderByCapturedAtDesc(zoneId)).thenReturn(Optional.empty());
 
         ZoneOverviewResponse response = dashboardQueryService.getZoneOverview(zoneId);
 
@@ -165,7 +165,7 @@ class DashboardQueryServiceImplTest {
             .thenReturn(1L);
         when(alertEventRepository.findMaxOpenedAtByDeviceIdAndStatus(deviceId, AlertStatus.OPEN))
             .thenReturn(Instant.parse("2026-04-10T06:07:00Z"));
-        when(deviceMediaEventRepository.findTopByDeviceIdOrderByCapturedAtDesc(deviceId)).thenReturn(Optional.of(mediaEvent));
+        when(deviceMediaEventRepository.findTopByDeviceIdAndDeletedAtIsNullOrderByCapturedAtDesc(deviceId)).thenReturn(Optional.of(mediaEvent));
         when(deviceConfigRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(deviceConfig));
 
         DeviceDetailResponse response = dashboardQueryService.getDeviceDetail(deviceId);
@@ -211,7 +211,7 @@ class DashboardQueryServiceImplTest {
         when(alertEventRepository.countByDeviceIdAndStatusAndSeverity(deviceId, AlertStatus.OPEN, AlertSeverity.CRITICAL))
             .thenReturn(0L);
         when(alertEventRepository.findMaxOpenedAtByDeviceIdAndStatus(deviceId, AlertStatus.OPEN)).thenReturn(null);
-        when(deviceMediaEventRepository.findTopByDeviceIdOrderByCapturedAtDesc(deviceId)).thenReturn(Optional.empty());
+        when(deviceMediaEventRepository.findTopByDeviceIdAndDeletedAtIsNullOrderByCapturedAtDesc(deviceId)).thenReturn(Optional.empty());
         when(deviceConfigRepository.findByDeviceId(deviceId)).thenReturn(Optional.empty());
 
         DeviceDetailResponse response = dashboardQueryService.getDeviceDetail(deviceId);

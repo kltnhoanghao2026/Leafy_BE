@@ -288,6 +288,70 @@ class AlertRuleServiceImplTest {
     }
 
     @Test
+    void updateRule_preservesExistingScopeAndSensorTypeWhenOmitted() {
+        String currentUserId = UUID.randomUUID().toString();
+        UUID ruleId = UUID.randomUUID();
+        AlertRule alertRule = createRuleEntity(currentUserId);
+        alertRule.setId(ruleId);
+
+        UpdateAlertRuleRequest request = new UpdateAlertRuleRequest();
+        request.setMinThreshold(8d);
+        request.setMaxThreshold(28d);
+        request.setSeverity("MEDIUM");
+        request.setEnabled(false);
+
+        when(alertRuleRepository.findByIdAndOwnerUserId(ruleId, currentUserId)).thenReturn(Optional.of(alertRule));
+        when(alertRuleRepository.save(alertRule)).thenReturn(alertRule);
+
+        AlertRuleResponse response = alertRuleService.updateRule(currentUserId, ruleId, request);
+
+        assertEquals(alertRule.getSensorType().getId(), response.getSensorTypeId());
+        assertEquals(alertRule.getDevice().getId(), response.getDeviceId());
+        assertEquals(alertRule.getZone().getId(), response.getZoneId());
+        assertEquals(alertRule.getFarmPlot().getId(), response.getFarmPlotId());
+        assertEquals(8d, response.getMinThreshold());
+        assertEquals(28d, response.getMaxThreshold());
+        assertEquals("MEDIUM", response.getSeverity());
+        assertEquals(Boolean.FALSE, response.getEnabled());
+        verify(sensorTypeRepository, never()).findById(any());
+        verify(deviceAccessService, never()).requireOwnedDevice(any(), any());
+        verify(deviceAccessService, never()).requireOwnedZone(any(), any());
+        verify(deviceAccessService, never()).requireOwnedFarmPlot(any(), any());
+    }
+
+    @Test
+    void updateRule_rebindsDeviceScopedRuleToCurrentDeviceAssignmentWhenScopeOmitted() {
+        String currentUserId = UUID.randomUUID().toString();
+        UUID ruleId = UUID.randomUUID();
+        String currentFarmPlotId = UUID.randomUUID().toString();
+        String currentZoneId = UUID.randomUUID().toString();
+        AlertRule alertRule = createRuleEntity(currentUserId);
+        alertRule.setId(ruleId);
+        IoTDevice currentDevice = createDevice(alertRule.getDevice().getId());
+        currentDevice.setOwnerUser(toUserRef(currentUserId));
+        currentDevice.setFarmPlot(toFarmPlot(currentFarmPlotId));
+        currentDevice.setZone(toZone(currentZoneId));
+
+        UpdateAlertRuleRequest request = new UpdateAlertRuleRequest();
+        request.setMinThreshold(8d);
+        request.setMaxThreshold(28d);
+        request.setSeverity("MEDIUM");
+
+        when(alertRuleRepository.findByIdAndOwnerUserId(ruleId, currentUserId)).thenReturn(Optional.of(alertRule));
+        when(ioTDeviceRepository.findById(alertRule.getDevice().getId())).thenReturn(Optional.of(currentDevice));
+        when(alertRuleRepository.save(alertRule)).thenReturn(alertRule);
+
+        AlertRuleResponse response = alertRuleService.updateRule(currentUserId, ruleId, request);
+
+        assertEquals(currentDevice.getId(), response.getDeviceId());
+        assertEquals(currentZoneId, response.getZoneId());
+        assertEquals(currentFarmPlotId, response.getFarmPlotId());
+        verify(deviceAccessService).requireOwnedDevice(currentDevice.getId(), currentUserId);
+        verify(deviceAccessService).requireOwnedZone(currentZoneId, currentUserId);
+        verify(deviceAccessService).requireOwnedFarmPlot(currentFarmPlotId, currentUserId);
+    }
+
+    @Test
     void updateRuleEnabled_succeeds() {
         String currentUserId = UUID.randomUUID().toString();
         AlertRule alertRule = createRuleEntity(currentUserId);
