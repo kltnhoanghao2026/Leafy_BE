@@ -21,6 +21,7 @@ import com.leafy.iotmetricscollectorservice.dto.device.UpdateDeviceRequest;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
 import com.leafy.iotmetricscollectorservice.entity.DeviceCameraSchedule;
 import com.leafy.iotmetricscollectorservice.mapper.DashboardQueryMapper;
+import com.leafy.iotmetricscollectorservice.model.AlertRule;
 import com.leafy.iotmetricscollectorservice.model.DeviceClaim;
 import com.leafy.iotmetricscollectorservice.model.IoTDevice;
 import com.leafy.iotmetricscollectorservice.model.enums.ClaimStatus;
@@ -31,6 +32,7 @@ import com.leafy.iotmetricscollectorservice.model.ref.FarmZoneRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.DeviceClaimRepository;
 import com.leafy.iotmetricscollectorservice.repository.DeviceCameraScheduleRepository;
+import com.leafy.iotmetricscollectorservice.repository.AlertRuleRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmPlotRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmZoneRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
@@ -76,6 +78,9 @@ class DeviceServiceImplTest {
 
     @Mock
     private SensorLatestReadingRepository sensorLatestReadingRepository;
+
+    @Mock
+    private AlertRuleRepository alertRuleRepository;
 
     @Spy
     private DashboardQueryMapper dashboardQueryMapper;
@@ -452,6 +457,36 @@ class DeviceServiceImplTest {
 
         assertEquals(zoneId, response.getZoneId());
         verify(sensorLatestReadingRepository).deleteByDeviceId(device.getId());
+    }
+
+    @Test
+    void updateDevice_zoneChangeSyncsDeviceScopedAlertRules() {
+        String ownerUserId = UUID.randomUUID().toString();
+        String farmPlotId = UUID.randomUUID().toString();
+        String zoneId = UUID.randomUUID().toString();
+        IoTDevice device = createClaimedDevice(ownerUserId);
+        AlertRule alertRule = new AlertRule();
+        alertRule.setDevice(device);
+        alertRule.setFarmPlot(device.getFarmPlot());
+        alertRule.setZone(device.getZone());
+
+        UpdateDeviceRequest request = new UpdateDeviceRequest();
+        request.setFarmPlotId(farmPlotId);
+        request.setZoneId(zoneId);
+
+        when(ioTDeviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
+        when(farmPlotRefRepository.findById(farmPlotId)).thenReturn(Optional.empty());
+        when(farmPlotRefRepository.save(any(FarmPlotRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(farmZoneRefRepository.findById(zoneId)).thenReturn(Optional.empty());
+        when(farmZoneRefRepository.save(any(FarmZoneRef.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(ioTDeviceRepository.save(device)).thenReturn(device);
+        when(alertRuleRepository.findAllByDeviceIdAndOwnerUserId(device.getId(), ownerUserId)).thenReturn(List.of(alertRule));
+
+        deviceService.updateDevice(ownerUserId, device.getId(), request);
+
+        assertEquals(farmPlotId, alertRule.getFarmPlot().getId());
+        assertEquals(zoneId, alertRule.getZone().getId());
+        verify(alertRuleRepository).saveAll(List.of(alertRule));
     }
 
     @Test

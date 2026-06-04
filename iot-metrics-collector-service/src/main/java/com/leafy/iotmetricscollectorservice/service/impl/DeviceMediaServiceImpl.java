@@ -104,8 +104,8 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
         String normalizedZoneId = normalizeOptionalZoneId(zoneId);
 
         List<DeviceMediaEvent> mediaEvents = normalizedZoneId == null
-            ? deviceMediaEventRepository.findTop20ByDeviceIdOrderByRequestedAtDesc(deviceId)
-            : deviceMediaEventRepository.findTop20ByDeviceIdAndZoneIdOrderByRequestedAtDesc(
+            ? deviceMediaEventRepository.findTop20ByDeviceIdAndDeletedAtIsNullOrderByRequestedAtDesc(deviceId)
+            : deviceMediaEventRepository.findTop20ByDeviceIdAndZoneIdAndDeletedAtIsNullOrderByRequestedAtDesc(
                 deviceId,
                 requireCurrentZoneId(device, normalizedZoneId)
             );
@@ -118,9 +118,19 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
     @Override
     @Transactional(readOnly = true)
     public DeviceMediaEventResponse getMediaEvent(UUID mediaEventId) {
-        return deviceMediaEventRepository.findById(mediaEventId)
+        return deviceMediaEventRepository.findByIdAndDeletedAtIsNull(mediaEventId)
             .map(this::toResponse)
             .orElseThrow(() -> TelemetryQueryException.mediaEventNotFound(mediaEventId));
+    }
+
+    @Override
+    @Transactional
+    public void deleteMediaEvent(UUID mediaEventId, String deletedBy) {
+        DeviceMediaEvent mediaEvent = deviceMediaEventRepository.findByIdAndDeletedAtIsNull(mediaEventId)
+            .orElseThrow(() -> TelemetryQueryException.mediaEventNotFound(mediaEventId));
+        mediaEvent.setDeletedAt(Instant.now());
+        mediaEvent.setDeletedBy(normalizeDeletedBy(deletedBy));
+        deviceMediaEventRepository.save(mediaEvent);
     }
 
     @Override
@@ -131,7 +141,7 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
             return;
         }
 
-        DeviceMediaEvent event = deviceMediaEventRepository.findByRequestId(payload.getRequestId())
+        DeviceMediaEvent event = deviceMediaEventRepository.findByRequestIdAndDeletedAtIsNull(payload.getRequestId())
             .orElse(null);
         if (event == null) {
             log.warn("Ignoring image/meta for unknown requestId. deviceUid={}, requestId={}", deviceUid, payload.getRequestId());
@@ -216,7 +226,7 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
     @Scheduled(fixedDelayString = "${app.media.capture-timeout-scan-ms:30000}")
     public void markTimedOutEvents() {
         Instant cutoff = Instant.now().minus(CAPTURE_TIMEOUT);
-        List<DeviceMediaEvent> timedOutEvents = deviceMediaEventRepository.findAllByStatusInAndRequestedAtBefore(
+        List<DeviceMediaEvent> timedOutEvents = deviceMediaEventRepository.findAllByStatusInAndRequestedAtBeforeAndDeletedAtIsNull(
             List.of(DeviceMediaEventStatus.REQUESTED.name(), DeviceMediaEventStatus.COMMAND_SENT.name(), DeviceMediaEventStatus.UPLOADING.name()),
             cutoff
         );
@@ -254,6 +264,13 @@ public class DeviceMediaServiceImpl implements com.leafy.iotmetricscollectorserv
             return null;
         }
         return zoneId.trim();
+    }
+
+    private String normalizeDeletedBy(String deletedBy) {
+        if (deletedBy == null || deletedBy.isBlank()) {
+            return null;
+        }
+        return deletedBy.trim();
     }
 
     private CameraCaptureRequest normalize(CameraCaptureRequest request) {

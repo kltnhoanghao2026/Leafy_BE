@@ -139,7 +139,7 @@ class DeviceMediaServiceImplTest {
     void handleImageMeta_successUpdatesEventAsUploaded() {
         DeviceMediaEvent event = new DeviceMediaEvent();
         event.setRequestId("request-1");
-        when(deviceMediaEventRepository.findByRequestId("request-1")).thenReturn(Optional.of(event));
+        when(deviceMediaEventRepository.findByRequestIdAndDeletedAtIsNull("request-1")).thenReturn(Optional.of(event));
         when(deviceMediaEventRepository.save(any(DeviceMediaEvent.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ImageMetaPayload payload = new ImageMetaPayload();
@@ -169,7 +169,7 @@ class DeviceMediaServiceImplTest {
     void handleImageMeta_statusSuccessUsesTimestampAndMetadataFields() {
         DeviceMediaEvent event = new DeviceMediaEvent();
         event.setRequestId("request-1");
-        when(deviceMediaEventRepository.findByRequestId("request-1")).thenReturn(Optional.of(event));
+        when(deviceMediaEventRepository.findByRequestIdAndDeletedAtIsNull("request-1")).thenReturn(Optional.of(event));
         when(deviceMediaEventRepository.save(any(DeviceMediaEvent.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ImageMetaPayload payload = new ImageMetaPayload();
@@ -198,7 +198,7 @@ class DeviceMediaServiceImplTest {
     void handleImageMeta_failureUpdatesEventAsFailed() {
         DeviceMediaEvent event = new DeviceMediaEvent();
         event.setRequestId("request-1");
-        when(deviceMediaEventRepository.findByRequestId("request-1")).thenReturn(Optional.of(event));
+        when(deviceMediaEventRepository.findByRequestIdAndDeletedAtIsNull("request-1")).thenReturn(Optional.of(event));
 
         ImageMetaPayload payload = new ImageMetaPayload();
         payload.setRequestId("request-1");
@@ -216,7 +216,7 @@ class DeviceMediaServiceImplTest {
     void handleImageMeta_statusFailureStoresTimestampSizeAndErrorMessage() {
         DeviceMediaEvent event = new DeviceMediaEvent();
         event.setRequestId("request-1");
-        when(deviceMediaEventRepository.findByRequestId("request-1")).thenReturn(Optional.of(event));
+        when(deviceMediaEventRepository.findByRequestIdAndDeletedAtIsNull("request-1")).thenReturn(Optional.of(event));
 
         ImageMetaPayload payload = new ImageMetaPayload();
         payload.setRequestId("request-1");
@@ -244,7 +244,7 @@ class DeviceMediaServiceImplTest {
         older.setRequestId("older");
         older.setRequestedAt(Instant.parse("2026-04-25T03:00:00Z"));
         when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(claimedDevice(deviceId)));
-        when(deviceMediaEventRepository.findTop20ByDeviceIdOrderByRequestedAtDesc(deviceId))
+        when(deviceMediaEventRepository.findTop20ByDeviceIdAndDeletedAtIsNullOrderByRequestedAtDesc(deviceId))
             .thenReturn(List.of(newest, older));
 
         var response = service.listDeviceMedia(deviceId);
@@ -265,14 +265,14 @@ class DeviceMediaServiceImplTest {
         mediaEvent.setRequestedAt(Instant.parse("2026-04-25T03:00:10Z"));
 
         when(ioTDeviceRepository.findById(deviceId)).thenReturn(Optional.of(device));
-        when(deviceMediaEventRepository.findTop20ByDeviceIdAndZoneIdOrderByRequestedAtDesc(deviceId, zoneId))
+        when(deviceMediaEventRepository.findTop20ByDeviceIdAndZoneIdAndDeletedAtIsNullOrderByRequestedAtDesc(deviceId, zoneId))
             .thenReturn(List.of(mediaEvent));
 
         var response = service.listDeviceMedia(deviceId, zoneId);
 
         assertThat(response).extracting("requestId").containsExactly("zone-media");
         verify(deviceMediaEventRepository, org.mockito.Mockito.never())
-            .findTop20ByDeviceIdOrderByRequestedAtDesc(deviceId);
+            .findTop20ByDeviceIdAndDeletedAtIsNullOrderByRequestedAtDesc(deviceId);
     }
 
     @Test
@@ -287,6 +287,21 @@ class DeviceMediaServiceImplTest {
         assertThatThrownBy(() -> service.listDeviceMedia(deviceId, "zone-old"))
             .isInstanceOf(TelemetryQueryException.class)
             .hasMessageContaining("IOT_DEVICE_ZONE_MISMATCH");
+    }
+
+    @Test
+    void deleteMediaEvent_marksEventDeletedWithoutRemovingRow() {
+        UUID mediaEventId = UUID.randomUUID();
+        DeviceMediaEvent mediaEvent = new DeviceMediaEvent();
+        mediaEvent.setId(mediaEventId);
+        when(deviceMediaEventRepository.findByIdAndDeletedAtIsNull(mediaEventId))
+            .thenReturn(Optional.of(mediaEvent));
+
+        service.deleteMediaEvent(mediaEventId, " user-1 ");
+
+        assertThat(mediaEvent.getDeletedAt()).isNotNull();
+        assertThat(mediaEvent.getDeletedBy()).isEqualTo("user-1");
+        verify(deviceMediaEventRepository).save(mediaEvent);
     }
 
     @Test

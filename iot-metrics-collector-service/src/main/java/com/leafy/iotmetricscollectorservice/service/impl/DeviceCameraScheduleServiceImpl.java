@@ -309,7 +309,7 @@ public class DeviceCameraScheduleServiceImpl implements DeviceCameraScheduleServ
     private boolean hasActiveScheduledCapture(String deviceUid) {
         Optional<IoTDevice> device = deviceRepository.findByDeviceUid(deviceUid);
         return device.isPresent()
-            && mediaEventRepository.existsByDeviceIdAndTriggerTypeAndStatusIn(
+            && mediaEventRepository.existsByDeviceIdAndTriggerTypeAndStatusInAndDeletedAtIsNull(
             device.get().getId(),
             TriggerType.SCHEDULED.name(),
             List.of(
@@ -494,7 +494,7 @@ public class DeviceCameraScheduleServiceImpl implements DeviceCameraScheduleServ
             .flatMap(device -> device)
             .ifPresent(device -> {
             response.setDeviceId(device.getId());
-            mediaEventRepository.findTopByDeviceIdOrderByCapturedAtDesc(device.getId())
+            mediaEventRepository.findTopByDeviceIdAndDeletedAtIsNullOrderByCapturedAtDesc(device.getId())
                 .map(this::toMediaResponse)
                 .ifPresent(response::setLastMediaEvent);
         });
