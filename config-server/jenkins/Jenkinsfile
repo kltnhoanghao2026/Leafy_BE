@@ -7,7 +7,7 @@ pipeline {
     environment {
         SERVICE_NAME = 'config-server'
         IMAGE_REPO   = "leafy/config-server"
-        AWS_ACCOUNT_ID = "383704034208"
+        AWS_ACCOUNT_ID = "574802241242"
         AWS_REGION     = "ap-southeast-1"
         IMAGE_TAG      = "${env.BUILD_NUMBER}"
         ECR_URL        = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"

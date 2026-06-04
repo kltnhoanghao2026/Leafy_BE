@@ -18,8 +18,6 @@ spec:
         app.kubernetes.io/name: fluent-bit
         app.kubernetes.io/component: logging
     spec:
-      nodeSelector:
-        node-type: search-ai
       serviceAccountName: fluent-bit
       tolerations:
         - key: node-type

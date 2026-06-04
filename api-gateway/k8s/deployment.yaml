@@ -15,9 +15,13 @@ spec:
     spec:
       nodeSelector:
         node-type: messaging
+      initContainers:
+        - name: wait-for-infra
+          image: busybox
+          command: ['sh', '-c', 'until nc -z leafy-discovery-server 8761 && nc -z leafy-config-server 8888; do if ! nc -z leafy-discovery-server 8761; then echo "Waiting for leafy-discovery-server:8761..."; fi; if ! nc -z leafy-config-server 8888; then echo "Waiting for leafy-config-server:8888..."; fi; sleep 5; done; echo "Infrastructure services are UP!";']
       containers:
         - name: api-gateway
-          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/api-gateway:latest
+          image: 574802241242.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/api-gateway:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:

@@ -17,7 +17,7 @@ spec:
         node-type: messaging
       containers:
         - name: discovery-server
-          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/discovery-server:latest
+          image: 574802241242.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/discovery-server:latest
           ports:
             - containerPort: 8761
           resources:

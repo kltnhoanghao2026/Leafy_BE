@@ -74,7 +74,7 @@ data:
   # ============================================================
   API_GATEWAY_URL: "http://leafy-api-gateway:8060"
   AUTH_SERVICE_URL: "http://leafy-auth-service:8089"
-  FILE_SERVICE_UPLOAD_URL: "http://a05edd1e197284228ad0e9e06f9b0fb0-228788603.ap-southeast-1.elb.amazonaws.com/api/files/upload"
+  FILE_SERVICE_UPLOAD_URL: "https://api.lehao.com/api/files/upload"
   FILE_SERVICE_URL: "http://leafy-file-service:8084"
 
   # ============================================================
@@ -121,7 +121,7 @@ data:
   JWT_ACCESS_EXPIRATION: "3600000"
   JWT_REFRESH_WEB_EXPIRATION: "1209600000"
   JWT_REFRESH_MOBILE_EXPIRATION: "31536000000"
-  ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:4200,http://localhost:8080"
+  ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:4200,http://localhost:8080,https://leafy-fe.vercel.app,https://leafy-fe.vercel.app/login,http://lehao.io.vn,https://lehao.io.vn"
 
   # ============================================================
   # AWS S3

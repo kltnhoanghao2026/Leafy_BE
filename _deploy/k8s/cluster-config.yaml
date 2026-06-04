@@ -5,14 +5,14 @@ metadata:
   region: ap-southeast-1
 
 vpc:
-  id: "vpc-05b31b1731dfc6cdb"
+  id: "vpc-07c752791c9077097"
   subnets:
     public:
-      ap-southeast-1a: { id: "subnet-0cdb1e35d7b62c34c" }
-      ap-southeast-1b: { id: "subnet-0cd1a044b8a25ea60" }
+      ap-southeast-1a: { id: "subnet-0c12127a27d85b7f2" }
+      ap-southeast-1b: { id: "subnet-0fe3b45ef54c20fae" }
     private:
-      ap-southeast-1a: { id: "subnet-0cb156938c5ea9153" }
-      ap-southeast-1b: { id: "subnet-0efe0988022be8d95" }
+      ap-southeast-1a: { id: "subnet-042ff62d35a901b21" }
+      ap-southeast-1b: { id: "subnet-0aed5dbd6838865cf" }
 
 managedNodeGroups:
   - name: ng-0-messaging
@@ -22,7 +22,7 @@ managedNodeGroups:
     labels: { node-type: messaging }
 
   - name: ng-1-data
-    instanceType: c7i-flex.large
+    instanceType: m7i-flex.large
     desiredCapacity: 1
     privateNetworking: true
     labels: { node-type: data }

@@ -29,7 +29,7 @@ spec:
               echo "Discovery server is UP"
       containers:
         - name: config-server
-          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/config-server:latest
+          image: 574802241242.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/config-server:latest
           imagePullPolicy: Always
           env:
             - name: SERVER_PORT_CONFIG
