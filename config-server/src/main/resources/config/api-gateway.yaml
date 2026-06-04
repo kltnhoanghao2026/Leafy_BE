@@ -4,30 +4,30 @@ server:
 spring:
   cloud:
     gateway:
-      globalcors:
-        add-to-simple-url-handler-mapping: true
-        cors-configurations:
-          '[/**]':
-            allowedOrigins: 
-              - "http://localhost:3000"
-              - "http://localhost:5173"
-              - "https://leafy-fe.vercel.app"
-              - "http://lehao.io.vn"
-              - "https://lehao.io.vn"
-              - "http://www.lehao.io.vn"
-              - "https://www.lehao.io.vn"
-            allowedMethods:
-              - GET
-              - POST
-              - PUT
-              - PATCH
-              - DELETE
-              - OPTIONS
-            allowedHeaders: "*"
-            allowCredentials: true
-            maxAge: 3600
       server:
         webflux:
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/**]':
+                allowedOrigins: 
+                  - "http://localhost:3000"
+                  - "http://localhost:5173"
+                  - "https://leafy-fe.vercel.app"
+                  - "http://lehao.io.vn"
+                  - "https://lehao.io.vn"
+                  - "http://www.lehao.io.vn"
+                  - "https://www.lehao.io.vn"
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - PATCH
+                  - DELETE
+                  - OPTIONS
+                allowedHeaders: "*"
+                allowCredentials: true
+                maxAge: 3600
           routes:
             # Actuator Routes
             - id: actuator-routes
