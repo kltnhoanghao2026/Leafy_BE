@@ -67,7 +67,7 @@ public class DashboardQueryServiceImpl implements DashboardQueryService {
         response.setAlertSummary(buildZoneAlertSummary(zoneId));
         response.setOpenAlerts(response.getAlertSummary().getOpenAlerts());
         response.setLatestMedia(
-            deviceMediaEventRepository.findTopByZoneIdOrderByCapturedAtDesc(zoneId)
+            deviceMediaEventRepository.findTopByZoneIdAndDeletedAtIsNullOrderByCapturedAtDesc(zoneId)
                 .map(dashboardQueryMapper::toDeviceMediaSummaryResponse)
                 .orElse(null)
         );
@@ -95,7 +95,7 @@ public class DashboardQueryServiceImpl implements DashboardQueryService {
         response.setLatestReadings(latestReadings);
         response.setAlertSummary(buildDeviceAlertSummary(deviceId));
         response.setLatestMedia(
-            deviceMediaEventRepository.findTopByDeviceIdOrderByCapturedAtDesc(deviceId)
+            deviceMediaEventRepository.findTopByDeviceIdAndDeletedAtIsNullOrderByCapturedAtDesc(deviceId)
                 .map(dashboardQueryMapper::toDeviceMediaSummaryResponse)
                 .orElse(null)
         );

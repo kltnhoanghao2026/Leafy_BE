@@ -9,6 +9,7 @@ import com.leafy.iotmetricscollectorservice.dto.device.ProvisionDeviceRequest;
 import com.leafy.iotmetricscollectorservice.dto.device.UpdateDeviceRequest;
 import com.leafy.iotmetricscollectorservice.exception.TelemetryQueryException;
 import com.leafy.iotmetricscollectorservice.mapper.DashboardQueryMapper;
+import com.leafy.iotmetricscollectorservice.model.AlertRule;
 import com.leafy.iotmetricscollectorservice.model.DeviceClaim;
 import com.leafy.iotmetricscollectorservice.model.IoTDevice;
 import com.leafy.iotmetricscollectorservice.model.enums.ClaimStatus;
@@ -19,6 +20,7 @@ import com.leafy.iotmetricscollectorservice.model.ref.FarmZoneRef;
 import com.leafy.iotmetricscollectorservice.model.ref.UserRef;
 import com.leafy.iotmetricscollectorservice.repository.DeviceClaimRepository;
 import com.leafy.iotmetricscollectorservice.repository.DeviceCameraScheduleRepository;
+import com.leafy.iotmetricscollectorservice.repository.AlertRuleRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmPlotRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.FarmZoneRefRepository;
 import com.leafy.iotmetricscollectorservice.repository.IoTDeviceRepository;
@@ -69,6 +71,7 @@ public class DeviceServiceImpl implements DeviceService {
     private final FarmZoneRefRepository farmZoneRefRepository;
     private final DashboardQueryMapper dashboardQueryMapper;
     private final SensorLatestReadingRepository sensorLatestReadingRepository;
+    private final AlertRuleRepository alertRuleRepository;
 
     @Override
     @Transactional
@@ -293,6 +296,7 @@ public class DeviceServiceImpl implements DeviceService {
 
         IoTDevice savedDevice = ioTDeviceRepository.save(device);
         clearLatestReadingsIfAssignmentChanged(savedDevice, oldFarmPlotId, oldZoneId, "update");
+        syncDeviceAlertRuleScopesIfAssignmentChanged(savedDevice, currentUserId, oldFarmPlotId, oldZoneId);
         return dashboardQueryMapper.toDeviceResponse(savedDevice);
     }
 
@@ -412,9 +416,41 @@ public class DeviceServiceImpl implements DeviceService {
         String oldZoneId,
         String reason
     ) {
-        if (!Objects.equals(oldFarmPlotId, idOf(device.getFarmPlot())) || !Objects.equals(oldZoneId, idOf(device.getZone()))) {
+        if (assignmentChanged(device, oldFarmPlotId, oldZoneId)) {
             clearLatestReadingsForDevice(device, reason);
         }
+    }
+
+    private void syncDeviceAlertRuleScopesIfAssignmentChanged(
+        IoTDevice device,
+        String currentUserId,
+        String oldFarmPlotId,
+        String oldZoneId
+    ) {
+        if (device == null || device.getId() == null || !assignmentChanged(device, oldFarmPlotId, oldZoneId)) {
+            return;
+        }
+
+        String normalizedUserId = normalizeOptional(currentUserId);
+        if (normalizedUserId == null) {
+            return;
+        }
+
+        List<AlertRule> deviceRules = alertRuleRepository.findAllByDeviceIdAndOwnerUserId(device.getId(), normalizedUserId);
+        if (deviceRules == null || deviceRules.isEmpty()) {
+            return;
+        }
+
+        for (AlertRule rule : deviceRules) {
+            rule.setFarmPlot(device.getFarmPlot());
+            rule.setZone(device.getZone());
+        }
+        alertRuleRepository.saveAll(deviceRules);
+    }
+
+    private boolean assignmentChanged(IoTDevice device, String oldFarmPlotId, String oldZoneId) {
+        return device != null
+            && (!Objects.equals(oldFarmPlotId, idOf(device.getFarmPlot())) || !Objects.equals(oldZoneId, idOf(device.getZone())));
     }
 
     private void clearLatestReadingsForDevice(IoTDevice device, String reason) {

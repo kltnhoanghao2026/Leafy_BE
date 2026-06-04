@@ -35,6 +35,8 @@ public class PlantEventResponse {
     String ppeRequired;
     String mrlNote;
     String estimatedCost;
+    String sourceType;
+    String sourceId;
     String planApplyId;
 
     String parentPlantEventId;

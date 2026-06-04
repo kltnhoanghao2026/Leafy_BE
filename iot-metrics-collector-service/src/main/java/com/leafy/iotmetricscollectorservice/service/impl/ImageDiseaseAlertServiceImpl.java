@@ -15,6 +15,7 @@ import com.leafy.iotmetricscollectorservice.repository.DeviceConfigRepository;
 import com.leafy.iotmetricscollectorservice.repository.DeviceMediaAnalysisRepository;
 import com.leafy.iotmetricscollectorservice.repository.SensorTypeRepository;
 import com.leafy.iotmetricscollectorservice.service.AlertNotificationPublisher;
+import com.leafy.iotmetricscollectorservice.service.AlertPlantEventIntegrationService;
 import com.leafy.iotmetricscollectorservice.service.ImageDiseaseAlertService;
 import java.time.Duration;
 import java.time.Instant;
@@ -42,6 +43,7 @@ public class ImageDiseaseAlertServiceImpl implements ImageDiseaseAlertService {
     private final DeviceConfigRepository deviceConfigRepository;
     private final DeviceMediaAnalysisRepository deviceMediaAnalysisRepository;
     private final AlertNotificationPublisher alertNotificationPublisher;
+    private final AlertPlantEventIntegrationService alertPlantEventIntegrationService;
 
     @Override
     @Transactional
@@ -91,6 +93,7 @@ public class ImageDiseaseAlertServiceImpl implements ImageDiseaseAlertService {
         ));
 
         AlertEvent saved = alertEventRepository.save(alertEvent);
+        alertPlantEventIntegrationService.createDiseasePlantEventAfterCommit(saved, analysis);
         DiseaseNotificationPolicy policy = resolveDiseaseNotificationPolicy(mediaEvent.getDevice());
         if (policy.shouldPublish()) {
             alertNotificationPublisher.publishDiseaseAlertTriggered(saved, analysis, policy.notifyWeb(), policy.notifyMobile());

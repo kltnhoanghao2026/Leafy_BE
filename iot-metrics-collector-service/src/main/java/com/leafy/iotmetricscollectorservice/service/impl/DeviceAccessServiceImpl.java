@@ -40,7 +40,7 @@ public class DeviceAccessServiceImpl implements DeviceAccessService {
 
     @Override
     public void requireOwnedDeviceForMediaEvent(UUID mediaEventId, String currentUserId) {
-        DeviceMediaEvent mediaEvent = deviceMediaEventRepository.findById(mediaEventId)
+        DeviceMediaEvent mediaEvent = deviceMediaEventRepository.findByIdAndDeletedAtIsNull(mediaEventId)
             .orElseThrow(() -> TelemetryQueryException.mediaEventNotFound(mediaEventId));
         if (mediaEvent.getDevice() == null) {
             throw TelemetryQueryException.scopeAccessDenied("media-event", mediaEventId.toString());
