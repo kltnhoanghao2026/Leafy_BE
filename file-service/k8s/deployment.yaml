@@ -16,20 +16,12 @@ spec:
       nodeSelector:
         node-type: app
       initContainers:
-        - name: wait-for-config-server
+        - name: wait-for-infra
           image: busybox
-          command:
-            - sh
-            - -c
-            - |
-              until wget -qO- http://leafy-config-server:8888/actuator/health/readiness 2>/dev/null | grep -q '"status":"UP"'; do
-                echo "Waiting for config-server..."
-                sleep 5
-              done
-              echo "Config server is UP"
+          command: ['sh', '-c', 'until nc -z leafy-discovery-server 8761 && nc -z leafy-config-server 8888; do if ! nc -z leafy-discovery-server 8761; then echo "Waiting for leafy-discovery-server:8761..."; fi; if ! nc -z leafy-config-server 8888; then echo "Waiting for leafy-config-server:8888..."; fi; sleep 5; done; echo "Infrastructure services are UP!";']
       containers:
         - name: file-service
-          image: 383704034208.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/file-service:latest
+          image: 574802241242.dkr.ecr.ap-southeast-1.amazonaws.com/leafy/file-service:latest
           imagePullPolicy: Always
           env:
             - name: MONGODB_DATABASE_FILE
