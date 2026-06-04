@@ -25,7 +25,7 @@ async def list_my_plans(
     repo = get_plan_repository()
     skip = page * size
     items = repo.find_by_user(current_user.id, skip=skip, limit=size)
-    return ApiResponse.success(result=items)
+    return ApiResponse.success(data=items)
 
 
 @router.get(
@@ -41,13 +41,13 @@ async def get_plan_by_id(
     doc = repo.find_by_id(plan_id)
     if not doc:
         # keep consistent envelope; errors handled by global exception handler elsewhere
-        return ApiResponse.success(result=None)
+        return ApiResponse.success(data=None)
 
     # Basic ownership guard
     if doc.get("userId") != current_user.id:
-        return ApiResponse.success(result=None)
+        return ApiResponse.success(data=None)
 
-    return ApiResponse.success(result=doc)
+    return ApiResponse.success(data=doc)
 
 
 @router.get(
@@ -65,4 +65,4 @@ async def list_all_plans(
     repo = get_plan_repository()
     skip = page * size
     items = repo.find_all(skip=skip, limit=size)
-    return ApiResponse.success(result=items)
+    return ApiResponse.success(data=items)
