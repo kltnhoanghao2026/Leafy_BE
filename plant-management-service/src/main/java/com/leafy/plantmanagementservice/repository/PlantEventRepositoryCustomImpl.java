@@ -105,7 +105,7 @@ public class PlantEventRepositoryCustomImpl implements PlantEventRepositoryCusto
             java.time.LocalDate startDate,
             java.time.LocalDate endDate,
             TargetType targetType,
-            com.leafy.plantmanagementservice.model.enums.PlantEventType eventType
+            EventType eventType
     ) {
         Criteria dateCriteria = buildDateOverlapCriteria(startDate, endDate);
 
@@ -126,6 +126,7 @@ public class PlantEventRepositoryCustomImpl implements PlantEventRepositoryCusto
 
         Criteria targetCriteria = new Criteria().orOperator(orCriterias.toArray(new Criteria[0]));
 
+        // Apply TargetType filter on top of the ownership scope
         List<Criteria> allCriteria = new ArrayList<>();
         allCriteria.add(dateCriteria);
         allCriteria.add(targetCriteria);
@@ -133,14 +134,17 @@ public class PlantEventRepositoryCustomImpl implements PlantEventRepositoryCusto
         if (targetType != null) {
             switch (targetType) {
                 case FARM -> {
+                    // FARM-scope: event has farmPlotId set, no farmZoneId, no plantId
                     allCriteria.add(Criteria.where("farmPlotId").ne(null));
                     allCriteria.add(Criteria.where("farmZoneId").is(null));
                     allCriteria.add(Criteria.where("plantId").is(null));
                 }
                 case FARM_ZONE -> {
+                    // FARM_ZONE-scope: event has farmZoneId set
                     allCriteria.add(Criteria.where("farmZoneId").ne(null));
                 }
                 case PLANT -> {
+                    // PLANT-scope: event has plantId set
                     allCriteria.add(Criteria.where("plantId").ne(null));
                 }
             }

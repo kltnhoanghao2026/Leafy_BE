@@ -525,10 +525,10 @@ public class PlantEventServiceImpl implements PlantEventService {
         }
 
         // Derive eventType enum
-        com.leafy.plantmanagementservice.model.enums.PlantEventType evtType = null;
+        EventType evtType = null;
         if (eventType != null && !eventType.isBlank()) {
             try {
-                evtType = com.leafy.plantmanagementservice.model.enums.PlantEventType.valueOf(eventType);
+                evtType = EventType.valueOf(eventType);
             } catch (IllegalArgumentException e) {
                 log.warn("Invalid eventType '{}' ignored", eventType);
             }
