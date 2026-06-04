@@ -14,7 +14,7 @@ spec:
         app: community-feed-service
     spec:
       nodeSelector:
-        node-type: app
+        node-type: infra
       initContainers:
         - name: wait-for-infra
           image: busybox
@@ -40,7 +40,7 @@ spec:
           resources:
             requests:
               memory: 512Mi
-              cpu: 200m
+              cpu: 100m
             limits:
               memory: 1536Mi
               cpu: 1000m

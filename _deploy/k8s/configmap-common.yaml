@@ -57,8 +57,8 @@ data:
   # ============================================================
   # ELASTICSEARCH
   # ============================================================
-  ELASTICSEARCH_URIS: "http://leafy-elasticsearch:9200"
-  ELASTICSEARCH_URL: "http://leafy-elasticsearch:9200"
+  ELASTICSEARCH_URIS: "leafy-elasticsearch:9200"
+  ELASTICSEARCH_URL: "leafy-elasticsearch:9200"
   ELASTICSEARCH_PORT: "9200"
   KIBANA_PORT: "5601"
   ELASTICSEARCH_USERNAME: "elastic"

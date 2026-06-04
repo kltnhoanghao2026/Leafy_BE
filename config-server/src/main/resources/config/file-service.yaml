@@ -22,7 +22,7 @@ spring:
 
 aws:
   s3:
-    bucket: leafy-meida-storage
+    bucket: leafy-media-storage
   region: ap-southeast-1
 
 management:

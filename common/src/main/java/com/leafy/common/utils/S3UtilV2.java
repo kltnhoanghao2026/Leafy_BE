@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class S3UtilV2 {
 
-    @Value("${aws.s3.base-url:https://leafy-meida-storage.s3.ap-southeast-1.amazonaws.com/}")
+    @Value("${aws.s3.base-url:https://leafy-media-storage.s3.ap-southeast-1.amazonaws.com/}")
     private String s3BaseUrl;
 
     public String getS3BaseUrl() {
