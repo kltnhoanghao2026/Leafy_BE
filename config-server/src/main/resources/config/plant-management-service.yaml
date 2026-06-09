@@ -1,12 +1,33 @@
 server:
-  port: ${SERVER_PORT:8086}
+  port: ${SERVER_PORT_PLANT}
 
 spring:
   data:
     mongodb:
-      host: ${MONGODB_HOST:localhost}
-      port: ${MONGODB_PORT:27017}
-      database: ${MONGODB_PLANT_DATABASE:leafy_plant}
-      username: ${MONGODB_USERNAME:admin}
-      password: ${MONGODB_PASSWORD:admin123}
+      host: ${MONGODB_HOST}
+      port: ${MONGODB_PORT}
+      database: ${MONGODB_DATABASE_PLANT}
+      username: ${MONGODB_USERNAME}
+      password: ${MONGODB_PASSWORD}
       authentication-database: admin
+      auto-index-creation: true
+
+perenual:
+  api:
+    base-url: ${PERENUAL_API_BASE_URL:https://perenual.com/api}
+    key: ${PERENUAL_API_KEY:your_perenual_api_key_here}
+
+plant-management:
+  seeder:
+    species-count: 15
+    plant-count: 30
+    events-per-plant: 5
+    random-seed: 20260324
+
+farm:
+  seeder:
+    plots-per-profile: 2
+    zones-per-plot: 3
+    random-seed: 20260324
+    profile-page-size: 200
+    profile-max-pages: 3

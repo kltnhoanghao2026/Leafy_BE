@@ -2,10 +2,17 @@ package com.leafy.common.publisher;
 
 import com.leafy.common.config.kafka.KafkaTopicProperties;
 import com.leafy.common.event.account.AccountRegisteredEvent;
+import com.leafy.common.event.community.CommentEvent;
+import com.leafy.common.event.community.VoteEvent;
+import com.leafy.common.event.plan.PlanDeletedEvent;
+import com.leafy.common.event.plan.PlanUpsertEvent;
+import com.leafy.common.event.post.PostDeletedEvent;
+import com.leafy.common.event.post.PostUpsertEvent;
+import com.leafy.common.event.profile.ProfileEvent;
+import com.leafy.common.event.profile.UserConnectionEvent;
 import com.leafy.common.model.kafka.EventType;
 import com.leafy.common.model.kafka.OutboxEvent;
 import com.leafy.common.repository.OutboxEventRepository;
-import com.leafy.common.event.user.UserCreatedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -118,23 +125,39 @@ public class OutboxEventPublisher {
 
     private String getTopicForEventType(EventType eventType) {
         return switch (eventType) {
-            case ACCOUNT_REGISTERED -> kafkaTopicProperties.getAccountEvents().getRegistered();
-            case ACCOUNT_UPDATED -> kafkaTopicProperties.getAccountEvents().getUpdated();
-            case ACCOUNT_DELETED -> kafkaTopicProperties.getAccountEvents().getDeleted();
-            case ACCOUNT_VERIFIED -> kafkaTopicProperties.getAccountEvents().getVerified();
-            case ACCOUNT_ENABLED -> kafkaTopicProperties.getAccountEvents().getEnabled();
-            case ACCOUNT_DISABLED -> kafkaTopicProperties.getAccountEvents().getDisabled();
-            case USER_CREATED -> kafkaTopicProperties.getUserEvents().getCreated();
+            case USER_REGISTERED -> kafkaTopicProperties.getUserEvents().getRegistered();
             case USER_UPDATED -> kafkaTopicProperties.getUserEvents().getUpdated();
             case USER_DELETED -> kafkaTopicProperties.getUserEvents().getDeleted();
+            case USER_VERIFIED -> kafkaTopicProperties.getUserEvents().getVerified();
+            case USER_ENABLED -> kafkaTopicProperties.getUserEvents().getEnabled();
+            case USER_DISABLED -> kafkaTopicProperties.getUserEvents().getDisabled();
+            case POST_UPSERTED -> kafkaTopicProperties.getCommunityEvents().getPostUpserted();
+            case POST_DELETED -> kafkaTopicProperties.getCommunityEvents().getPostDeleted();
+            case COMMENT_CREATED -> kafkaTopicProperties.getCommunityEvents().getCommentCreated();
+            case COMMENT_DELETED -> kafkaTopicProperties.getCommunityEvents().getCommentDeleted();
+            case VOTE_CREATED -> kafkaTopicProperties.getCommunityEvents().getVoteCreated();
+            case VOTE_DELETED -> kafkaTopicProperties.getCommunityEvents().getVoteDeleted();
+            case PROFILE_CREATED -> kafkaTopicProperties.getProfileEvents().getCreated();
+            case PROFILE_UPDATED -> kafkaTopicProperties.getProfileEvents().getUpdated();
+            case PROFILE_DELETED -> kafkaTopicProperties.getProfileEvents().getDeleted();
+            case PROFILE_CONNECTION_UPDATED -> kafkaTopicProperties.getProfileEvents().getConnectionUpdated();
+            case PLAN_UPSERTED -> kafkaTopicProperties.getPlantManagementEvents().getPlanUpserted();
+            case PLAN_DELETED -> kafkaTopicProperties.getPlantManagementEvents().getPlanDeleted();
         };
     }
 
     private Class<?> getEventClassForType(EventType eventType) {
         return switch (eventType) {
-            case ACCOUNT_REGISTERED, ACCOUNT_UPDATED, ACCOUNT_DELETED, 
-                 ACCOUNT_VERIFIED, ACCOUNT_ENABLED, ACCOUNT_DISABLED -> AccountRegisteredEvent.class;
-            case USER_CREATED, USER_UPDATED, USER_DELETED -> UserCreatedEvent.class;
+            case USER_REGISTERED, USER_UPDATED, USER_DELETED, 
+                 USER_VERIFIED, USER_ENABLED, USER_DISABLED -> AccountRegisteredEvent.class;
+            case POST_UPSERTED -> PostUpsertEvent.class;
+            case POST_DELETED -> PostDeletedEvent.class;
+            case COMMENT_CREATED, COMMENT_DELETED -> CommentEvent.class;
+            case VOTE_CREATED, VOTE_DELETED -> VoteEvent.class;
+            case PROFILE_CREATED, PROFILE_UPDATED, PROFILE_DELETED -> ProfileEvent.class;
+            case PROFILE_CONNECTION_UPDATED -> UserConnectionEvent.class;
+            case PLAN_UPSERTED -> PlanUpsertEvent.class;
+            case PLAN_DELETED -> PlanDeletedEvent.class;
         };
     }
 }

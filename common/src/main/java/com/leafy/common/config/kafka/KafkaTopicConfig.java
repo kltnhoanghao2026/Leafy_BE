@@ -18,7 +18,32 @@ public class KafkaTopicConfig {
 
     @Bean
     public NewTopic accountRegisteredEvents() {
-        return createTopic(topicProperties.getAccountEvents().getRegistered());
+        return createTopic(topicProperties.getUserEvents().getRegistered());
+    }
+
+    @Bean
+    public NewTopic profileCreatedEvents() {
+        return createTopic(topicProperties.getProfileEvents().getCreated());
+    }
+
+    @Bean
+    public NewTopic profileUpdatedEvents() {
+        return createTopic(topicProperties.getProfileEvents().getUpdated());
+    }
+
+    @Bean
+    public NewTopic profileDeletedEvents() {
+        return createTopic(topicProperties.getProfileEvents().getDeleted());
+    }
+
+    @Bean
+    public NewTopic socketEvents() {
+        return createTopic(topicProperties.getSocketEvents().getSocketEvents());
+    }
+
+    @Bean
+    public NewTopic notificationRawTopic() {
+        return createTopic(topicProperties.getNotificationEvents().getRaw());
     }
 
     private NewTopic createTopic(String topicName) {

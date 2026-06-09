@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: community-feed-service
+  config:
+    import: configserver:http://localhost:8888
+  cloud:
+    config:
+      uri: http://localhost:8888
+      fail-fast: true
+      retry:
+        max-attempts: 6
+        initial-interval: 1000
+        max-interval: 2000
+        multiplier: 1.1
+
+community-feed:
+  seeder:
+    post-count: 100
+    comment-count: 400
+    vote-count: 700
+    profile-page-size: 200
+    profile-max-pages: 3
+    random-seed: 20260324

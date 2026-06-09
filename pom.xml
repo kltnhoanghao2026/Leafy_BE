@@ -21,12 +21,17 @@
         <module>api-gateway</module>
         <module>discovery-server</module>
         <module>config-server</module>
-        <module>user-service</module>
+        <module>profile-service</module>
         <module>auth-service</module>
-        <module>farm-service</module>
         <module>file-service</module>
+        <module>search-service</module>
         <module>notification-service</module>
         <module>plant-management-service</module>
+        <module>iot-metrics-collector-service</module>
+        <module>iot-test-data-service</module>
+        <module>community-feed-service</module>
+        <module>socket-service</module>
+        <module>message-service</module>
     </modules>
 
 

@@ -1,16 +1,22 @@
 spring:
   application:
     name: api-gateway
+  messages:
+    basename: i18n/messages,i18n/gateway-messages
+    encoding: UTF-8
   config:
-    import: optional:configserver:${SPRING_CLOUD_CONFIG_URI:http://localhost:8888}
+    import: configserver:http://localhost:8888
   cloud:
     config:
-      uri: ${SPRING_CLOUD_CONFIG_URI:http://localhost:8888}
-      fail-fast: false
+      uri: http://localhost:8888
+      fail-fast: true
       retry:
-        initial-interval: 1000
         max-attempts: 6
+        initial-interval: 1000
         max-interval: 2000
         multiplier: 1.1
   kafka:
     enabled: false
+
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:5173,http://192.168.100.55:5173,http://192.168.100.55:3000

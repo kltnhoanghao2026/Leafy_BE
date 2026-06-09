@@ -31,13 +31,17 @@ public class JwtUtil {
      * @param userId User ID
      * @param email  User email
      * @param role   User role
+     * @param sessionId Session ID
+     * @param deviceId Device ID
      * @return JWT access token
      */
-    public String generateAccessToken(String userId, String email, Role role, String sessionId) {
+    public String generateAccessToken(String userId, String email, Role role, String sessionId, String deviceId, String profileId) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
+        claims.put("profileId", profileId);
         claims.put("email", email);
         claims.put("sessionId", sessionId);
+        claims.put("deviceId", deviceId);
         claims.put("jti", java.util.UUID.randomUUID().toString());
         // Store single role as string in JWT claims
         claims.put("role", role != null ? role.getName() : null);
@@ -51,13 +55,15 @@ public class JwtUtil {
      *
      * @param userId       User ID
      * @param sessionId    Session ID for device tracking
+     * @param deviceId     Device ID
      * @param expirationMs Expiration time for this specific token
      * @return JWT refresh token
      */
-    public String generateRefreshToken(String userId, String sessionId, long expirationMs) {
+    public String generateRefreshToken(String userId, String sessionId, String deviceId, long expirationMs) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("type", "refresh");
         claims.put("sessionId", sessionId);
+        claims.put("deviceId", deviceId);
         claims.put("jti", java.util.UUID.randomUUID().toString());
 
         return generateToken(claims, userId, expirationMs);
@@ -132,6 +138,16 @@ public class JwtUtil {
     }
 
     /**
+     * Extract profile ID from token
+     *
+     * @param token JWT token
+     * @return Profile ID
+     */
+    public String extractProfileId(String token) {
+        return extractClaim(token, claims -> claims.get("profileId", String.class));
+    }
+
+    /**
      * Extract role from token
      *
      * @param token JWT token
@@ -189,6 +205,10 @@ public class JwtUtil {
 
     public String extractSessionId(String token) {
         return extractClaim(token, claims -> claims.get("sessionId", String.class));
+    }
+
+    public String extractDeviceId(String token) {
+        return extractClaim(token, claims -> claims.get("deviceId", String.class));
     }
 
     public long getRemainingTtl(String token) {

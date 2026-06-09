@@ -1,0 +1,20 @@
+spring:
+  application:
+  name: auth-service
+  config:
+    import: optional:configserver:http://localhost:8888
+  cloud:
+    config:
+      enabled: false
+
+  data:
+    mongodb:
+      host: ${MONGODB_HOST:localhost}
+      port: ${MONGODB_PORT:27017}
+      database: ${MONGODB_DB:auth_db}
+      username: ${MONGODB_USERNAME:root}
+      password: ${MONGODB_PASSWORD:root}
+      authentication-database: ${MONGODB_AUTH_DB:admin}
+
+server:
+  port: ${SERVER_PORT_AUTH:8081}

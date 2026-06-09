@@ -1,0 +1,525 @@
+package com.leafy.profileservice.service.profile;
+
+import com.leafy.common.dto.ApiResponse;
+import com.leafy.common.enums.ProfileRole;
+import com.leafy.common.event.profile.ProfileEvent;
+import com.leafy.common.exception.AppException;
+import com.leafy.common.exception.ErrorCode;
+import com.leafy.common.model.kafka.EventType;
+import com.leafy.common.publisher.OutboxEventPublisher;
+import com.leafy.profileservice.client.AuthClient;
+import com.leafy.profileservice.client.dto.UserResponse;
+import com.leafy.profileservice.dto.request.profile.InternalCreateProfileRequest;
+import com.leafy.profileservice.dto.request.profile.ProfileCreateRequest;
+import com.leafy.profileservice.dto.request.profile.ProfileUpdateRequest;
+import com.leafy.profileservice.dto.response.profile.ProfileDetailsResponse;
+import com.leafy.profileservice.dto.response.profile.InternalProfileResponse;
+import com.leafy.profileservice.dto.response.profile.ProfileResponse;
+import com.leafy.profileservice.dto.response.profile.UserSyncResponse;
+import com.leafy.profileservice.mapper.CertificateMapper;
+import com.leafy.profileservice.mapper.ProfileMapper;
+import com.leafy.profileservice.model.Certificate;
+import com.leafy.profileservice.model.Profile;
+import com.leafy.profileservice.model.enums.CertificateStatus;
+import com.leafy.profileservice.client.SearchClient;
+import com.leafy.profileservice.client.dto.SpringPageDto;
+import com.leafy.profileservice.repository.UserConnectionRepository;
+import com.leafy.profileservice.model.UserConnection;
+import com.leafy.profileservice.model.enums.ConsultationStatus;
+import com.leafy.profileservice.repository.ApprovalRequestRepository;
+import com.leafy.profileservice.repository.ProfileRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageImpl;
+import java.util.Map;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+/**
+ * Implementation of ProfileService
+ * Handles all business logic for profile management
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+@Transactional
+public class ProfileServiceImpl implements ProfileService {
+
+    private final ProfileRepository profileRepository;
+    private final ApprovalRequestRepository approvalRequestRepository;
+    private final ProfileMapper profileMapper;
+    private final CertificateMapper certificateMapper;
+    private final AuthClient authClient;
+    private final OutboxEventPublisher outboxEventPublisher;
+    private final SearchClient searchClient;
+    private final UserConnectionRepository userConnectionRepository;
+
+    @Override
+    public ProfileResponse createProfile(ProfileCreateRequest request) {
+        log.info("Creating new profile for user ID: {}", request.getUserId());
+
+        if (profileRepository.existsByUserId(request.getUserId())) {
+            log.error("Profile already exists for user ID: {}", request.getUserId());
+            throw new AppException(ErrorCode.ACC_ACCOUNT_NOT_FOUND); // TODO: Add proper error code for profile exists
+        }
+
+        Profile profile = profileMapper.toEntity(request);
+        profile.setActive(true);
+
+        // Set default UserPreference if not provided
+        if (profile.getUserPreference() == null) {
+            profile.setUserPreference(new com.leafy.profileservice.model.UserPreference());
+            log.debug("No userPreference provided, using default settings");
+        }
+
+        Profile savedProfile = profileRepository.save(profile);
+        log.info("Profile created successfully with ID: {}", savedProfile.getId());
+
+        publishProfileEvent(savedProfile, EventType.PROFILE_CREATED);
+
+        return profileMapper.toResponse(savedProfile);
+    }
+
+    @Override
+    public ProfileResponse createProfileInternal(InternalCreateProfileRequest request) {
+        log.info("Creating internal profile for user ID: {}", request.getUserId());
+
+        if (profileRepository.existsByUserId(request.getUserId())) {
+            log.warn("Profile already exists for user ID: {}, skipping creation", request.getUserId());
+            return profileMapper.toResponse(profileRepository.findByUserId(request.getUserId()).orElseThrow());
+        }
+
+        Profile profile = Profile.builder()
+                .userId(request.getUserId())
+                .fullName(request.getFullName())
+                .role(request.getRole() != null ? com.leafy.common.enums.ProfileRole.valueOf(request.getRole()) : null)
+                .specialty(request.getSpecialty())
+                .bio(request.getBio())
+                .addressLine(request.getAddressLine())
+                .provinceCode(request.getProvinceCode())
+                .districtCode(request.getDistrictCode())
+                .wardCode(request.getWardCode())
+                .latitude(request.getLatitude())
+                .longitude(request.getLongitude())
+                .isVerified(false)
+                .build();
+
+        // Set userPreference if provided, otherwise use defaults
+        if (request.getUserPreference() != null) {
+            profile.setUserPreference(mapUserPreferenceRequest(request.getUserPreference()));
+        } else {
+            profile.setUserPreference(new com.leafy.profileservice.model.UserPreference());
+            log.debug("No userPreference provided in internal creation, using default settings");
+        }
+
+        profile.setActive(true);
+
+        Profile savedProfile = profileRepository.save(profile);
+        log.info("Internal profile created successfully with ID: {}", savedProfile.getId());
+
+        publishProfileEvent(savedProfile, EventType.PROFILE_CREATED);
+
+        ProfileResponse response = profileMapper.toResponse(savedProfile);
+        response.setEmail(request.getEmail());
+        response.setPhoneNumber(request.getPhoneNumber());
+        return response;
+    }
+
+    private com.leafy.profileservice.model.UserPreference mapUserPreferenceRequest(
+            com.leafy.profileservice.dto.request.preferences.UserPreferenceRequest request) {
+        return com.leafy.profileservice.model.UserPreference.builder()
+                .generalSettings(request.getGeneralSettings())
+                .privacySettings(request.getPrivacySettings())
+                .appearanceSettings(request.getAppearanceSettings())
+                .notificationSettings(request.getNotificationSettings())
+                .build();
+    }
+
+    @Override
+    public ProfileResponse updateProfile(String profileId, ProfileUpdateRequest request) {
+        log.info("Updating profile with ID: {}", profileId);
+
+        Profile profile = getProfileEntityById(profileId);
+
+        profileMapper.updateEntityFromRequest(request, profile);
+        Profile updatedProfile = profileRepository.save(profile);
+
+        log.info("Profile updated successfully with ID: {}", updatedProfile.getId());
+        publishProfileEvent(updatedProfile, EventType.PROFILE_UPDATED);
+        ProfileResponse response = profileMapper.toResponse(updatedProfile);
+        return enrichWithUserInfo(response, updatedProfile.getUserId());
+    }
+
+    @Override
+    public ProfileResponse updateProfileByUserId(String userId, ProfileUpdateRequest request) {
+        log.info("Updating profile by user ID: {}", userId);
+
+        Profile profile = profileRepository.findByUserId(userId)
+                .orElseThrow(() -> {
+                    log.error("Profile not found for user ID: {}", userId);
+                    return new AppException(ErrorCode.ACC_ACCOUNT_NOT_FOUND);
+                });
+
+        return updateProfile(profile.getId(), request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileResponse getProfileById(String profileId) {
+        log.info("Getting profile by ID: {}", profileId);
+        Profile profile = getProfileEntityById(profileId);
+        return buildFullProfileResponse(profile);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileDetailsResponse getProfileDetailsById(String profileId) {
+        log.info("Getting profile details by ID: {}", profileId);
+        Profile profile = getProfileEntityById(profileId);
+        ProfileDetailsResponse response = profileMapper.toDetailsResponse(profile);
+        enrichProfileDetailsResponse(response, profile);
+        return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Profile getProfileEntityById(String profileId) {
+        return profileRepository.findById(profileId)
+                .orElseThrow(() -> {
+                    log.error("Profile not found with ID: {}", profileId);
+                    return new AppException(ErrorCode.ACC_ACCOUNT_NOT_FOUND);
+                });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InternalProfileResponse> getProfilesByIds(List<String> ids) {
+        if (ids == null || ids.isEmpty())
+            return List.of();
+        return ((List<Profile>) profileRepository.findAllById(ids)).stream()
+                .map(p -> InternalProfileResponse.builder()
+                        .id(p.getId())
+                        .userId(p.getUserId())
+                        .fullName(p.getFullName())
+                        .profilePicture(p.getProfilePicture())
+                        .avatar(p.getAvatar())
+                        .role(p.getRole())
+                        .specialty(p.getSpecialty())
+                        .isVerified(p.getIsVerified())
+                        .active(p.isActive())
+                        .bio(p.getBio())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileResponse getProfileByUserId(String userId) {
+        log.info("Getting profile by user ID: {}", userId);
+        Profile profile = profileRepository.findByUserId(userId)
+                .orElseThrow(() -> {
+                    log.error("Profile not found for user ID: {}", userId);
+                    return new AppException(ErrorCode.ACC_ACCOUNT_NOT_FOUND);
+                });
+        return buildFullProfileResponse(profile);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProfileResponse> getAllProfiles(Pageable pageable) {
+        log.info("Getting all profiles with pagination");
+        Page<Profile> profiles = profileRepository.findAll(pageable);
+        return profiles.map(this::buildFullProfileResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProfileResponse> getActiveProfiles(Pageable pageable) {
+        log.info("Getting all active profiles with pagination");
+        Page<Profile> profiles = profileRepository.findByActiveTrue(pageable);
+        return profiles.map(this::buildFullProfileResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProfileResponse> searchProfiles(String searchTerm, Pageable pageable) {
+        log.info("Searching profiles with term: {}", searchTerm);
+        Page<Profile> profiles = profileRepository.searchProfiles(searchTerm, pageable);
+        return profiles.map(this::buildFullProfileResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProfileResponse> getFilteredProfiles(
+            String searchTerm,
+            ProfileRole role,
+            Boolean active,
+            Boolean isVerified,
+            Pageable pageable) {
+        log.info("Getting filtered profiles: searchTerm={}, role={}, active={}, isVerified={}",
+                searchTerm, role, active, isVerified);
+        Page<Profile> profiles = profileRepository.findProfilesFiltered(searchTerm, role, active, isVerified, pageable);
+        return profiles.map(this::buildFullProfileResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProfileResponse> searchExpertsEnriched(
+            String searchTerm, String specialty, int page, int size,
+            String sortBy, String sortDir, String currentUserId) {
+        log.info("Searching experts enriched: searchTerm={}, specialty={}, currentUserId={}", searchTerm, specialty,
+                currentUserId);
+
+        ApiResponse<SpringPageDto<ProfileResponse>> apiResponse = searchClient.searchProfiles(
+                searchTerm, ProfileRole.EXPERT.name(), true, specialty, page, size, sortBy, sortDir);
+
+        if (apiResponse == null || apiResponse.data() == null) {
+            return Page.empty();
+        }
+
+        SpringPageDto<ProfileResponse> pageDto = apiResponse.data();
+        List<ProfileResponse> content = pageDto.getContent();
+
+        if (currentUserId != null && !content.isEmpty()) {
+            enrichWithConnectionStatus(content, currentUserId);
+        }
+
+        PageRequest pageRequest = PageRequest.of(pageDto.getNumber(), pageDto.getSize() > 0 ? pageDto.getSize() : size);
+        return new PageImpl<>(content, pageRequest, pageDto.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProfileResponse> getExpertsEnriched(
+            String searchTerm, int page, int size,
+            String sortBy, String sortDir, String currentUserId) {
+        log.info("Getting experts enriched: searchTerm={}, currentUserId={}", searchTerm, currentUserId);
+
+        org.springframework.data.domain.Sort sort = sortDir.equalsIgnoreCase("ASC")
+                ? org.springframework.data.domain.Sort.by(sortBy).ascending()
+                : org.springframework.data.domain.Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<Profile> profiles = profileRepository.findProfilesFiltered(searchTerm, ProfileRole.EXPERT, true, true,
+                pageable);
+        List<ProfileResponse> content = profiles.stream().map(this::buildFullProfileResponse)
+                .collect(Collectors.toList());
+
+        if (currentUserId != null && !content.isEmpty()) {
+            enrichWithConnectionStatus(content, currentUserId);
+        }
+
+        return new PageImpl<>(content, pageable, profiles.getTotalElements());
+    }
+
+    private void enrichWithConnectionStatus(List<ProfileResponse> profiles, String currentUserId) {
+        // Resolve JWT userId → profileId for connection lookup (UserConnection now
+        // stores profileIds)
+        String currentProfileId = profileRepository.findByUserId(currentUserId)
+                .map(Profile::getId)
+                .orElse(null);
+        if (currentProfileId == null) {
+            profiles.forEach(p -> {
+                p.setIsFollowing(false);
+                p.setHasPendingConsultRequest(false);
+            });
+            return;
+        }
+
+        List<String> targetProfileIds = profiles.stream()
+                .map(ProfileResponse::getId)
+                .collect(Collectors.toList());
+
+        List<UserConnection> connections = userConnectionRepository
+                .findAllByFollowerIdAndFollowingIdIn(currentProfileId, targetProfileIds);
+        Map<String, UserConnection> connectionMap = connections.stream()
+                .collect(Collectors.toMap(UserConnection::getFollowingId, c -> c));
+
+        for (ProfileResponse profile : profiles) {
+            UserConnection conn = connectionMap.get(profile.getId());
+            if (conn != null) {
+                profile.setIsFollowing(conn.getIsFollowing() != null && conn.getIsFollowing());
+                profile.setHasPendingConsultRequest(conn.getConsultationStatus() == ConsultationStatus.PENDING);
+            } else {
+                profile.setIsFollowing(false);
+                profile.setHasPendingConsultRequest(false);
+            }
+        }
+    }
+
+    @Override
+    public void deleteProfile(String profileId) {
+        log.info("Deleting profile with ID: {}", profileId);
+        Profile profile = getProfileEntityById(profileId);
+        publishProfileEvent(profile, EventType.PROFILE_DELETED);
+        profileRepository.delete(profile);
+        // 5. Delete associated approval requests
+        approvalRequestRepository.deleteByProfileId(profileId);
+        log.info("Profile deleted successfully with ID: {}", profileId);
+    }
+
+    @Override
+    public void deleteProfileByUserId(String userId) {
+        log.info("Deleting profile for user ID: {}", userId);
+        Profile profile = profileRepository.findByUserId(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.ACC_ACCOUNT_NOT_FOUND));
+
+        publishProfileEvent(profile, EventType.PROFILE_DELETED);
+        profileRepository.delete(profile);
+
+        // Delete associated approval requests
+        approvalRequestRepository.deleteByProfileId(profile.getId());
+        log.info("Profile deleted successfully for user ID: {}", userId);
+    }
+
+    @Override
+    public ProfileResponse activateProfile(String profileId) {
+        log.info("Activating profile with ID: {}", profileId);
+        Profile profile = getProfileEntityById(profileId);
+        profile.setActive(true);
+        Profile activatedProfile = profileRepository.save(profile);
+        log.info("Profile activated successfully with ID: {}", profileId);
+        return buildFullProfileResponse(activatedProfile);
+    }
+
+    @Override
+    public ProfileResponse deactivateProfile(String profileId) {
+        log.info("Deactivating profile with ID: {}", profileId);
+        Profile profile = getProfileEntityById(profileId);
+        profile.setActive(false);
+        Profile deactivatedProfile = profileRepository.save(profile);
+        log.info("Profile deactivated successfully with ID: {}", profileId);
+        return buildFullProfileResponse(deactivatedProfile);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByUserId(String userId) {
+        return profileRepository.existsByUserId(userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserSyncResponse> getUsersBatch(String lastId, int size) {
+        log.info("Fetching profile batch: lastId={}, size={}", lastId, size);
+        PageRequest pageRequest = PageRequest.of(0, size);
+        List<Profile> profiles = (lastId == null || lastId.isBlank())
+                ? profileRepository.findAllByOrderByIdAsc(pageRequest)
+                : profileRepository.findByIdGreaterThanOrderByIdAsc(lastId, pageRequest);
+        return profiles.stream()
+                .map(p -> UserSyncResponse.builder()
+                        .id(p.getId())
+                        .userId(p.getUserId())
+                        .fullName(p.getFullName())
+                        .profilePicture(p.getProfilePicture())
+                        .avatar(p.getAvatar())
+                        .role(p.getRole())
+                        .specialty(p.getSpecialty())
+                        .isVerified(p.getIsVerified())
+                        .bio(p.getBio())
+                        .addressLine(p.getAddressLine())
+                        .provinceCode(p.getProvinceCode())
+                        .districtCode(p.getDistrictCode())
+                        .wardCode(p.getWardCode())
+                        .latitude(p.getLatitude())
+                        .longitude(p.getLongitude())
+                        .active(p.isActive())
+                        .createdAt(p.getCreatedAt())
+                        .lastModifiedAt(p.getLastModifiedAt())
+                        .build())
+                .toList();
+    }
+
+    private ProfileResponse buildFullProfileResponse(Profile profile) {
+        ProfileResponse response = profileMapper.toResponse(profile);
+
+        // Map ONLY APPROVED certificates back to the profile wrapper
+        List<Certificate> approvedCertificates = approvalRequestRepository.findByProfileId(profile.getId()).stream()
+                .filter(req -> req.getStatus() == CertificateStatus.APPROVED)
+                .flatMap(req -> req.getCertificates().stream())
+                .toList();
+        response.setCertificates(certificateMapper.toDtoList(approvedCertificates));
+
+        return enrichWithUserInfo(response, profile.getUserId());
+    }
+
+    private ProfileResponse enrichWithUserInfo(ProfileResponse response, String userId) {
+        try {
+            ApiResponse<UserResponse> apiResponse = authClient.getUserById(userId);
+            if (apiResponse != null && apiResponse.data() != null) {
+                UserResponse user = apiResponse.data();
+                response.setEmail(user.getEmail());
+                response.setPhoneNumber(user.getPhoneNumber());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch user info for userId: {}. Error: {}", userId, e.getMessage());
+        }
+        return response;
+    }
+
+    private void enrichProfileDetailsResponse(ProfileDetailsResponse response, Profile profile) {
+        try {
+            ApiResponse<UserResponse> apiResponse = authClient.getUserById(profile.getUserId());
+            if (apiResponse != null && apiResponse.data() != null) {
+                UserResponse user = apiResponse.data();
+                response.setEmail(user.getEmail());
+                response.setPhoneNumber(user.getPhoneNumber());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch user info for userId: {}. Error: {}", profile.getUserId(), e.getMessage());
+        }
+
+        // Map ONLY APPROVED certificates back to the profile wrapper
+        List<Certificate> approvedCertificates = approvalRequestRepository.findByProfileId(profile.getId()).stream()
+                .filter(req -> req.getStatus() == CertificateStatus.APPROVED)
+                .flatMap(req -> req.getCertificates().stream())
+                .toList();
+        response.setCertificates(certificateMapper.toDtoList(approvedCertificates));
+    }
+
+    private void publishProfileEvent(Profile profile, EventType eventType) {
+        ProfileEvent event = ProfileEvent.builder()
+                .profileId(profile.getId())
+                .userId(profile.getUserId())
+                .fullName(profile.getFullName())
+                .avatar(profile.getAvatar())
+                .role(profile.getRole() != null ? profile.getRole().name() : null)
+                .isVerified(profile.getIsVerified())
+                .timestamp(System.currentTimeMillis())
+                .build();
+        outboxEventPublisher.saveAndPublish(profile.getId(), "PROFILE", eventType, event);
+    }
+
+    @Override
+    public ProfileResponse verifyProfile(String profileId) {
+        log.info("Verifying profile ID: {}", profileId);
+        Profile profile = getProfileEntityById(profileId);
+
+        profile.setIsVerified(true);
+        Profile savedProfile = profileRepository.save(profile);
+        log.info("Profile marked as verified successfully.");
+
+        return buildFullProfileResponse(savedProfile);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void enrichSingleWithConnectionStatus(ProfileResponse profile, String currentUserId) {
+        enrichWithConnectionStatus(List.of(profile), currentUserId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getProfileIdByUserId(String userId) {
+        return profileRepository.findByUserId(userId)
+                .map(Profile::getId)
+                .orElse(null);
+    }
+}

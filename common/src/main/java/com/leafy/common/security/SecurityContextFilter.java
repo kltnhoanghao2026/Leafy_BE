@@ -27,7 +27,11 @@ public class SecurityContextFilter extends OncePerRequestFilter {
     private static final String HEADER_USER_EMAIL = "X-User-Email";
     private static final String HEADER_USER_ROLES = "X-User-Roles";
     private static final String HEADER_USER_JTI = "X-JWT-Id";
+    private static final String HEADER_DEVICE_ID = "X-Device-Id";
     private static final String HEADER_REMAINING_TTL = "X-Remaining-TTL";
+    private static final String HEADER_USER_AGENT = "User-Agent";
+    private static final String HEADER_X_DEVICE_ID = "X-Device-ID";
+    private static final String HEADER_PROFILE_ID = "X-Profile-Id";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -38,6 +42,10 @@ public class SecurityContextFilter extends OncePerRequestFilter {
         String email = request.getHeader(HEADER_USER_EMAIL);
         String rolesHeader = request.getHeader(HEADER_USER_ROLES);
         String jti = request.getHeader(HEADER_USER_JTI);
+        String deviceId = request.getHeader(HEADER_DEVICE_ID);
+        String userAgent = request.getHeader(HEADER_USER_AGENT);
+        String requestDeviceId = request.getHeader(HEADER_X_DEVICE_ID);
+        String profileId = request.getHeader(HEADER_PROFILE_ID);
         Long remainingTTL = request.getHeader(HEADER_REMAINING_TTL) != null ?
                 Long.parseLong(request.getHeader(HEADER_REMAINING_TTL)) : null;
 
@@ -45,7 +53,8 @@ public class SecurityContextFilter extends OncePerRequestFilter {
             try {
                 List<GrantedAuthority> authorities = parseRoles(rolesHeader);
 
-                UserPrincipal userPrincipal = new UserPrincipal(userId, email, jti, remainingTTL, authorities);
+                UserPrincipal userPrincipal = new UserPrincipal(userId, email, jti, deviceId, 
+                        userAgent, requestDeviceId, remainingTTL, profileId, authorities);
 
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         userPrincipal,
@@ -54,7 +63,7 @@ public class SecurityContextFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                log.debug("Security context set for user: {} ({})", email, userId);
+                log.debug("Security context set for user: {} ({}), Device: {}", email, userId, deviceId);
 
             } catch (Exception e) {
                 log.error("Error setting security context: {}", e.getMessage());

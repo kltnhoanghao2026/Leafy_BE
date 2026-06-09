@@ -1,16 +1,38 @@
 package com.leafy.common.model.kafka;
 
 public enum EventType {
-    // Account Events (auth-service)
-    ACCOUNT_REGISTERED,
-    ACCOUNT_UPDATED,
-    ACCOUNT_DELETED,
-    ACCOUNT_VERIFIED,
-    ACCOUNT_ENABLED,
-    ACCOUNT_DISABLED,
-    
-    // User Events (user-service)
-    USER_CREATED,
+    // User Events (matching KafkaTopicProperties.UserEvents)
+    USER_REGISTERED,
     USER_UPDATED,
-    USER_DELETED
+    USER_DELETED,
+    USER_VERIFIED,
+    USER_ENABLED,
+    USER_DISABLED,
+    
+    // Message Events (matching KafkaTopicProperties.MessageEvents)
+    // Add message events here when defined
+    
+    // Notification Events (matching KafkaTopicProperties.NotificationEvents)
+    // Add notification events here when defined
+    
+    // System Events (matching KafkaTopicProperties.SystemEvents)
+    // Add system events here when defined
+    
+    // Community Events
+    POST_UPSERTED,
+    POST_DELETED,
+    COMMENT_CREATED,
+    COMMENT_DELETED,
+    VOTE_CREATED,
+    VOTE_DELETED,
+
+    // Profile Events
+    PROFILE_CREATED,
+    PROFILE_UPDATED,
+    PROFILE_DELETED,
+    PROFILE_CONNECTION_UPDATED,
+
+    // Plant Management Events
+    PLAN_UPSERTED,
+    PLAN_DELETED
 }

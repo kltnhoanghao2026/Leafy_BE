@@ -1,21 +1,82 @@
 server:
-  port: ${SERVER_PORT:8085}
+  port: ${SERVER_PORT_NOTIFICATION:}
 
 spring:
   data:
     mongodb:
-      host: ${MONGODB_HOST:localhost}
-      port: ${MONGODB_PORT:27017}
-      database: ${MONGODB_NOTIFICATION_DATABASE:leafy_notification}
-      username: ${MONGODB_USERNAME:admin}
-      password: ${MONGODB_PASSWORD:admin123}
+      host: ${MONGODB_HOST}
+      port: ${MONGODB_PORT}
+      database: ${MONGODB_DATABASE_NOTIFICATION}
+      username: ${MONGODB_USERNAME}
+      password: ${MONGODB_PASSWORD}
       authentication-database: admin
+
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
+      timeout: 60000
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    consumer:
+      group-id: notification-service-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+bondhub:
+  security:
+    gateway-auth:
+      enabled: true
+
+brevo:
+  api-key: ${BREVO_API_KEY:}
+  default-sender-email: ${BREVO_SENDER_EMAIL:}
+  default-sender-name: ${BREVO_SENDER_NAME:}
+  enabled: ${BREVO_ENABLED:false}
 
 notification:
   email:
-    enabled: ${NOTIFICATION_EMAIL_ENABLED:true}
-    from: ${NOTIFICATION_EMAIL_FROM:noreply@leafy.com}
+    enabled: ${NOTIFICATION_EMAIL_ENABLED:false}
+    from: ${NOTIFICATION_EMAIL_FROM:}
   sms:
-    enabled: ${NOTIFICATION_SMS_ENABLED:false}
+    enabled: ${NOTIFICATION_SMS_ENABLED:from}
   push:
-    enabled: ${NOTIFICATION_PUSH_ENABLED:false}
+    enabled: ${NOTIFICATION_PUSH_ENABLED:true}
+  kafka:
+    topics:
+      alertTriggered: iot.alert.triggered
+      alertReady: iot.alert.ready
+
+  # ── Batching layer (Redis-backed) ─────────────────────────────────────────
+  # Buffers raw notification events per (type, recipientId[, referenceId])
+  # and flushes them as one aggregated BatchedNotificationEvent on the
+  # internal `notification.ready` topic when the per-type window elapses.
+  # `windowSeconds: 0` marks a type as non-batchable — events flow through
+  # immediately but are still wrapped as a one-element batch so the
+  # delivery code path stays uniform.
+  batch:
+    enabled: ${NOTIFICATION_BATCH_ENABLED:true}
+    default-window-seconds: 30
+    scheduler-pool-size: 4
+    scheduler-thread-prefix: noti-batch-flush-
+    types:
+      POST_UPVOTE:     { window-seconds: 30, include-reference-in-key: true  }
+      COMMENT_UPVOTE:  { window-seconds: 30, include-reference-in-key: true  }
+      POST_COMMENT:    { window-seconds: 10, include-reference-in-key: true  }
+      COMMENT_REPLY:   { window-seconds: 5,  include-reference-in-key: true  }
+      USER_FOLLOW:     { window-seconds: 60, include-reference-in-key: false }
+      CONSULT_REQUEST: { window-seconds: 0,  include-reference-in-key: false }
+      SYSTEM:          { window-seconds: 0,  include-reference-in-key: false }
+      DIRECT_MESSAGE:  { window-seconds: 0,  include-reference-in-key: false }
+
+firebase:
+  enabled: ${FIREBASE_ENABLED:true}
+  configPath: ${FIREBASE_CONFIG_PATH:}

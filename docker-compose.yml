@@ -1,4 +1,3 @@
-version: "3.8"
 
 services:
   mongodb:
@@ -10,15 +9,44 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: admin123
-      MONGO_INITDB_DATABASE: leafy
     volumes:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
     networks:
       - leafy-network
 
+  postgresql:
+    image: postgres:16-alpine
+    container_name: leafy-postgresql
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: leafy_iot_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    networks:
+      - leafy-network
+
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: leafy-iot-mqtt
+    restart: unless-stopped
+    ports:
+      - "${IOT_MQTT_PORT:-1883}:1883"
+    healthcheck:
+      test: [ "CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -t '$$SYS/broker/version' -C 1 -W 3 >/dev/null 2>&1 || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - leafy-network
+
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
+    image: apache/kafka:3.7.0
     container_name: leafy-kafka
     restart: unless-stopped
     ports:
@@ -39,9 +67,17 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_DIRS: /var/lib/kafka/data
-      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
+      NOTIFICATION_EMAIL_ENABLED: ${NOTIFICATION_EMAIL_ENABLED}
+      NOTIFICATION_EMAIL_FROM: ${NOTIFICATION_EMAIL_FROM}
+      NOTIFICATION_SMS_ENABLED: ${NOTIFICATION_SMS_ENABLED}
+      NOTIFICATION_PUSH_ENABLED: ${NOTIFICATION_PUSH_ENABLED}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      FIREBASE_ENABLED: "true"
+      FIREBASE_CONFIG_PATH: /run/secrets/firebase-service-account.json
     volumes:
       - kafka_data:/var/lib/kafka/data
+      - ./secrets/your-file.json:/run/secrets/firebase-service-account.json:ro
     networks:
       - leafy-network
 
@@ -72,76 +108,71 @@ services:
     networks:
       - leafy-network
 
-  discovery-server:
-    build:
-      context: ./discovery-server
-      dockerfile: Dockerfile
-    container_name: leafy-discovery-server
-    restart: unless-stopped
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: leafy-mosquitto
     ports:
-      - "8761:8761"
-    environment:
-      SPRING_APPLICATION_NAME: discovery-server
-      SERVER_PORT: 8761
-      EUREKA_CLIENT_REGISTER_WITH_EUREKA: "false"
-      EUREKA_CLIENT_FETCH_REGISTRY: "false"
-    networks:
-      - leafy-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      - "1884:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    restart: unless-stopped
 
-  config-server:
-    build:
-      context: ./config-server
-      dockerfile: Dockerfile
-    container_name: leafy-config-server
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: leafy-elasticsearch
     restart: unless-stopped
-    ports:
-      - "8888:8888"
+    command: >
+      sh -c "if [ ! -d \"plugins/analysis-icu\" ]; then bin/elasticsearch-plugin install --batch analysis-icu; fi &&
+             /usr/local/bin/docker-entrypoint.sh elasticsearch"
     environment:
-      SPRING_APPLICATION_NAME: config-server
-      SERVER_PORT: 8888
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
-    depends_on:
-      - discovery-server
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
       - leafy-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -vq '\"status\":\"red\"'"]
+      interval: 20s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 60s
 
-  api-gateway:
-    build:
-      context: ./api-gateway
-      dockerfile: Dockerfile
-    container_name: leafy-api-gateway
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.0
+    container_name: leafy-kibana
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    networks:
+      - leafy-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: leafy-qdrant
     restart: unless-stopped
     ports:
-      - "8060:8060"
-    environment:
-      SPRING_APPLICATION_NAME: api-gateway
-      SERVER_PORT: 8060
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
-      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: redis123
-      JWT_SECRET: ${JWT_SECRET:-your-secret-key-min-256-bits-long-for-hs256-algorithm}
-    depends_on:
-      - discovery-server
-      - config-server
-      - redis
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
     networks:
       - leafy-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8060/actuator/health"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
       retries: 5
 
 networks:
@@ -153,3 +184,9 @@ volumes:
   mongodb_config:
   kafka_data:
   redis_data:
+  postgresql_data:
+  elasticsearch_data:
+  postgresql_farm_data:
+  mosquitto_data:
+  mosquitto_log:
+  qdrant_data:

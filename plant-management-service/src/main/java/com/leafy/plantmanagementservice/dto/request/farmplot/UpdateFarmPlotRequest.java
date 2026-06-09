@@ -1,0 +1,23 @@
+package com.leafy.plantmanagementservice.dto.request.farmplot;
+
+import com.leafy.plantmanagementservice.model.enums.FarmPlotStatus;
+import java.math.BigDecimal;
+import java.util.Map;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class UpdateFarmPlotRequest {
+    private String name;
+    private String description;
+    private BigDecimal areaM2;
+    private String addressLine;
+    private String provinceCode;
+    private String districtCode;
+    private String wardCode;
+    private Double latitude;
+    private Double longitude;
+    private Map<String, Object> boundaryGeojson;
+    private FarmPlotStatus status;
+}

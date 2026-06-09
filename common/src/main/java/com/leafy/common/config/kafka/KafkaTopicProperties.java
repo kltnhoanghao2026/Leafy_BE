@@ -10,31 +10,27 @@ import org.springframework.context.annotation.Configuration;
 @Getter
 @Setter
 public class KafkaTopicProperties {
-
-    private AccountEvents accountEvents = new AccountEvents();
+    
     private UserEvents userEvents = new UserEvents();
     private MessageEvents messageEvents = new MessageEvents();
     private NotificationEvents notificationEvents = new NotificationEvents();
-
-    @Getter
-    @Setter
-    public static class AccountEvents {
-        private String registered = "account.registered";
-        private String updated = "account.updated";
-        private String deleted = "account.deleted";
-        private String verified = "account.verified";
-        private String enabled = "account.enabled";
-        private String disabled = "account.disabled";
-    }
+    private CommunityEvents communityEvents = new CommunityEvents();
+    private ProfileEvents profileEvents = new ProfileEvents();
+    private SocketEvents socketEvents = new SocketEvents();
+    private SystemEvents systemEvents = new SystemEvents();
+    private PlantManagementEvents plantManagementEvents = new PlantManagementEvents();
 
     @Getter
     @Setter
     public static class UserEvents {
-        private String created = "user.created";
+        private String registered = "user.registered";
         private String updated = "user.updated";
         private String deleted = "user.deleted";
+        private String verified = "user.verified";
+        private String enabled = "user.enabled";
+        private String disabled = "user.disabled";
     }
-
+    
     @Getter
     @Setter
     public static class MessageEvents {
@@ -43,15 +39,47 @@ public class KafkaTopicProperties {
 
     @Getter
     @Setter
-    public static class NotificationEvents {
+    public static class SocketEvents {
+        private String socketEvents = "socket.events";
+    }
 
+    @Getter
+    @Setter
+    public static class NotificationEvents {
+        private String raw = "notification.raw";
     }
 
     @Getter
     @Setter
     public static class SystemEvents {
-
+        private String planApplyRequested = "system.plan.apply-requested";
+        private String planApplied = "system.plan.applied";
     }
 
+    @Getter
+    @Setter
+    public static class CommunityEvents {
+        private String postUpserted = "community.post.upserted";
+        private String postDeleted = "community.post.deleted";
+        private String commentCreated = "community.comment.created";
+        private String commentDeleted = "community.comment.deleted";
+        private String voteCreated = "community.vote.created";
+        private String voteDeleted = "community.vote.deleted";
+    }
 
+    @Getter
+    @Setter
+    public static class ProfileEvents {
+        private String created = "profile.created";
+        private String updated = "profile.updated";
+        private String deleted = "profile.deleted";
+        private String connectionUpdated = "profile.connection.updated";
+    }
+
+    @Getter
+    @Setter
+    public static class PlantManagementEvents {
+        private String planUpserted = "plant-management.plan.upserted";
+        private String planDeleted = "plant-management.plan.deleted";
+    }
 }

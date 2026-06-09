@@ -1,2 +1,9 @@
 /mvnw text eol=lf
 *.cmd text eol=crlf
+
+# Python
+*.py text diff=python
+*.pyc binary
+*.pyo binary
+*.pyd binary
+*.pyw text diff=python

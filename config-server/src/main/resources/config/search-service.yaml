@@ -1,0 +1,36 @@
+server:
+  port: ${SERVER_PORT_SEARCH:8088}
+
+spring:
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:${ELASTICSEARCH_PORT:9200}}
+
+  data:
+    mongodb:
+      host: ${MONGODB_HOST}
+      port: ${MONGODB_PORT}
+      database: ${MONGODB_DATABASE_SEARCH:leafy_search}
+      username: ${MONGODB_USERNAME}
+      password: ${MONGODB_PASSWORD}
+      authentication-database: admin
+
+elasticsearch:
+  url: ${ELASTICSEARCH_URL:localhost:9200}
+  username: ${ELASTICSEARCH_USERNAME:}
+  password: ${ELASTICSEARCH_PASSWORD:}
+  ssl: ${ELASTICSEARCH_SSL:false}
+
+  sync:
+    batch-size: ${ELASTICSEARCH_SYNC_BATCH_SIZE:500}
+    max-retry: ${ELASTICSEARCH_SYNC_MAX_RETRY:3}
+    parallelism: ${ELASTICSEARCH_SYNC_PARALLELISM:0}
+
+  index:
+    realtime-threads: ${ELASTICSEARCH_INDEX_REALTIME_THREADS:2}
+    async-timeout-seconds: ${ELASTICSEARCH_INDEX_ASYNC_TIMEOUT_SECONDS:30}
+    retain-index-count: ${ELASTICSEARCH_INDEX_RETAIN_INDEX_COUNT:3}
+
+  monitoring:
+    enabled: ${ELASTICSEARCH_MONITORING_ENABLED:true}
+    log-slow-operations: ${ELASTICSEARCH_LOG_SLOW_OPERATIONS:true}
+    slow-operation-threshold-ms: ${ELASTICSEARCH_SLOW_OPERATION_THRESHOLD_MS:1000}

@@ -1,91 +1,476 @@
+server:
+  port: ${SERVER_PORT_GATEWAY}
+
 spring:
   cloud:
     gateway:
-      globalcors:
-        corsConfigurations:
-          "[/**]":
-            allowedOrigins: "*"
-            allowedMethods:
-              - GET
-              - POST
-              - PUT
-              - DELETE
-              - PATCH
-              - OPTIONS
-            allowedHeaders: "*"
-            allowCredentials: false
+      server:
+        webflux:
+          routes:
+            # Actuator Routes
+            - id: actuator-routes
+              uri: http://localhost:${SERVER_PORT_GATEWAY}
+              predicates:
+                - Path=/actuator/**
 
-      routes:
-        # Auth Service Routes
-        - id: auth-service
-          uri: lb://auth-service
-          predicates:
-            - Path=/api/auth/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: authServiceCircuitBreaker
-                fallbackUri: forward:/fallback/auth-service
+            # Auth Service Routes
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: authServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/auth-service
 
-        # User Service Routes
-        - id: user-service
-          uri: lb://user-service
-          predicates:
-            - Path=/api/users/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: userServiceCircuitBreaker
-                fallbackUri: forward:/fallback/user-service
+            # Device Management Routes (Auth Service)
+            - id: device-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/devices/**,/api/users/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: authServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/auth-service
 
-        # Farm Service Routes
-        - id: farm-service
-          uri: lb://farm-service
-          predicates:
-            - Path=/api/farms/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: farmServiceCircuitBreaker
-                fallbackUri: forward:/fallback/farm-service
+            # Admin Seed Routes — unified /api/admin/seed/{domain} (all use 120s seedServiceCircuitBreaker)
+            - id: admin-seed-accounts
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/admin/seed/accounts
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/auth-service
 
-        # File Service Routes
-        - id: file-service
-          uri: lb://file-service
-          predicates:
-            - Path=/api/files/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: fileServiceCircuitBreaker
-                fallbackUri: forward:/fallback/file-service
+            - id: admin-seed-farms
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/admin/seed/farms
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
 
-        # Notification Service Routes
-        - id: notification-service
-          uri: lb://notification-service
-          predicates:
-            - Path=/api/notifications/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: notificationServiceCircuitBreaker
-                fallbackUri: forward:/fallback/notification-service
+            - id: admin-seed-plants
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/admin/seed/plants
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
 
-      default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - id: admin-seed-species-perenual
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/admin/seed/species/perenual
+              filters:
+                - RewritePath=/api/admin/seed/species/perenual, /species/seed/perenual
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
+            - id: admin-seed-community
+              uri: lb://community-feed-service
+              predicates:
+                - Path=/api/admin/seed/community
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/community-feed-service
+
+            - id: admin-seed-profiles
+              uri: lb://community-feed-service
+              predicates:
+                - Path=/api/admin/seed/profiles
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/community-feed-service
+
+            - id: admin-seed-certificates
+              uri: lb://profile-service
+              predicates:
+                - Path=/api/admin/seed/certificates
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/profile-service
+
+            - id: admin-seed-experts
+              uri: lb://profile-service
+              predicates:
+                - Path=/api/admin/seed/experts
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/profile-service
+
+            # Farm Routes (served by plant-management-service)
+            - id: farm-service
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/farms/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
+            # File Service Routes
+            - id: file-service
+              uri: lb://file-service
+              predicates:
+                - Path=/api/files/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: fileServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/file-service
+
+            # Notification Service Routes
+            - id: notification-service-admin-sync
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/notifications/admin/sync-notification-users
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: seedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/notification-service
+
+            - id: notification-service
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/notifications/**,/api/push-tokens/**,/api/mailing/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: notificationServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/notification-service
+
+            # Plant Management Service Routes
+            - id: plant-management-service
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/plants/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
+            # Species Service Routes (Plant Management)
+            - id: species-service
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/species/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
+            # Plant Events Routes (Plant Management)
+            - id: plant-events-service
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/plant-events/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
+            # Sync Routes (Plant Management)
+            - id: plant-management-sync
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/plant-management/sync/**
+              filters:
+                - RewritePath=/api/plant-management/sync/(?<segment>.*), /sync/${segment}
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
+            # Treatment Plan Routes (Plant Management)
+            - id: plans-service
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/plans/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
+            # Stats Routes (Plant Management)
+            - id: stats-service
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/api/stats/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: plantManagementServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/plant-management-service
+
+            # Profile Service Routes
+            - id: profile-service
+              uri: lb://profile-service
+              predicates:
+                - Path=/api/profiles/**, /api/preferences/**, /api/admin/certificates/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: profileServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/profile-service
+
+            # RAG Service Routes
+            - id: rag-service
+              uri: lb://rag-service
+              predicates:
+                - Path=/api/rag/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: ragServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/rag-service
+
+            # OpenAPI Documentation Routes for Auth Service
+            - id: auth-service-openapi
+              uri: lb://auth-service
+              predicates:
+                - Path=/auth-service/v3/api-docs/**
+              filters:
+                - RewritePath=/auth-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for User Service
+            - id: user-service-openapi
+              uri: lb://user-service
+              predicates:
+                - Path=/user-service/v3/api-docs/**
+              filters:
+                - RewritePath=/user-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for File Service
+            - id: file-service-openapi
+              uri: lb://file-service
+              predicates:
+                - Path=/file-service/v3/api-docs/**
+              filters:
+                - RewritePath=/file-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for Notification Service
+            - id: notification-service-openapi
+              uri: lb://notification-service
+              predicates:
+                - Path=/notification-service/v3/api-docs/**
+              filters:
+                - RewritePath=/notification-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for Plant Management Service
+            - id: plant-management-service-openapi
+              uri: lb://plant-management-service
+              predicates:
+                - Path=/plant-management-service/v3/api-docs/**
+              filters:
+                - RewritePath=/plant-management-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for Profile Service
+            - id: profile-service-openapi
+              uri: lb://profile-service
+              predicates:
+                - Path=/profile-service/v3/api-docs/**
+              filters:
+                - RewritePath=/profile-service/v3/api-docs, /v3/api-docs
+
+            # OpenAPI Documentation Routes for RAG Service
+            - id: rag-service-openapi
+              uri: lb://rag-service
+              predicates:
+                - Path=/rag-service/v3/api-docs/**
+              filters:
+                - RewritePath=/rag-service/v3/api-docs, /v3/api-docs
+
+            # Disease Classification Service Routes
+            - id: disease-detection-service-internal
+              uri: lb://disease-detection-service
+              predicates:
+                - Path=/internal/diseases/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: diseaseClassificationServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/disease-detection-service
+
+            - id: disease-detection-service
+              uri: lb://disease-detection-service
+              predicates:
+                - Path=/api/diseases/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: diseaseClassificationServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/disease-detection-service
+
+            # OpenAPI Documentation Routes for Disease Classification Service
+            - id: disease-detection-service-openapi
+              uri: lb://disease-detection-service
+              predicates:
+                - Path=/disease-detection-service/v3/api-docs/**
+              filters:
+                - RewritePath=/disease-detection-service/v3/api-docs, /v3/api-docs
+
+            #IOT Metrics Collector Service
+            - id: iot-metrics-collector-service
+              uri: lb://iot-metrics-collector-service
+              predicates:
+                - Path=/api/iot/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: iotMetricsCollectorServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/iot-metrics-collector-service
+
+            - id: iot-metrics-collector-service-admin-camera
+              uri: lb://iot-metrics-collector-service
+              predicates:
+                - Path=/api/admin/camera/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: iotMetricsCollectorServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/iot-metrics-collector-service
+
+              #OpenAPI Documentation for IOT Metrics Collector Service
+            - id: iot-metrics-collector-service-openapi
+              uri: lb://iot-metrics-collector-service
+              predicates:
+                - Path=/iot-metrics-collector-service/v3/api-docs/**
+              filters:
+                - RewritePath=/iot-metrics-collector-service/v3/api-docs, /v3/api-docs
+
+            # Community Feed Service Routes
+            - id: community-feed-service
+              uri: lb://community-feed-service
+              predicates:
+                - Path=/api/posts/**, /api/comments/**, /api/votes/**, /api/feed/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: communityFeedServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/community-feed-service
+
+            # Search Service Routes
+            - id: search-service
+              uri: lb://search-service
+              predicates:
+                - Path=/api/search/search, /api/search/posts/**, /api/search/profiles/**, /api/search/plans/**,/api/search/sync/**, /api/search/failed-events/**
+              filters:
+                - StripPrefix=2
+                - name: CircuitBreaker
+                  args:
+                    name: searchServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/search-service
+
+            # OpenAPI Documentation Routes for Community Feed Service
+            - id: community-feed-service-openapi
+              uri: lb://community-feed-service
+              predicates:
+                - Path=/community-feed-service/v3/api-docs, /community-feed-service/v3/api-docs/**, /community-feed-service/v3/api-doc, /community-feed-service/v3/api-doc/**
+              filters:
+                - RewritePath=/community-feed-service/v3/api-docs, /v3/api-docs
+                - RewritePath=/community-feed-service/v3/api-doc, /v3/api-doc
+
+            # Messages Service Routes
+            - id: messages-service
+              uri: lb://message-service
+              predicates:
+                - Path=/api/messages/**, /api/conversations/**, /api/v2/conversations/**
+              filters:
+                - StripPrefix=1
+                - name: CircuitBreaker
+                  args:
+                    name: messagesServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/messages-service
+
+            # Socket Service Routes (WebSocket — SockJS for web clients)
+            - id: socket-service-ws
+              uri: lb://socket-service
+              predicates:
+                - Path=/ws/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: socketServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/socket-service
+
+            # Socket Service Routes (WebSocket — plain WS for React Native clients)
+            - id: socket-service-ws-native
+              uri: lb:ws://socket-service
+              predicates:
+                - Path=/ws-native/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: socketServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/socket-service
+
+            # OpenAPI Documentation Routes for Messages Service
+            - id: messages-service-openapi
+              uri: lb://message-service
+              predicates:
+                - Path=/message-service/v3/api-docs/**
+              filters:
+                - RewritePath=/message-service/v3/api-docs, /v3/api-docs
+
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Access-Control-Allow-Methods Access-Control-Allow-Headers, RETAIN_FIRST
   kafka:
     enabled: false
   # Redis Configuration for Token Blacklist
   data:
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
-      password: ${SPRING_DATA_REDIS_PASSWORD:redis123}
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
       timeout: 60000
       lettuce:
         pool:
@@ -93,19 +478,16 @@ spring:
           max-idle: 8
           min-idle: 0
 
-server:
-  port: ${SERVER_PORT:8060}
-
 # Eureka Client Configuration
 eureka:
   client:
     serviceUrl:
-      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
     registerWithEureka: true
     fetchRegistry: true
   instance:
     preferIpAddress: true
-    hostname: ${HOSTNAME:localhost}
+    hostname: ${HOSTNAME}
 
 # Actuator Configuration
 management:
@@ -142,11 +524,27 @@ resilience4j:
         baseConfig: default
       userServiceCircuitBreaker:
         baseConfig: default
-      farmServiceCircuitBreaker:
-        baseConfig: default
       fileServiceCircuitBreaker:
         baseConfig: default
       notificationServiceCircuitBreaker:
+        baseConfig: default
+      plantManagementServiceCircuitBreaker:
+        baseConfig: default
+      profileServiceCircuitBreaker:
+        baseConfig: default
+      ragServiceCircuitBreaker:
+        baseConfig: default
+      diseaseClassificationServiceCircuitBreaker:
+        baseConfig: default
+      iotMetricsCollectorServiceCircuitBreaker:
+        baseConfig: default
+      communityFeedServiceCircuitBreaker:
+        baseConfig: default
+      seedServiceCircuitBreaker:
+        baseConfig: default
+      messagesServiceCircuitBreaker:
+        baseConfig: default
+      socketServiceCircuitBreaker:
         baseConfig: default
 
   timelimiter:
@@ -158,11 +556,25 @@ resilience4j:
         baseConfig: default
       userServiceCircuitBreaker:
         baseConfig: default
-      farmServiceCircuitBreaker:
-        baseConfig: default
       fileServiceCircuitBreaker:
         baseConfig: default
       notificationServiceCircuitBreaker:
+        baseConfig: default
+      plantManagementServiceCircuitBreaker:
+        baseConfig: default
+      profileServiceCircuitBreaker:
+        baseConfig: default
+      ragServiceCircuitBreaker:
+        timeoutDuration: 120s
+      diseaseClassificationServiceCircuitBreaker:
+        baseConfig: default
+      iotMetricsCollectorServiceCircuitBreaker:
+        baseConfig: default
+      communityFeedServiceCircuitBreaker:
+        baseConfig: default
+      seedServiceCircuitBreaker:
+        timeoutDuration: 120s
+      socketServiceCircuitBreaker:
         baseConfig: default
 
 # JWT Configuration
@@ -171,12 +583,37 @@ jwt:
   expiration: 86400000 # 24 hours in milliseconds
   refresh-expiration: 604800000 # 7 days in milliseconds
 
-# Logging Configuration
-logging:
-  level:
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.web: DEBUG
-    reactor.netty: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+# SpringDoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    config-url: /v3/api-docs/swagger-config
+    urls:
+      - name: auth-service
+        url: /auth-service/v3/api-docs
+      - name: user-service
+        url: /user-service/v3/api-docs
+      - name: file-service
+        url: /file-service/v3/api-docs
+      - name: notification-service
+        url: /notification-service/v3/api-docs
+      - name: plant-management-service
+        url: /plant-management-service/v3/api-docs
+      - name: profile-service
+        url: /profile-service/v3/api-docst
+      - name: rag-service
+        url: /rag-service/v3/api-docs
+      - name: disease-detection-service
+        url: /disease-detection-service/v3/api-docs
+      - name: iot-metrics-collector-service
+        url: /iot-metrics-collector-service/v3/api-docs
+      - name: community-feed-service
+        url: /community-feed-service/v3/api-docs
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    filter: true

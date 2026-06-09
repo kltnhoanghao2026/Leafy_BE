@@ -1,36 +1,88 @@
 server:
-  port: ${SERVER_PORT:8081}
+  port: ${SERVER_PORT_AUTH:8081}
 
 spring:
   data:
     mongodb:
-      host: ${MONGODB_HOST:localhost}
-      port: ${MONGODB_PORT:27017}
-      database: ${MONGODB_AUTH_DATABASE:leafy_auth}
-      username: ${MONGODB_USERNAME:admin}
-      password: ${MONGODB_PASSWORD:admin123}
+      host: ${MONGODB_HOST}
+      port: ${MONGODB_PORT}
+      database: ${MONGODB_DATABASE_AUTH}
+      username: ${MONGODB_USERNAME}
+      password: ${MONGODB_PASSWORD}
       authentication-database: admin
 
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
-      password: ${SPRING_DATA_REDIS_PASSWORD:redis123}
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
       timeout: 60000
 
 jwt:
-  secret: ${JWT_SECRET:your-secret-key-min-256-bits-long-for-hs256-algorithm}
-  expiration: 86400000 # 24 hours
-  refresh-expiration: 604800000 # 7 days
+  secret: ${JWT_SECRET}
+  access:
+    expiration: ${JWT_ACCESS_EXPIRATION}
+  refresh:
+    expiration-web: ${JWT_REFRESH_WEB_EXPIRATION}
+    expiration-mobile: ${JWT_REFRESH_MOBILE_EXPIRATION}
+
+# Security configuration
+security:
+  cors:
+    allowed-origins: ${ALLOWED_ORIGINS}
+  rate-limit:
+    login:
+      max-attempts: 5
+      window: 60 # seconds
+    refresh:
+      max-attempts: 10
+      window: 60 # seconds
+
+# OTP configuration
+otp:
+  length: 6
+  ttl: 300 # 5 minutes in seconds
+  max-attempts: 3
+  rate-limit:
+    max-requests: 3
+    window-seconds: 300 # 5 minutes
+
+# Registration configuration
+registration:
+  data:
+    ttl: 300 # 5 minutes in seconds
+
+# Cookie configuration (Web clients)
+cookie:
+  refresh-token:
+    http-only: true
+    secure: false # Set to true in production (requires HTTPS)
+    same-site: Strict
+    max-age: 2592000 # 30 days (seconds)
 
 # Email configuration (if needed)
 mail:
-  host: ${MAIL_HOST:smtp.gmail.com}
-  port: ${MAIL_PORT:587}
-  username: ${MAIL_USERNAME:}
-  password: ${MAIL_PASSWORD:}
+  host: ${MAIL_HOST}
+  port: ${MAIL_PORT}
+  username: ${MAIL_USERNAME}
+  password: ${MAIL_PASSWORD}
   properties:
     mail:
       smtp:
         auth: true
         starttls:
           enable: true
+
+# Feign configuration
+feign:
+  client:
+    config:
+      default:
+        loggerLevel: FULL
+        connectTimeout: 5000
+        readTimeout: 10000
+
+# Logging configuration
+logging:
+  level:
+    com.leafy.authservice.client: DEBUG
+    feign: DEBUG

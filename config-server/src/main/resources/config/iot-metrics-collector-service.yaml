@@ -1,0 +1,68 @@
+server:
+  port: ${SERVER_IOT_PORT:8091}
+
+spring:
+  application:
+    name: iot-metrics-collector-service
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:leafy_iot_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres123}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+app:
+  bootstrap:
+    seed-sensor-types: ${IOT_SEED_SENSOR_TYPES:true}
+  kafka:
+    topics:
+      alert-triggered: ${IOT_ALERT_TRIGGERED_TOPIC:iot.alert.triggered}
+  mqtt:
+    url: ${MQTT_BROKER_URL:tcp://137.66.4.201:1883}
+    username: ${MQTT_USERNAME:admin}
+    password: ${MQTT_PASSWORD:admin}
+    client-id: ${MQTT_CLIENT_ID:iot-metrics-collector-service}
+    topics:
+      - coffee/prod/devices/+/telemetry
+      - coffee/prod/devices/+/status
+      - coffee/prod/devices/+/image/meta
+      - coffee/prod/devices/+/ack
+    qos: 1
+    completion-timeout: 5000
+    automatic-reconnect: true
+    clean-session: true
+    connection-timeout: 10
+    keep-alive-interval: 20
+  file-service:
+    upload-url: ${FILE_SERVICE_UPLOAD_URL:http://localhost:8084/internal/files/upload}
+  disease-detection:
+    gateway-url: ${DISEASE_DETECTION_GATEWAY_URL:http://localhost:${SERVER_PORT_GATEWAY:8080}}
+    predict-url: ${DISEASE_DETECTION_PREDICT_URL:http://localhost:${SERVER_PORT_GATEWAY:8080}/internal/diseases/predict}

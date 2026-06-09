@@ -22,11 +22,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleAppException(AppException exception) {
         ErrorCode errorCode = exception.getErrorCode();
-        String message = messageSource.getMessage(
-                errorCode.getMessageKey(),
-                null,
-                errorCode.getMessageKey(),
-                LocaleContextHolder.getLocale());
+
+        // If a raw downstream detail message was captured, use it directly;
+        // otherwise resolve via i18n as normal.
+        String message;
+        if (exception.getDetail() != null) {
+            message = exception.getDetail();
+        } else {
+            message = messageSource.getMessage(
+                    errorCode.getMessageKey(),
+                    null,
+                    errorCode.getMessageKey(),
+                    LocaleContextHolder.getLocale());
+        }
 
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
@@ -63,8 +71,14 @@ public class GlobalExceptionHandler {
 
         exception.printStackTrace();
 
+        String message = messageSource.getMessage(
+                errorCode.getMessageKey(),
+                null,
+                errorCode.getMessageKey(),
+                LocaleContextHolder.getLocale());
+
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
-                .body(ApiResponse.error(errorCode.getCode(), errorCode.getMessageKey(), null));
+                .body(ApiResponse.error(errorCode.getCode(), message, null));
     }
 }
